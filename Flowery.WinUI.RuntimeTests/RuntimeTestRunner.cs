@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using Flowery.Controls;
 using Flowery.Services;
 using Flowery.WinUI.Kanban.Controls;
 using Microsoft.UI.Dispatching;
@@ -26,6 +28,12 @@ namespace Flowery.WinUI.RuntimeTests
                 // whatever size the hosting app (or a previous user session) applied.
                 FlowerySizeManager.Reset();
 
+                // Rendering assertions use normal motion regardless of the host's Windows preference.
+                // Reduced-motion tests switch this in-memory policy explicitly and restore it.
+                var appearance = typeof(DaisyButton).Assembly.GetType("Flowery.Services.DaisySystemAppearance", true)!;
+                appearance.GetMethod("SetMotionPreference", BindingFlags.Static | BindingFlags.NonPublic)!
+                    .Invoke(null, new object[] { true });
+
                 // Keep tests away from the app's real state storage: saved settings (e.g. the
                 // Kanban's last view) must not leak into tests, and tests must not write user data.
                 StateStorageProvider.Configure(new InMemoryStateStorage());
@@ -37,10 +45,14 @@ namespace Flowery.WinUI.RuntimeTests
             }).ConfigureAwait(false);
 
             var testCases = DiscoverTests();
+            using var progress = new StreamWriter(System.IO.Path.ChangeExtension(resultPath, ".progress.log")) { AutoFlush = true };
             foreach (var testCase in testCases)
             {
+                progress.WriteLine($"START {testCase.Name}");
                 var result = await ExecuteTestCaseAsync(dispatcher, testCase).ConfigureAwait(false);
                 results.Add(result);
+                progress.WriteLine($"{(result.Passed ? "PASS" : "FAIL")} {testCase.Name}");
+                if (result.Message is not null) progress.WriteLine(result.Message);
             }
 
             WriteResults(resultPath, results);

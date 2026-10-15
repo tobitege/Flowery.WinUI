@@ -19,6 +19,7 @@ namespace Flowery.Controls.ColorPicker
     /// </summary>
     public partial class DaisyColorGrid : DaisyBaseContentControl, IScalableControl
     {
+        protected override Microsoft.UI.Xaml.Automation.Peers.AutomationPeer OnCreateAutomationPeer() => new DaisyColorValueAutomationPeer(this);
         private const double BaseTextFontSize = 12.0;
 
         private readonly Dictionary<int, Border> _cells = new();
@@ -266,6 +267,7 @@ namespace Flowery.Controls.ColorPicker
             if (d is DaisyColorGrid grid)
             {
                 grid.HandleColorChanged((Color)e.NewValue);
+                DaisySelectorAutomationPeers.RaiseColorValueChanged(grid, (Color)e.OldValue, (Color)e.NewValue);
             }
         }
 
@@ -427,6 +429,7 @@ namespace Flowery.Controls.ColorPicker
                 if (color.HasValue && color.Value != Color)
                 {
                     Color = color.Value;
+                    OnColorChangedRaised(new ColorChangedEventArgs(color.Value));
                 }
             }
             finally
@@ -468,6 +471,9 @@ namespace Flowery.Controls.ColorPicker
 
         private Color? GetColorAtIndex(int index)
         {
+            if (index < 0)
+                return null;
+
             if (Palette != null)
             {
                 if (index < Palette.Count)

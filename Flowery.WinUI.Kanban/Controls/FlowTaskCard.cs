@@ -7,6 +7,8 @@ using Flowery.Theming;
 using Flowery.Enums;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
+using Microsoft.UI.Xaml.Automation.Provider;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
@@ -52,6 +54,42 @@ namespace Flowery.WinUI.Kanban.Controls
             UpdateSelectionBadgePlacement();
         }
 
+        protected override AutomationPeer OnCreateAutomationPeer() => new TaskCardAutomationPeer(this);
+
+        private sealed class TaskCardAutomationPeer : FrameworkElementAutomationPeer, IInvokeProvider, ISelectionItemProvider
+        {
+            private readonly FlowTaskCard _owner;
+            public TaskCardAutomationPeer(FlowTaskCard owner) : base(owner) => _owner = owner;
+            protected override string GetClassNameCore() => nameof(FlowTaskCard);
+            protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.ListItem;
+            protected override object GetPatternCore(PatternInterface patternInterface) =>
+                patternInterface is PatternInterface.Invoke or PatternInterface.SelectionItem ? this : base.GetPatternCore(patternInterface);
+            public bool IsSelected => _owner.Task?.IsSelected == true;
+            public IRawElementProviderSimple? SelectionContainer =>
+                _owner.FindParentKanban() is { } board ? ProviderFromPeer(CreatePeerForElement(board)) : null;
+            public void Invoke()
+            {
+                if (!_owner.IsEnabled) throw new ElementNotEnabledException();
+                _owner.TryExecuteEdit();
+            }
+            public void Select()
+            {
+                if (!_owner.IsEnabled) throw new ElementNotEnabledException();
+                _owner.FindParentKanban()?.DeselectAllTasks();
+                AddToSelection();
+            }
+            public void AddToSelection()
+            {
+                if (!_owner.IsEnabled) throw new ElementNotEnabledException();
+                if (_owner.Task is { } task) task.IsSelected = true;
+            }
+            public void RemoveFromSelection()
+            {
+                if (!_owner.IsEnabled) throw new ElementNotEnabledException();
+                if (_owner.Task is { } task) task.IsSelected = false;
+            }
+        }
+
         /// <summary>
         /// FlowTaskCard disables neumorphic effects to prevent composition effect storms
         /// when many cards are rendered on the board.
@@ -60,6 +98,7 @@ namespace Flowery.WinUI.Kanban.Controls
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            UpdateTaskBinding(_trackedTask, Task);
             // Find parent FlowKanban and subscribe to its size changes
             _parentKanban = FindParentKanban();
             if (_parentKanban != null)
@@ -556,6 +595,8 @@ namespace Flowery.WinUI.Kanban.Controls
             if (d is FlowTaskCard card && e.NewValue is bool isSelected)
             {
                 card.UpdateSelectionState(isSelected);
+                if (FrameworkElementAutomationPeer.FromElement(card) is { } peer)
+                    peer.RaisePropertyChangedEvent(SelectionItemPatternIdentifiers.IsSelectedProperty, e.OldValue, isSelected);
             }
         }
         #endregion
@@ -792,6 +833,17 @@ namespace Flowery.WinUI.Kanban.Controls
 
         private void OnCardKeyDown(object sender, KeyRoutedEventArgs e)
         {
+            if (e.Key == Windows.System.VirtualKey.Space &&
+                (CloseCommandParameter as FlowTask ?? Task) is { } task)
+            {
+                var column = FindAncestor<FlowKanbanColumn>(this);
+                if (column != null)
+                    column.HandleTaskSelection(task, false, true);
+                else
+                    task.IsSelected = !task.IsSelected;
+                e.Handled = true;
+                return;
+            }
             if (e.Key != Windows.System.VirtualKey.Enter)
                 return;
 
@@ -923,6 +975,7 @@ namespace Flowery.WinUI.Kanban.Controls
             if (string.Equals(e.PropertyName, nameof(FlowTask.PlannedEndDate), StringComparison.Ordinal))
             {
                 UpdateDueDateText();
+                UpdateDateRange();
             }
             else if (string.Equals(e.PropertyName, nameof(FlowTask.Title), StringComparison.Ordinal))
             {
@@ -954,8 +1007,7 @@ namespace Flowery.WinUI.Kanban.Controls
             {
                 UpdateAssignee();
             }
-            else if (string.Equals(e.PropertyName, nameof(FlowTask.PlannedStartDate), StringComparison.Ordinal)
-                     || string.Equals(e.PropertyName, nameof(FlowTask.PlannedEndDate), StringComparison.Ordinal))
+            else if (string.Equals(e.PropertyName, nameof(FlowTask.PlannedStartDate), StringComparison.Ordinal))
             {
                 UpdateDateRange();
             }

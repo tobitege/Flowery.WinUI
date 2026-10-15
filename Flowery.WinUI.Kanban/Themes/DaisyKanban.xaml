@@ -995,6 +995,12 @@
                                                               IsActive="{Binding Tag.IsLoading, ElementName=PART_UsersRoot}"
                                                               Foreground="{ThemeResource DaisyAccentBrush}"
                                                               Visibility="{Binding Tag.IsLoading, ElementName=PART_UsersRoot, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                <InfoBar Grid.Row="0"
+                                                         IsOpen="{Binding Tag.HasLoadError, ElementName=PART_UsersRoot}"
+                                                         IsClosable="False"
+                                                         Severity="Error"
+                                                         Title="{Binding [Kanban_Users_LoadError]}"
+                                                         Message="{Binding Tag.LoadErrorMessage, ElementName=PART_UsersRoot}" />
                                                 <ListView Grid.Row="1"
                                                           ItemsSource="{Binding Tag.FilteredUsers, ElementName=PART_UsersRoot}"
                                                           SelectedItem="{Binding Tag.SelectedUser, ElementName=PART_UsersRoot, Mode=TwoWay}"

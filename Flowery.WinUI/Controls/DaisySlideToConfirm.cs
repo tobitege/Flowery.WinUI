@@ -23,6 +23,8 @@ namespace Flowery.Controls
         private SolidColorBrush? _originalLabelBrush;
         private Color _targetLabelColor;
         private DaisyNeumorphicHelper? _handleNeumorphicHelper;
+        private Storyboard? _handleStoryboard;
+        private double _handleTargetX;
 
         public DaisySlideToConfirm()
         {
@@ -44,6 +46,8 @@ namespace Flowery.Controls
         protected override void OnLoaded()
         {
             base.OnLoaded();
+            DaisyMotion.Changed -= OnMotionChanged;
+            DaisyMotion.Changed += OnMotionChanged;
             // Re-apply colors when loaded
             ApplyAll();
             UpdateAutomationName();
@@ -52,8 +56,24 @@ namespace Flowery.Controls
         protected override void OnUnloaded()
         {
             base.OnUnloaded();
+            DaisyMotion.Changed -= OnMotionChanged;
+            FinishHandleAnimation();
             _handleNeumorphicHelper?.Dispose();
             _handleNeumorphicHelper = null;
+        }
+
+        private void OnMotionChanged(object? sender, EventArgs e)
+        {
+            if (!DaisyMotion.AnimationsEnabled)
+                FinishHandleAnimation();
+        }
+
+        private void FinishHandleAnimation()
+        {
+            _handleStoryboard?.Stop();
+            _handleStoryboard = null;
+            if (_handleTransform != null)
+                _handleTransform.X = _handleTargetX;
         }
 
         protected override void OnThemeChanged(string themeName)
@@ -773,6 +793,14 @@ namespace Flowery.Controls
             if (_handleTransform == null)
                 return;
 
+            _handleStoryboard?.Stop();
+            _handleTargetX = targetX;
+            if (!IsLoaded || !DaisyMotion.AnimationsEnabled)
+            {
+                FinishHandleAnimation();
+                return;
+            }
+
             var storyboard = new Storyboard();
             var animation = new DoubleAnimation
             {
@@ -784,6 +812,12 @@ namespace Flowery.Controls
             Storyboard.SetTarget(animation, _handleTransform);
             Storyboard.SetTargetProperty(animation, "X");
             storyboard.Children.Add(animation);
+            _handleStoryboard = storyboard;
+            storyboard.Completed += (_, _) =>
+            {
+                if (ReferenceEquals(_handleStoryboard, storyboard))
+                    FinishHandleAnimation();
+            };
             storyboard.Begin();
         }
 

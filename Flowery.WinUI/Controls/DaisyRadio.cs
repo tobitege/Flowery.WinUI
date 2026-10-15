@@ -88,6 +88,7 @@ namespace Flowery.Controls
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            Flowery.Services.DaisySystemAppearance.Initialize(XamlRoot);
             _foregroundCallbackToken = RegisterPropertyChangedCallback(ForegroundProperty, OnForegroundChanged);
             _fontSizeCallbackToken = RegisterPropertyChangedCallback(FontSizeProperty, OnFontSizeChanged);
             EnsureForegroundOverrideInitialized();

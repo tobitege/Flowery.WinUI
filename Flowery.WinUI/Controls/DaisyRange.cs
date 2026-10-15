@@ -16,6 +16,7 @@ namespace Flowery.Controls
     /// </summary>
     public partial class DaisyRange : DaisyBaseContentControl
     {
+        protected override Microsoft.UI.Xaml.Automation.Peers.AutomationPeer OnCreateAutomationPeer() => new DaisyRangeAutomationPeer(this);
         private Border? _trackBorder;
         private Border? _fillBorder;
         private Ellipse? _thumb;
@@ -182,6 +183,8 @@ namespace Flowery.Controls
             if (d is DaisyRange r)
             {
                 r.UpdateThumbPosition();
+                if (e.Property == ValueProperty)
+                    DaisySelectorAutomationPeers.RaiseRangeValueChanged(r, (double)e.OldValue, (double)e.NewValue);
             }
         }
 

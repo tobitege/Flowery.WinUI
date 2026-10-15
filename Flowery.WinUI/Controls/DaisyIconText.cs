@@ -245,6 +245,9 @@ namespace Flowery.Controls
         }
 
         private long _foregroundCallbackToken;
+        private bool _isApplyingForeground;
+        private bool _ownsForeground;
+        private Brush? _ownedForeground;
 
         #region Lifecycle
 
@@ -281,6 +284,8 @@ namespace Flowery.Controls
 
         private void OnForegroundChanged(DependencyObject sender, DependencyProperty dp)
         {
+            if (!_isApplyingForeground)
+                _ownsForeground = false;
             SyncInternalForeground();
         }
 
@@ -433,7 +438,7 @@ namespace Flowery.Controls
         {
             // If Foreground was externally set (e.g., by parent DaisyButton), respect that value.
             // Only auto-compute foreground when no external value has been set.
-            if (ReadLocalValue(ForegroundProperty) != DependencyProperty.UnsetValue)
+            if ((!_ownsForeground || !ReferenceEquals(Foreground, _ownedForeground)) && ReadLocalValue(ForegroundProperty) != DependencyProperty.UnsetValue)
             {
                 // Foreground is externally controlled – just sync to internal elements
                 SyncInternalForeground();
@@ -489,7 +494,17 @@ namespace Flowery.Controls
                 }
             }
 
-            Foreground = brush;
+            _isApplyingForeground = true;
+            try
+            {
+                Foreground = brush;
+                _ownsForeground = true;
+                _ownedForeground = brush;
+            }
+            finally
+            {
+                _isApplyingForeground = false;
+            }
             SyncInternalForeground();
         }
 

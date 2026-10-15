@@ -35,10 +35,16 @@ namespace Flowery.Controls
             Loaded += OnLoaded;
             Unloaded += OnUnloaded;
             SizeChanged += OnSizeChanged;
+            RegisterPropertyChangedCallback(IsPaneOpenProperty, (_, _) =>
+            {
+                if (IsDrawerOpen != IsPaneOpen)
+                    IsDrawerOpen = IsPaneOpen;
+            });
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            Flowery.Services.DaisySystemAppearance.Initialize(XamlRoot);
             _lifecycle.HandleLoaded();
 
             // Sync initial values from dependency properties to base SplitView properties

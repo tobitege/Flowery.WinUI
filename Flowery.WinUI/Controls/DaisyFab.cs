@@ -227,6 +227,7 @@ namespace Flowery.Controls
         protected override void OnLoaded()
         {
             base.OnLoaded();
+            Flowery.Services.DaisyMotion.Changed += OnMotionChanged;
 
             if (_rootGrid != null)
             {
@@ -236,6 +237,18 @@ namespace Flowery.Controls
 
             BuildVisualTree();
             UpdateTriggerButton();
+        }
+
+        protected override void OnUnloaded()
+        {
+            Flowery.Services.DaisyMotion.Changed -= OnMotionChanged;
+            StopActionsStoryboard();
+            base.OnUnloaded();
+        }
+
+        private void OnMotionChanged(object? sender, EventArgs args)
+        {
+            if (!Flowery.Services.DaisyMotion.AnimationsEnabled) UpdateActionsVisibility();
         }
 
         protected override void OnThemeChanged(string themeName)
@@ -414,6 +427,7 @@ namespace Flowery.Controls
             Content = _rootGrid;
 
             UpdateActionsLayout();
+            UpdateActionsVisibility();
             UpdateAutomationProperties();
         }
 
@@ -446,6 +460,17 @@ namespace Flowery.Controls
                 return;
 
             StopActionsStoryboard();
+
+            if (!Flowery.Services.DaisyMotion.AnimationsEnabled)
+            {
+                _actionsPanel.Visibility = IsOpen ? Visibility.Visible : Visibility.Collapsed;
+                foreach (var button in _actionButtons)
+                {
+                    button.Opacity = 1;
+                    FloweryAnimationHelpers.ResetTransform(FloweryAnimationHelpers.EnsureCompositeTransform(button));
+                }
+                return;
+            }
 
             if (IsOpen)
             {

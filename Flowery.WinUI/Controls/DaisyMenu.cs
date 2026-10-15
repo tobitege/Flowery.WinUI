@@ -38,6 +38,7 @@ namespace Flowery.Controls
         protected override void OnLoaded()
         {
             base.OnLoaded();
+            DaisyMotion.Changed += OnMotionChanged;
 
             if (_containerBorder != null)
             {
@@ -46,6 +47,18 @@ namespace Flowery.Controls
             }
 
             CollectAndDisplay();
+        }
+
+        protected override void OnUnloaded()
+        {
+            DaisyMotion.Changed -= OnMotionChanged;
+            StopSelectionStoryboard();
+            base.OnUnloaded();
+        }
+
+        private void OnMotionChanged(object? sender, EventArgs args)
+        {
+            if (!DaisyMotion.AnimationsEnabled) UpdateSelectionIndicator(animate: false);
         }
 
         protected override void OnThemeChanged(string themeName)
@@ -315,7 +328,7 @@ namespace Flowery.Controls
             SetSelectionTarget(null);
         }
 
-        private void UpdateSelectionIndicator(bool animate)
+        internal void UpdateSelectionIndicator(bool animate)
         {
             if (!IsSelectionAnimationEnabled)
             {
@@ -415,7 +428,7 @@ namespace Flowery.Controls
                 _selectionIndicator.CornerRadius = selectedItem.RootBorder.CornerRadius;
             }
 
-            var shouldAnimate = animate && _selectionIndicator.Opacity > 0;
+            var shouldAnimate = animate && DaisyMotion.AnimationsEnabled && _selectionIndicator.Opacity > 0;
             if (!shouldAnimate)
             {
                 StopSelectionStoryboard();
@@ -576,7 +589,10 @@ namespace Flowery.Controls
         private static void OnAppearanceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is DaisyMenuItem item && item.IsLoaded)
+            {
                 item.RebuildVisual();
+                item.ParentMenu?.UpdateSelectionIndicator(animate: false);
+            }
         }
 
         private void BuildVisualTree()

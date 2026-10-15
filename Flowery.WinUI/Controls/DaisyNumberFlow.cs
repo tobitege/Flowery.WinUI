@@ -400,6 +400,7 @@ namespace Flowery.Controls
         protected override void OnLoaded()
         {
             base.OnLoaded();
+            DaisyMotion.Changed += OnMotionChanged;
             BuildVisualTree();
             ApplyAll();
             UpdateParts(forceReset: true);
@@ -411,8 +412,13 @@ namespace Flowery.Controls
         protected override void OnUnloaded()
         {
             base.OnUnloaded();
+            DaisyMotion.Changed -= OnMotionChanged;
             KeyDown -= OnKeyDown;
+            foreach (var part in _parts)
+                part.Dispose();
         }
+
+        private void OnMotionChanged(object? sender, EventArgs e) => UpdateParts(forceReset: true);
 
         protected override void OnThemeChanged(string themeName)
         {
@@ -801,18 +807,74 @@ namespace Flowery.Controls
 
         private void AssignDigitIndices()
         {
+            var canSelect = TryGetFractionalDigits(out var fractionalDigits, out var scale);
             var digitIndex = 0;
             for (int i = _parts.Count - 1; i >= 0; i--)
             {
-                if (_parts[i].IsDigit)
+                if (_parts[i].IsDigit && canSelect)
                 {
                     _parts[i].DigitIndex = digitIndex++;
+                    _parts[i].DecimalExponent = _parts[i].DigitIndex - fractionalDigits - scale;
                 }
                 else
                 {
                     _parts[i].DigitIndex = -1;
                 }
             }
+            if (SelectedDigitIndex.HasValue && GetSelectedPlaceValue(SelectedDigitIndex.Value) == null)
+                SelectedDigitIndex = null;
+        }
+
+        private bool TryGetFractionalDigits(out int fractionalDigits, out int scale)
+        {
+            fractionalDigits = 0;
+            scale = 0;
+            var format = string.IsNullOrEmpty(FormatString) ? "G" : FormatString;
+            if (format.All(static c => c == '0'))
+                return true;
+
+            var customDecimalIndex = format.IndexOf('.');
+            if (customDecimalIndex > 0 && customDecimalIndex < format.Length - 1 &&
+                format.Take(customDecimalIndex).All(static c => c == '0') &&
+                format.Skip(customDecimalIndex + 1).All(static c => c == '0'))
+            {
+                fractionalDigits = format.Length - customDecimalIndex - 1;
+                return true;
+            }
+
+            var specifier = char.ToUpperInvariant(format[0]);
+            if (specifier is not ('N' or 'F' or 'C' or 'P' or 'G') ||
+                format.Skip(1).Any(static c => !char.IsAsciiDigit(c)))
+                return false;
+
+            var formatted = Value?.ToString(FormatString, Culture) ?? string.Empty;
+            if (specifier == 'G' && formatted.IndexOfAny(['E', 'e']) >= 0)
+                return false;
+
+            var separator = specifier switch
+            {
+                'C' => Culture.NumberFormat.CurrencyDecimalSeparator,
+                'P' => Culture.NumberFormat.PercentDecimalSeparator,
+                _ => Culture.NumberFormat.NumberDecimalSeparator
+            };
+            var decimalIndex = formatted.LastIndexOf(separator, StringComparison.Ordinal);
+            if (decimalIndex >= 0)
+                fractionalDigits = formatted[(decimalIndex + separator.Length)..].Count(char.IsDigit);
+            scale = specifier == 'P' ? 2 : 0;
+            return true;
+        }
+
+        private decimal? GetSelectedPlaceValue(int index)
+        {
+            var part = _parts.FirstOrDefault(part => part.IsDigit && part.DigitIndex == index);
+            if (part == null || part.DecimalExponent is < -28 or > 28)
+                return null;
+            decimal place = 1;
+            for (var exponent = part.DecimalExponent; exponent > 0; exponent--)
+                place *= 10;
+            for (var exponent = part.DecimalExponent; exponent < 0; exponent++)
+                place /= 10;
+            return place;
         }
 
         private void UpdateSelectedDigitVisuals()
@@ -826,10 +888,9 @@ namespace Flowery.Controls
                 return;
             }
 
-            var digitParts = _parts.Where(p => p.IsDigit).Reverse().ToList();
-            for (int i = 0; i < digitParts.Count; i++)
+            foreach (var part in _parts)
             {
-                digitParts[i].SetSelected(SelectedDigitIndex == i);
+                part.SetSelected(part.DigitIndex >= 0 && SelectedDigitIndex == part.DigitIndex);
             }
         }
 
@@ -864,7 +925,8 @@ namespace Flowery.Controls
         private void IncrementDigitAtPosition(int position)
         {
             var currentValue = Value ?? 0;
-            var divisor = (decimal)Math.Pow(10, position);
+            if (GetSelectedPlaceValue(position) is not decimal divisor)
+                return;
             var newValue = currentValue + divisor;
             newValue = ApplyBoundsWithWrap(newValue, isIncrement: true);
             Value = newValue;
@@ -873,7 +935,8 @@ namespace Flowery.Controls
         private void DecrementDigitAtPosition(int position)
         {
             var currentValue = Value ?? 0;
-            var divisor = (decimal)Math.Pow(10, position);
+            if (GetSelectedPlaceValue(position) is not decimal divisor)
+                return;
             var newValue = currentValue - divisor;
             newValue = ApplyBoundsWithWrap(newValue, isIncrement: false);
             Value = newValue;
@@ -947,7 +1010,7 @@ namespace Flowery.Controls
 
         public void SelectDigit(int index)
         {
-            if (!AllowDigitSelection) return;
+            if (!AllowDigitSelection || GetSelectedPlaceValue(index) == null) return;
             SelectedDigitIndex = index;
             UpdateSelectedDigitVisuals();
         }
@@ -955,7 +1018,20 @@ namespace Flowery.Controls
         private void OnKeyDown(object sender, KeyRoutedEventArgs e)
         {
             if (e.Handled) return;
-            if (!AllowDigitSelection) return;
+            if (!AllowDigitSelection || !TryGetFractionalDigits(out _, out _))
+            {
+                if (ShowControls && e.Key == VirtualKey.Up && CanIncrement)
+                {
+                    Increment();
+                    e.Handled = true;
+                }
+                else if (ShowControls && e.Key == VirtualKey.Down && CanDecrement)
+                {
+                    Decrement();
+                    e.Handled = true;
+                }
+                return;
+            }
 
             switch (e.Key)
             {
@@ -1013,7 +1089,7 @@ namespace Flowery.Controls
 
         private void MoveDigitSelection(int offset)
         {
-            var digitCount = _parts.Count(p => p.IsDigit);
+            var digitCount = _parts.Count(p => p.DigitIndex >= 0);
             if (digitCount == 0) return;
 
             var currentIndex = SelectedDigitIndex ?? 0;
@@ -1035,16 +1111,19 @@ namespace Flowery.Controls
             if (currentDigitValue == newDigitValue) return;
 
             var delta = newDigitValue - currentDigitValue;
-            var multiplier = (decimal)Math.Pow(10, position);
-            var newValue = (Value ?? 0) + (delta * multiplier);
-            newValue = ApplyBoundsWithWrap(newValue, delta > 0);
+            if (GetSelectedPlaceValue(position) is not decimal multiplier)
+                return;
+            var currentValue = Value ?? 0;
+            var newValue = currentValue + (delta * multiplier * (currentValue < 0 ? -1 : 1));
+            newValue = ApplyBoundsWithWrap(newValue, newValue > currentValue);
             Value = newValue;
         }
 
         private int GetDigitValueAtPosition(int position)
         {
             var currentValue = Math.Abs(Value ?? 0);
-            var divisor = (decimal)Math.Pow(10, position);
+            if (GetSelectedPlaceValue(position) is not decimal divisor || divisor == 0)
+                return 0;
             return (int)(Math.Floor(currentValue / divisor) % 10);
         }
 
@@ -1088,6 +1167,7 @@ namespace Flowery.Controls
             public Border Container { get; }
             public bool IsDigit { get; }
             public int DigitIndex { get; set; } = -1;
+            public int DecimalExponent { get; set; }
 
             private readonly Grid _grid;
             private readonly Border _digitBox;
@@ -1254,11 +1334,16 @@ namespace Flowery.Controls
 
             public void StartFadeIn(TimeSpan duration, EasingFunctionBase? easing)
             {
+                if (!DaisyMotion.AnimationsEnabled || !_owner.IsLoaded)
+                    return;
                 Enqueue(() =>
                 {
+                    _cts?.Cancel();
+                    _cts?.Dispose();
+                    _cts = new CancellationTokenSource();
                     _grid.Opacity = 0;
                     var easingSpec = CreateEasingSpec(easing);
-                    Observe(FadeAsync(0, 1, duration, easingSpec, CancellationToken.None));
+                    Observe(FadeAsync(0, 1, duration, easingSpec, _cts.Token));
                 });
             }
 
@@ -1278,6 +1363,15 @@ namespace Flowery.Controls
 
                     _prevText.Text = _previousChar.ToString();
                     _currentText.Text = _currentChar.ToString();
+
+                    if (!DaisyMotion.AnimationsEnabled || !_owner.IsLoaded)
+                    {
+                        _prevText.Opacity = 0;
+                        _currentText.Opacity = 1;
+                        _prevTransform.Y = 0;
+                        _currentTransform.Y = 0;
+                        return;
+                    }
 
                     _prevText.Opacity = 1;
                     _currentText.Opacity = 1;

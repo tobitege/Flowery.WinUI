@@ -201,6 +201,7 @@ namespace Flowery.WinUI.Kanban.Controls
             Unloaded += OnKanbanUnloaded;
             LaneRows = new ObservableCollection<FlowKanbanLaneRowView>();
             Boards = new ObservableCollection<FlowBoardMetadata>();
+            Board = new FlowKanbanData();
         }
 
         #region Board
@@ -209,7 +210,7 @@ namespace Flowery.WinUI.Kanban.Controls
                 nameof(Board),
                 typeof(FlowKanbanData),
                 typeof(FlowKanban),
-                new PropertyMetadata(new FlowKanbanData(), OnBoardChanged));
+                new PropertyMetadata(null, OnBoardChanged));
 
         public FlowKanbanData Board
         {

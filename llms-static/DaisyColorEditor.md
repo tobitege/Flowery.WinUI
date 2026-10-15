@@ -18,11 +18,11 @@ This is a **standalone control** with its own XAML theme (`DaisyColorEditor.xaml
 | --- | --- | --- | --- |
 | `Color` | `Color` | `Red` | The selected RGB color |
 | `HslColor` | `HslColor` | `H:0, S:1, L:0.5` | The HSL representation |
-| `EditingMode` | `ColorEditingMode` | `Rgb` | Current editing mode (RGB or HSL) |
+| `EditingMode` | `ColorEditingMode` | `Rgb` | Preferred section: RGB or HSL. See Editing Modes. |
 | `ShowAlphaChannel` | `bool` | `true` | Show alpha channel controls |
 | `ShowHexInput` | `bool` | `true` | Show hex color input field |
-| `ShowRgbSliders` | `bool` | `true` | Show RGB slider section |
-| `ShowHslSliders` | `bool` | `true` | Show HSL slider section |
+| `ShowRgbSliders` | `bool` | `true` | Allows the RGB section. `EditingMode` selects between enabled sections. |
+| `ShowHslSliders` | `bool` | `true` | Allows the HSL section. `EditingMode` selects between enabled sections. |
 | `OnColorChangedCallback` | `Action<Color>?` | `null` | Optional callback when color changes |
 
 ### Component Properties (Read/Write)
@@ -40,12 +40,16 @@ This is a **standalone control** with its own XAML theme (`DaisyColorEditor.xaml
 
 ## Editing Modes
 
-The `ColorEditingMode` enum determines the primary editing interface:
+The `ColorEditingMode` enum selects the preferred section:
 
 | Mode | Description |
 | --- | --- |
 | `Rgb` | Red, Green, Blue sliders and inputs |
 | `Hsl` | Hue, Saturation, Lightness sliders and inputs |
+
+When both slider flags are `True`, `EditingMode` selects the visible section. The default mode is `Rgb`.
+
+When the selected section is disabled, the editor shows the other enabled section. When both flags are `False`, neither section appears. The visible section updates immediately after an `EditingMode` change.
 
 ## Events and Callbacks
 

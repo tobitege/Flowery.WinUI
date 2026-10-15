@@ -35,6 +35,8 @@ namespace Flowery.Controls
         private int _captureVersion;
         private XamlRoot? _captureXamlRoot;
         private double _captureScale;
+        private bool _isSettingBodyPadding;
+        private bool _hasExplicitBodyPadding;
 
         public DaisyCard()
         {
@@ -143,7 +145,7 @@ namespace Flowery.Controls
                 nameof(BodyPadding),
                 typeof(Thickness),
                 typeof(DaisyCard),
-                new PropertyMetadata(new Thickness(32)));
+                new PropertyMetadata(new Thickness(32), OnBodyPaddingChanged));
 
         /// <summary>
         /// The padding of the card body.
@@ -151,7 +153,12 @@ namespace Flowery.Controls
         public Thickness BodyPadding
         {
             get => (Thickness)GetValue(BodyPaddingProperty);
-            set => SetValue(BodyPaddingProperty, value);
+            set
+            {
+                if (!_isSettingBodyPadding)
+                    _hasExplicitBodyPadding = true;
+                SetValue(BodyPaddingProperty, value);
+            }
         }
         #endregion
 
@@ -688,6 +695,12 @@ namespace Flowery.Controls
                 ApplyThemeColors();
             }
             ApplyVariantDefaults();
+            if (DaisySystemAppearance.HighContrast)
+            {
+                ApplyContrastSurface();
+                _isInternalColorSet = true;
+                return;
+            }
             ApplyStyleEffects();
             ApplyGlassMode();
             _isInternalColorSet = true;
@@ -696,6 +709,30 @@ namespace Flowery.Controls
         protected virtual bool ShouldApplyThemeColors()
         {
             return true;
+        }
+
+        private void ApplyContrastSurface()
+        {
+            if (_solidBackground == null)
+                return;
+
+            _solidBackground.Background = DaisyResourceLookup.GetBrush("DaisyBase100Brush");
+            _solidBackground.BorderBrush = DaisyResourceLookup.GetBrush("DaisyBaseContentBrush");
+            _solidBackground.BorderThickness = new Thickness(1);
+            _solidBackground.Opacity = 1;
+            // Restore the template background binding when leaving the material fallback.
+            _hasGlassBackground = true;
+            if (_beveledShadow != null)
+                _beveledShadow.Visibility = Visibility.Collapsed;
+            if (_innerHighlight != null)
+                _innerHighlight.Visibility = Visibility.Collapsed;
+            if (_innerShadow != null)
+                _innerShadow.Visibility = Visibility.Collapsed;
+            if (_blurredBackdrop != null)
+            {
+                _blurredBackdrop.ClearValue(Image.SourceProperty);
+                _blurredBackdrop.Visibility = Visibility.Collapsed;
+            }
         }
 
         private void ApplyStyleEffects()
@@ -892,36 +929,46 @@ namespace Flowery.Controls
 
         private void ApplyVariantDefaults()
         {
-            // Compact variant sets BodyPadding based on Size (unless overridden locally).
-            if (Variant == DaisyCardVariant.Compact)
-            {
-                if (ReadLocalValue(BodyPaddingProperty) == DependencyProperty.UnsetValue)
+            if (_hasExplicitBodyPadding)
+                return;
+
+            double padding = Variant == DaisyCardVariant.Compact
+                ? Size switch
                 {
-                    double p = Size switch
-                    {
-                        DaisySize.ExtraSmall => 8,
-                        DaisySize.Small => 12,
-                        DaisySize.Large => 20,
-                        DaisySize.ExtraLarge => 24,
-                        _ => 16
-                    };
-                    BodyPadding = new Thickness(p);
+                    DaisySize.ExtraSmall => 8,
+                    DaisySize.Small => 12,
+                    DaisySize.Large => 20,
+                    DaisySize.ExtraLarge => 24,
+                    _ => 16
                 }
+                : Size switch
+                {
+                    DaisySize.ExtraSmall => 16,
+                    DaisySize.Small => 24,
+                    DaisySize.Large => 40,
+                    DaisySize.ExtraLarge => 48,
+                    _ => 32
+                };
+
+            _isSettingBodyPadding = true;
+            try
+            {
+                BodyPadding = new Thickness(padding);
             }
-            else
+            finally
             {
-                if (ReadLocalValue(BodyPaddingProperty) == DependencyProperty.UnsetValue)
-                {
-                    double p = Size switch
-                    {
-                        DaisySize.ExtraSmall => 16,
-                        DaisySize.Small => 24,
-                        DaisySize.Large => 40,
-                        DaisySize.ExtraLarge => 48,
-                        _ => 32
-                    };
-                    BodyPadding = new Thickness(p);
-                }
+                _isSettingBodyPadding = false;
+            }
+        }
+
+        private static void OnBodyPaddingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var card = (DaisyCard)d;
+            if (!card._isSettingBodyPadding)
+            {
+                card._hasExplicitBodyPadding = card.ReadLocalValue(BodyPaddingProperty) != DependencyProperty.UnsetValue;
+                if (!card._hasExplicitBodyPadding)
+                    card.ApplyVariantDefaults();
             }
         }
 
@@ -1015,7 +1062,7 @@ namespace Flowery.Controls
             }
         }
 
-        private bool UsesBackdropBlur => (IsGlass || CardStyle == DaisyCardStyle.Glass) &&
+        private bool UsesBackdropBlur => !DaisySystemAppearance.HighContrast && (IsGlass || CardStyle == DaisyCardStyle.Glass) &&
             EnableBackdropBlur && BlurMode != GlassBlurMode.Simulated;
 
         private void InvalidateBackdrop()

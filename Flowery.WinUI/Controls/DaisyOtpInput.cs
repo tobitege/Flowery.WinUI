@@ -277,6 +277,7 @@ namespace Flowery.Controls
                     slot.TextChanged -= OnSlotTextChanged;
                     slot.KeyDown -= OnSlotKeyDown;
                     slot.GotFocus -= OnSlotGotFocus;
+                slot.Paste -= OnSlotPaste;
                 }
 
                 _slots.Clear();
@@ -438,8 +439,12 @@ namespace Flowery.Controls
             box.Resources["TextBoxDeleteButtonForegroundFocused"] = baseContentBrush;
 
             box.TextChanged += OnSlotTextChanged;
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(box,
+                string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                    FloweryLocalization.GetStringInternal("OtpInput_Digit", "Code digit {0} of {1}"), index + 1, Length));
             box.KeyDown += OnSlotKeyDown;
             box.GotFocus += OnSlotGotFocus;
+            box.Paste += OnSlotPaste;
 
             return box;
         }
@@ -450,6 +455,39 @@ namespace Flowery.Controls
             {
                 box.SelectAll();
             }
+        }
+
+        private async void OnSlotPaste(object sender, TextControlPasteEventArgs e)
+        {
+            if (sender is not TextBox box || box.Tag is not int index)
+                return;
+
+            // Read the clipboard before the native one-character limit truncates it.
+            e.Handled = true;
+            string text;
+            try
+            {
+                var content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                text = Normalize(await content.GetTextAsync());
+            }
+            catch (Exception)
+            {
+                return;
+            }
+
+            if (!IsLoaded || !_slots.Contains(box) || text.Length == 0)
+                return;
+
+            _isUpdating = true;
+            try
+            {
+                DistributeText(index, text);
+            }
+            finally
+            {
+                _isUpdating = false;
+            }
+            UpdateValueFromSlots();
         }
 
         private void OnSlotKeyDown(object sender, KeyRoutedEventArgs e)

@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using Flowery.Helpers;
 using Flowery.Theming;
+using Flowery.Services;
 
 namespace Flowery.Controls
 {
@@ -203,6 +204,8 @@ namespace Flowery.Controls
 
         static DaisyThemeManager()
         {
+            DaisySystemAppearance.Initialize();
+            DaisySystemAppearance.ColorsChanged += OnSystemColorsChanged;
             // Register all themes (DaisyUI + extras)
             RegisterTheme(new DaisyThemeInfo("Abyss", isDark: true), () => DaisyPaletteFactory.Create("Abyss"));
             RegisterTheme(new DaisyThemeInfo("Acid", isDark: false), () => DaisyPaletteFactory.Create("Acid"));
@@ -405,6 +408,19 @@ namespace Flowery.Controls
         /// </summary>
         public static bool ApplyTheme(string themeName)
         {
+            return ApplyThemeCore(themeName, false);
+        }
+
+        private static void OnSystemColorsChanged(object? sender, EventArgs args)
+        {
+            if (_currentThemeName is { } name)
+                ApplyThemeCore(name, true);
+            else
+                ThemeChanged?.Invoke(null, BaseThemeName);
+        }
+
+        private static bool ApplyThemeCore(string themeName, bool force)
+        {
             if (string.IsNullOrWhiteSpace(themeName))
                 return false;
 
@@ -414,7 +430,7 @@ namespace Flowery.Controls
             }
 
             // Skip if already applied
-            if (string.Equals(_currentThemeName, def.Info.Name, StringComparison.OrdinalIgnoreCase))
+            if (!force && string.Equals(_currentThemeName, def.Info.Name, StringComparison.OrdinalIgnoreCase))
                 return true;
 
             // When suppressed, only update internal state without applying
@@ -448,6 +464,7 @@ namespace Flowery.Controls
             {
                 var newPalette = def.PaletteFactory();
                 EnsureDerivedPaletteKeys(newPalette);
+                DaisySystemAppearance.ApplyContrastPalette(newPalette);
                 if (_currentPalette == null)
                 {
                     app.Resources.MergedDictionaries.Add(newPalette);
@@ -543,7 +560,7 @@ namespace Flowery.Controls
         ];
 
         // Optional keys that are removed when the next palette doesn't define them.
-        private static readonly string[] OptionalPrefixes = ["DaisyButtonPrimaryDisabled"];
+        private static readonly string[] OptionalPrefixes = ["DaisyButtonPrimaryDisabled", "DaisyDisabledForeground"];
 
         private static readonly string[] PalettePrefixes =
         [
@@ -557,7 +574,7 @@ namespace Flowery.Controls
             "DaisyWarning", "DaisyWarningContent",
             "DaisyError", "DaisyErrorContent",
             "DaisyPrimaryForeground", "DaisySecondaryForeground", "DaisyAccentForeground",
-            "DaisyButtonPrimaryForeground", "DaisyButtonPrimaryDisabled"
+            "DaisyButtonPrimaryForeground", "DaisyButtonPrimaryDisabled", "DaisyDisabledForeground"
         ];
 
         /// <summary>

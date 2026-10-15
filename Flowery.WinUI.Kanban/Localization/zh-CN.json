@@ -1,5 +1,6 @@
 {
   "Kanban_Settings_Title": "看板设置",
+  "Kanban_Users_LoadError": "无法加载用户",
   "Kanban_Settings_Subtitle": "控制确认提示和自动保存行为。",
   "Kanban_Settings_ConfirmColumnRemovals": "确认删除列",
   "Kanban_Settings_ConfirmCardRemovals": "确认删除卡片",

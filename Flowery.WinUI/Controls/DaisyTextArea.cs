@@ -1,7 +1,11 @@
 using System;
+using Flowery.Localization;
+using Flowery.Theming;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
 
 namespace Flowery.Controls
 {
@@ -11,6 +15,10 @@ namespace Flowery.Controls
     /// </summary>
     public partial class DaisyTextArea : DaisyInput
     {
+        private Grid? _resizeGrip;
+        private Thumb? _resizeThumb;
+        private double _minimumInputHeight;
+        private double? _userInputHeight;
 
         public DaisyTextArea()
         {
@@ -25,6 +33,7 @@ namespace Flowery.Controls
         protected override void OnLoaded()
         {
             base.OnLoaded();
+            EnsureResizeGrip();
             UpdateCharacterCountDescription();
             RefreshLayout();
         }
@@ -58,6 +67,11 @@ namespace Flowery.Controls
 
             UpdateRowHeight();
             ApplyAutoGrow();
+            if (_resizeGrip != null)
+                _resizeGrip.Visibility = CanResize ? Visibility.Visible : Visibility.Collapsed;
+            if (_resizeThumb != null)
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_resizeThumb,
+                    FloweryLocalization.GetStringInternal("TextArea_Resize", "Resize text area"));
         }
 
         private void UpdateCharacterCountDescription()
@@ -161,12 +175,59 @@ namespace Flowery.Controls
                 nameof(CanResize),
                 typeof(bool),
                 typeof(DaisyTextArea),
-                new PropertyMetadata(true));
+                new PropertyMetadata(true, OnResizeChanged));
 
         public bool CanResize
         {
             get => (bool)GetValue(CanResizeProperty);
             set => SetValue(CanResizeProperty, value);
+        }
+
+        private static void OnResizeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+            => ((DaisyTextArea)d).RefreshLayout();
+
+        private void EnsureResizeGrip()
+        {
+            if (_resizeGrip != null || Content is not Grid root) return;
+            _resizeGrip = new Grid
+            {
+                Width = 28, Height = 14,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Margin = new Thickness(0, 0, 2, 2)
+            };
+            _resizeGrip.Children.Add(new Border
+            {
+                Width = 18, Height = 3, CornerRadius = new CornerRadius(1.5),
+                Background = DaisyResourceLookup.GetBrush("DaisyBaseContentBrush"),
+                IsHitTestVisible = false
+            });
+            _resizeThumb = new Thumb { Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent) };
+            _resizeThumb.DragDelta += OnResizeDragDelta;
+            _resizeThumb.KeyDown += OnResizeKeyDown;
+            _resizeGrip.Children.Add(_resizeThumb);
+            Grid.SetRow(_resizeGrip, 2);
+            root.Children.Add(_resizeGrip);
+        }
+
+        private void OnResizeDragDelta(object sender, DragDeltaEventArgs e) => ResizeInput(e.VerticalChange);
+
+        private void OnResizeKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key is Windows.System.VirtualKey.Up or Windows.System.VirtualKey.Down)
+            {
+                ResizeInput(e.Key == Windows.System.VirtualKey.Up ? -10 : 10);
+                e.Handled = true;
+            }
+        }
+
+        private void ResizeInput(double delta)
+        {
+            if (!CanResize) return;
+            _userInputHeight = Math.Clamp((_userInputHeight ?? MinHeight) + delta,
+                _minimumInputHeight, Math.Max(_minimumInputHeight, MaxHeight));
+            MinHeight = _userInputHeight.Value;
+            ApplyAll();
         }
 
         #endregion
@@ -240,6 +301,9 @@ namespace Flowery.Controls
             {
                 MaxHeight = double.PositiveInfinity;
             }
+            _minimumInputHeight = MinHeight;
+            if (_userInputHeight.HasValue)
+                MinHeight = Math.Clamp(_userInputHeight.Value, _minimumInputHeight, Math.Max(_minimumInputHeight, MaxHeight));
         }
 
         #endregion

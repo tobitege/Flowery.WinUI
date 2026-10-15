@@ -152,6 +152,28 @@ Both setters copy the names and replace the previous set; the getters return rea
 - Applying the same theme twice short-circuits.
 - On apply, keep the palette `ResourceDictionary` stable and update its brushes in-place. Removing/replacing the dictionary breaks `ThemeResource` bindings because controls keep references to the old brush instances.
 
+## Windows Contrast Themes
+
+Windows contrast themes are system accessibility settings. They are separate from the Flowery theme catalog.
+`CurrentThemeName` keeps the selected Flowery theme name while a Windows contrast theme is active.
+
+The default theme applicator maps palette brushes to these system color pairs:
+
+| Role | System colors |
+| --- | --- |
+| Surfaces and text | Window background and window text. |
+| Semantic actions and their content | Selection background and selection text. |
+| Disabled content | Disabled text on an opaque surface. |
+
+Changing the Windows contrast setting refreshes the current palette and raises `ThemeChanged` on the UI thread.
+Returning to the normal Windows appearance restores the selected Flowery palette.
+`DaisyCard` and `DaisyGlass` use opaque surfaces while contrast mode is active.
+They suppress blur and reflection layers. Neumorphic effects are also disabled.
+
+`CustomThemeApplicator` replaces the default palette path. The application must preserve system contrast colors in its custom resources.
+Custom controls can use a `HighContrast` theme dictionary with matching `SystemColor` foreground and background resources.
+See [DaisyAccessibility](DaisyAccessibility.md) for UI Automation and the Windows animation setting.
+
 ## Quick Example (code-behind)
 
 ```csharp

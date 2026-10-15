@@ -113,7 +113,7 @@ namespace Flowery.Controls.Weather
                 nameof(TemperatureUnit),
                 typeof(string),
                 typeof(DaisyWeatherForecast),
-                new PropertyMetadata("C"));
+                new PropertyMetadata("C", OnPresentationChanged));
 
         /// <summary>
         /// Temperature unit (C or F).
@@ -129,7 +129,7 @@ namespace Flowery.Controls.Weather
                 nameof(ShowPrecipitation),
                 typeof(bool),
                 typeof(DaisyWeatherForecast),
-                new PropertyMetadata(false));
+                new PropertyMetadata(false, OnPresentationChanged));
 
         /// <summary>
         /// Whether to show precipitation chance.
@@ -165,6 +165,11 @@ namespace Flowery.Controls.Weather
         }
 
         #endregion
+
+        private static void OnPresentationChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
+        {
+            ((DaisyWeatherForecast)sender).ApplySizing();
+        }
 
         private void OnSizeChanged(object sender, SizeChangedEventArgs e)
         {
@@ -342,10 +347,18 @@ namespace Flowery.Controls.Weather
             }
 
             if (_leftScrollButton != null)
+            {
                 _leftScrollButton.Click += (s, e) => Scroll(-1);
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_leftScrollButton,
+                    FloweryLocalization.GetStringInternal("Common_Previous", "Previous"));
+            }
             
             if (_rightScrollButton != null)
+            {
                 _rightScrollButton.Click += (s, e) => Scroll(1);
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_rightScrollButton,
+                    FloweryLocalization.GetStringInternal("Common_Next", "Next"));
+            }
 
             UpdateScrollIndicators();
         }

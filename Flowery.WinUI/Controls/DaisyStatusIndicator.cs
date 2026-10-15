@@ -175,6 +175,7 @@ namespace Flowery.Controls
         protected override void OnLoaded()
         {
             base.OnLoaded();
+            DaisyMotion.Changed += OnMotionChanged;
 
             if (_rootGrid != null)
             {
@@ -189,8 +190,11 @@ namespace Flowery.Controls
         protected override void OnUnloaded()
         {
             base.OnUnloaded();
+            DaisyMotion.Changed -= OnMotionChanged;
             StopAnimation();
         }
+
+        private void OnMotionChanged(object? sender, EventArgs e) => RebuildVisual();
 
         protected override void OnThemeChanged(string themeName)
         {
@@ -239,7 +243,7 @@ namespace Flowery.Controls
 
             if (isStatusGlyph)
             {
-                _isAnimating = true;
+                _isAnimating = DaisyMotion.AnimationsEnabled && IsLoaded;
                 switch (Variant)
                 {
                     case DaisyStatusIndicatorVariant.Battery:
@@ -275,7 +279,7 @@ namespace Flowery.Controls
 
             _rootGrid.Children.Add(dot);
 
-            _isAnimating = true;
+            _isAnimating = DaisyMotion.AnimationsEnabled && IsLoaded;
 
             // Build variant-specific overlay visuals
             BuildVariantOverlay(dot, size, brush);

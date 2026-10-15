@@ -21,6 +21,7 @@ namespace Flowery.Controls.ColorPicker
     /// </summary>
     public partial class DaisyColorWheel : DaisyBaseContentControl, IScalableControl
     {
+        protected override Microsoft.UI.Xaml.Automation.Peers.AutomationPeer OnCreateAutomationPeer() => new DaisyColorValueAutomationPeer(this);
         private const double BaseTextFontSize = 14.0;
 
         private WriteableBitmap? _wheelBitmap;
@@ -218,6 +219,7 @@ namespace Flowery.Controls.ColorPicker
             if (d is DaisyColorWheel wheel)
             {
                 wheel.HandleColorPropertyChanged((Color)e.NewValue);
+                DaisySelectorAutomationPeers.RaiseColorValueChanged(wheel, (Color)e.OldValue, (Color)e.NewValue);
             }
         }
 
@@ -462,6 +464,20 @@ namespace Flowery.Controls.ColorPicker
                 return;
 
             var pixels = new byte[size * size * 4];
+            var step = Math.Clamp(ColorStep, 1, size);
+            var sampleColumns = (size + step - 1) / step;
+            var samples = new Color[sampleColumns * sampleColumns];
+            for (int sy = 0; sy < sampleColumns; sy++)
+            {
+                for (int sx = 0; sx < sampleColumns; sx++)
+                {
+                    double dx = Math.Min(size - 1, sx * step + (step - 1) / 2.0) - center;
+                    double dy = Math.Min(size - 1, sy * step + (step - 1) / 2.0) - center;
+                    var hue = (Math.Atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+                    var saturation = Math.Min(1, Math.Sqrt(dx * dx + dy * dy) / radius);
+                    samples[sy * sampleColumns + sx] = HslColor.HslToRgb(hue, saturation, Lightness);
+                }
+            }
 
             for (int y = 0; y < size; y++)
             {
@@ -469,16 +485,12 @@ namespace Flowery.Controls.ColorPicker
                 {
                     double dx = x - center;
                     double dy = y - center;
-                    double distance = Math.Sqrt(dx * dx + dy * dy);
+                    double distanceSquared = dx * dx + dy * dy;
                     int offset = (y * size + x) * 4;
 
-                    if (distance <= radius)
+                    if (distanceSquared <= radius * radius)
                     {
-                        double angle = Math.Atan2(dy, dx);
-                        double hue = (angle * 180 / Math.PI + 360) % 360;
-                        double saturation = distance / radius;
-
-                        var color = HslColor.HslToRgb(hue, saturation, Lightness);
+                        var color = samples[(y / step) * sampleColumns + x / step];
 
                         pixels[offset] = color.B;
                         pixels[offset + 1] = color.G;
@@ -590,7 +602,7 @@ namespace Flowery.Controls.ColorPicker
             _lockUpdates = true;
             try
             {
-                var hsl = new HslColor(hue, saturation, Lightness);
+                var hsl = new HslColor(Color.A, hue, saturation, Lightness);
                 HslColor = hsl;
                 Color = hsl.ToRgbColor();
                 OnColorChangedRaised(new ColorChangedEventArgs(Color));

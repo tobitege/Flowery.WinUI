@@ -480,7 +480,7 @@ namespace Flowery.Controls
 
             foreach (var child in panel.Children)
             {
-                if (child is Grid g && g.Tag?.ToString() == "DaisyNeumorphicContainer")
+                if (ReferenceEquals(child, _containerGrid))
                 {
                     return true;
                 }
@@ -513,7 +513,7 @@ namespace Flowery.Controls
 
             foreach (var child in grid.Children)
             {
-                if (child is Grid g && g.Tag?.ToString() == "DaisyNeumorphicContainer")
+                if (ReferenceEquals(child, _containerGrid))
                 {
                     return true;
                 }

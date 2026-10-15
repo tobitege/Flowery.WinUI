@@ -47,6 +47,16 @@ namespace Flowery.Controls
         {
             base.OnLoaded();
             BuildVisualTree();
+            if (_rootGrid != null)
+            {
+                _rootGrid.PointerPressed -= OnPointerPressed;
+                _rootGrid.PointerPressed += OnPointerPressed;
+            }
+            if (_inputOverlay != null)
+            {
+                _inputOverlay.PointerPressed -= OnPointerPressed;
+                _inputOverlay.PointerPressed += OnPointerPressed;
+            }
             ApplyAll();
 
             // Dividers need valid ActualWidth/Height which may not be available until after layout

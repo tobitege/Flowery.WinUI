@@ -1186,7 +1186,7 @@ namespace Flowery.WinUI.Kanban.Controls
             foreach (var color in ColorSwatches)
             {
                 var colorCopy = color;
-                var swatch = new Border
+                var swatch = new Button
                 {
                     Width = 28,
                     Height = 28,
@@ -1195,19 +1195,33 @@ namespace Flowery.WinUI.Kanban.Controls
                     BorderBrush = color == editState.Palette
                         ? DaisyResourceLookup.GetBrush("DaisyBaseContentBrush")
                         : new SolidColorBrush(Microsoft.UI.Colors.Transparent),
-                    BorderThickness = new Thickness(2)
+                    BorderThickness = new Thickness(2),
+                    Padding = new Thickness(0)
                 };
+                AutomationProperties.SetName(swatch, color.ToString());
+                AutomationProperties.SetItemStatus(swatch, color == editState.Palette
+                    ? FloweryLocalization.GetStringInternal("Common_Selected", "Selected") : string.Empty);
 
                 if (color == editState.Palette)
                 {
-                    swatch.Child = CreateIconPath("DaisyIconCheck", new SolidColorBrush(Microsoft.UI.Colors.White), 12);
+                    swatch.Content = CreateIconPath("DaisyIconCheck", new SolidColorBrush(Microsoft.UI.Colors.White), 12);
                 }
 
-                swatch.PointerPressed += (s, e) =>
+                swatch.Click += (s, e) =>
                 {
                     editState.Palette = colorCopy;
-                    BuildColorSwatches(panel, editState);
+                    foreach (var button in panel.Children.OfType<Button>())
+                    {
+                        var isSelected = Equals(button.Tag, colorCopy);
+                        button.BorderBrush = isSelected ? DaisyResourceLookup.GetBrush("DaisyBaseContentBrush")
+                            : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                        button.Content = isSelected
+                            ? CreateIconPath("DaisyIconCheck", new SolidColorBrush(Microsoft.UI.Colors.White), 12) : null;
+                        AutomationProperties.SetItemStatus(button, isSelected
+                            ? FloweryLocalization.GetStringInternal("Common_Selected", "Selected") : string.Empty);
+                    }
                 };
+                swatch.Tag = color;
 
                 panel.Children.Add(swatch);
             }
@@ -1236,6 +1250,7 @@ namespace Flowery.WinUI.Kanban.Controls
                     VerticalAlignment = VerticalAlignment.Center,
                     Size = Enums.DaisySize.Small
                 };
+                AutomationProperties.SetName(checkbox, subtask.Title);
                 checkbox.Checked += (s, e) => subtaskCopy.IsCompleted = true;
                 checkbox.Unchecked += (s, e) => subtaskCopy.IsCompleted = false;
                 Grid.SetColumn(checkbox, 0);
@@ -1263,11 +1278,13 @@ namespace Flowery.WinUI.Kanban.Controls
                     {
                         if (e.Key == Windows.System.VirtualKey.Enter)
                         {
+                            e.Handled = true;
                             subtaskCopy.Title = editBox.Text?.Trim() ?? subtaskCopy.Title;
                             RefreshSubtasksList(panel, subtasks);
                         }
                         else if (e.Key == Windows.System.VirtualKey.Escape)
                         {
+                            e.Handled = true;
                             RefreshSubtasksList(panel, subtasks);
                         }
                     };
@@ -1276,14 +1293,18 @@ namespace Flowery.WinUI.Kanban.Controls
                 }
                 else
                 {
-                    var titleText = new TextBlock
+                    var titleText = new Button
                     {
-                        Text = subtask.Title,
+                        Content = subtask.Title,
                         VerticalAlignment = VerticalAlignment.Center,
                         Foreground = DaisyResourceLookup.GetBrush("DaisyBaseContentBrush"),
-                        Margin = new Thickness(4, 0, 0, 0)
+                        Margin = new Thickness(4, 0, 0, 0),
+                        Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                        BorderThickness = new Thickness(0),
+                        Padding = new Thickness(0),
+                        HorizontalContentAlignment = HorizontalAlignment.Left
                     };
-                    titleText.Tapped += (s, e) =>
+                    titleText.Click += (s, e) =>
                     {
                         RefreshSubtasksList(panel, subtasks, index);
                     };

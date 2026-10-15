@@ -715,6 +715,8 @@ namespace Flowery.Controls
         protected override void OnLoaded()
         {
             base.OnLoaded();
+            RemoveHandler(KeyDownEvent, new KeyEventHandler(OnDialogKeyDown));
+            AddHandler(KeyDownEvent, new KeyEventHandler(OnDialogKeyDown), true);
             ApplyTheming();
             UpdateResizeGripState();
             UpdateTabNavigationState();
@@ -840,6 +842,31 @@ namespace Flowery.Controls
                 var target = forward ? focusables[0] : focusables[^1];
                 target.Focus(FocusState.Programmatic);
             }
+        }
+
+        protected override Control? GetInitialFocusTarget()
+        {
+            var target = GetFocusableControls(_tabNavigationHost).FirstOrDefault(control =>
+                !ReferenceEquals(control, _firstSentinel) && !ReferenceEquals(control, _lastSentinel) &&
+                IsVisibleDialogControl(control));
+            target ??= base.GetInitialFocusTarget();
+            return target != null && !ReferenceEquals(target, _firstSentinel) && !ReferenceEquals(target, _lastSentinel) &&
+                IsVisibleDialogControl(target) ? target : null;
+        }
+
+        private bool IsVisibleDialogControl(Control control)
+        {
+            DependencyObject? current = control;
+            while (current != null)
+            {
+                if (current is UIElement element &&
+                    (element.Visibility != Visibility.Visible || element.Opacity <= 0 || !element.IsHitTestVisible))
+                    return false;
+                if (ReferenceEquals(current, this))
+                    return true;
+                current = VisualTreeHelper.GetParent(current);
+            }
+            return false;
         }
 
         private void OnDialogKeyDown(object sender, KeyRoutedEventArgs e)

@@ -52,6 +52,7 @@ namespace Flowery.Controls
             Unloaded += OnUnloaded;
             Checked += (s, e) => ApplyAll();
             Unchecked += (s, e) => ApplyAll();
+            Indeterminate += (s, e) => ApplyAll();
         }
 
         #region Dependency Properties
@@ -96,6 +97,7 @@ namespace Flowery.Controls
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            Flowery.Services.DaisySystemAppearance.Initialize(XamlRoot);
             _foregroundCallbackToken = RegisterPropertyChangedCallback(ForegroundProperty, OnForegroundChanged);
             _fontSizeCallbackToken = RegisterPropertyChangedCallback(FontSizeProperty, OnFontSizeChanged);
             RegisterAppearanceCallbacks();
@@ -281,7 +283,7 @@ namespace Flowery.Controls
             if (_checkboxBorder == null || _checkmark == null)
                 return;
 
-            bool isChecked = IsChecked == true;
+            bool isChecked = IsChecked != false;
 
             // Get variant name for resource lookup
             var variantName = Variant switch
@@ -333,6 +335,7 @@ namespace Flowery.Controls
 
             if (isChecked)
             {
+                _checkmark.Data = IsChecked == null ? CreateIndeterminateGeometry() : CreateCheckmarkGeometry();
                 _checkboxBorder.Background = accentBrush;
                 _checkboxBorder.BorderBrush = accentBrush;
                 _checkmark.Stroke = contentBrush;
@@ -379,6 +382,15 @@ namespace Flowery.Controls
             _controlBorder.BorderBrush = BorderBrush;
             _controlBorder.BorderThickness = BorderThickness;
             _controlBorder.Padding = Padding;
+        }
+
+        private static PathGeometry CreateIndeterminateGeometry()
+        {
+            var geometry = new PathGeometry();
+            var figure = new PathFigure { StartPoint = new Windows.Foundation.Point(2, 6) };
+            figure.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(10, 6) });
+            geometry.Figures.Add(figure);
+            return geometry;
         }
 
         private void ApplyLabelTypography()

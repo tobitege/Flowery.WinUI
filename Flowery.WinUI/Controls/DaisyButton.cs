@@ -155,7 +155,7 @@ namespace Flowery.Controls
         {
             if (d is DaisyButton button && button.IsLoaded)
             {
-                button.RebuildIconLayout();
+                button.BuildIconLayoutIfNeeded();
             }
         }
 
@@ -203,11 +203,9 @@ namespace Flowery.Controls
         private Rectangle? _dashedBorder;
 
         // Icon support fields
-        private StackPanel? _iconContentPanel;
+        private Grid? _iconContentPanel;
         private ContentPresenter? _iconPresenter;
         private ContentPresenter? _textPresenter;
-        private object? _userContent;
-        private bool _iconLayoutBuilt;
         private readonly DaisyControlLifecycle _lifecycle;
 
         public DaisyButton()
@@ -227,6 +225,10 @@ namespace Flowery.Controls
 
             // Watch for Height changes to keep Width in sync for Circle/Square shapes
             RegisterPropertyChangedCallback(HeightProperty, OnHeightPropertyChanged);
+            RegisterPropertyChangedCallback(ContentProperty, OnIconLayoutPropertyChanged);
+            RegisterPropertyChangedCallback(DaisyControlExtensions.IconProperty, OnIconLayoutPropertyChanged);
+            RegisterPropertyChangedCallback(DaisyControlExtensions.IconPlacementProperty, OnIconLayoutPropertyChanged);
+            RegisterPropertyChangedCallback(DaisyControlExtensions.IconSpacingProperty, OnIconLayoutPropertyChanged);
 
             HorizontalContentAlignment = HorizontalAlignment.Center;
             VerticalContentAlignment = VerticalAlignment.Center;
@@ -235,7 +237,12 @@ namespace Flowery.Controls
 
         protected override void OnApplyTemplate()
         {
+            if (_iconPresenter != null)
+                _iconPresenter.Content = null;
             base.OnApplyTemplate();
+            _iconContentPanel = GetTemplateChild("PART_IconContentPanel") as Grid;
+            _iconPresenter = GetTemplateChild("PART_IconPresenter") as ContentPresenter;
+            _textPresenter = GetTemplateChild("ContentPresenter") as ContentPresenter;
             _shadowContainer = GetTemplateChild(ShadowContainerPartName) as DaisyShadowContainer;
             _buttonBorder = GetTemplateChild("ButtonBorder") as Border;
             _themeShadowReceiver = GetTemplateChild("PART_NeumorphicHost") as Canvas;
@@ -244,6 +251,12 @@ namespace Flowery.Controls
             _buttonBorder ??= FindChildByType<Border>(this);
 
             RequestNeumorphicRefresh();
+            BuildIconLayoutIfNeeded();
+        }
+
+        private void OnIconLayoutPropertyChanged(DependencyObject sender, DependencyProperty property)
+        {
+            BuildIconLayoutIfNeeded();
         }
 
         private static T? FindChildByType<T>(DependencyObject parent) where T : DependencyObject
@@ -501,7 +514,7 @@ namespace Flowery.Controls
             var scope = DaisyNeumorphic.GetScopeEnabled(this);
             bool isActuallyEnabled = scope ?? NeumorphicEnabled ?? DaisyBaseContentControl.GlobalNeumorphicEnabled;
 
-            return isActuallyEnabled && GetEffectiveNeumorphicMode() != DaisyNeumorphicMode.None;
+            return !DaisySystemAppearance.HighContrast && isActuallyEnabled && GetEffectiveNeumorphicMode() != DaisyNeumorphicMode.None;
         }
 
         protected internal DaisyNeumorphicMode GetEffectiveNeumorphicMode()
@@ -553,6 +566,7 @@ namespace Flowery.Controls
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            DaisySystemAppearance.Initialize(XamlRoot);
             _lifecycle.HandleLoaded();
             BuildIconLayoutIfNeeded();
             BuildDashedBorderIfNeeded();
@@ -677,17 +691,15 @@ namespace Flowery.Controls
         /// </summary>
         private void BuildIconLayoutIfNeeded()
         {
-            if (_iconLayoutBuilt)
+            if (_iconContentPanel == null || _iconPresenter == null || _textPresenter == null)
                 return;
 
-            // Priority: Attached property Icon > IconSymbol > IconData
+            _iconPresenter.Content = null;
             UIElement? iconElement = null;
 
             var attachedIcon = DaisyControlExtensions.GetIcon(this);
             if (attachedIcon != null)
             {
-                // Clear attached property to detach (UIElements can only have one parent)
-                DaisyControlExtensions.SetIcon(this, null);
                 iconElement = attachedIcon;
             }
             else if (IconSymbol.HasValue)
@@ -699,16 +711,6 @@ namespace Flowery.Controls
                 iconElement = CreatePathIcon(IconData);
             }
 
-            if (iconElement == null)
-                return;
-
-            _iconLayoutBuilt = true;
-
-            // Capture user content before replacing
-            _userContent = Content;
-            Content = null; // Clear Content to avoid parentage issues
-
-            // Get layout settings
             var placement = attachedIcon != null
                 ? DaisyControlExtensions.GetIconPlacement(this)
                 : IconPlacement;
@@ -716,81 +718,31 @@ namespace Flowery.Controls
                 ? DaisyControlExtensions.GetIconSpacing(this)
                 : GetIconSpacingForSize();
 
-            // Create the layout panel
             var isHorizontal = placement == IconPlacement.Left || placement == IconPlacement.Right;
-            _iconContentPanel = new StackPanel
-            {
-                Orientation = isHorizontal ? Orientation.Horizontal : Orientation.Vertical,
-                Spacing = spacing,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            };
+            var effectiveSpacing = iconElement != null && Content != null ? spacing : 0;
+            _iconContentPanel.ColumnSpacing = isHorizontal ? effectiveSpacing : 0;
+            _iconContentPanel.RowSpacing = isHorizontal ? 0 : effectiveSpacing;
+            _iconPresenter.Content = iconElement;
+            _iconPresenter.Visibility = iconElement != null ? Visibility.Visible : Visibility.Collapsed;
+            _textPresenter.Visibility = Content != null ? Visibility.Visible : Visibility.Collapsed;
 
-            // Create presenter for icon
-            _iconPresenter = new ContentPresenter
+            var iconFirst = placement is IconPlacement.Left or IconPlacement.Top;
+            _iconContentPanel.ColumnDefinitions.Clear();
+            _iconContentPanel.RowDefinitions.Clear();
+            if (isHorizontal)
             {
-                Content = iconElement,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-
-            // Only create text presenter if there's actual content
-            if (_userContent != null)
-            {
-                _textPresenter = new ContentPresenter
-                {
-                    Content = _userContent,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-            }
-
-            // Add in correct order based on placement
-            if (placement == IconPlacement.Right || placement == IconPlacement.Bottom)
-            {
-                if (_textPresenter != null)
-                    _iconContentPanel.Children.Add(_textPresenter);
-                _iconContentPanel.Children.Add(_iconPresenter);
+                _iconContentPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = iconFirst ? GridLength.Auto : new GridLength(1, GridUnitType.Star) });
+                _iconContentPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = iconFirst ? new GridLength(1, GridUnitType.Star) : GridLength.Auto });
             }
             else
             {
-                _iconContentPanel.Children.Add(_iconPresenter);
-                if (_textPresenter != null)
-                    _iconContentPanel.Children.Add(_textPresenter);
+                _iconContentPanel.RowDefinitions.Add(new RowDefinition { Height = iconFirst ? GridLength.Auto : new GridLength(1, GridUnitType.Star) });
+                _iconContentPanel.RowDefinitions.Add(new RowDefinition { Height = iconFirst ? new GridLength(1, GridUnitType.Star) : GridLength.Auto });
             }
-
-            // Replace button content with the icon+content panel
-            Content = _iconContentPanel;
-        }
-
-        /// <summary>
-        /// Clears and rebuilds the icon layout. Called when IconSymbol, IconData, or IconPlacement changes at runtime.
-        /// </summary>
-        private void RebuildIconLayout()
-        {
-            // Clear existing icon layout
-            if (_iconContentPanel != null)
-            {
-                _iconContentPanel.Children.Clear();
-
-                // Restore original user content if it was captured
-                if (_userContent != null)
-                {
-                    Content = _userContent;
-                }
-                else
-                {
-                    Content = null;
-                }
-            }
-
-            _iconLayoutBuilt = false;
-            _iconContentPanel = null;
-            _iconPresenter = null;
-            _textPresenter = null;
-
-            // Rebuild
-            BuildIconLayoutIfNeeded();
+            Grid.SetColumn(_iconPresenter, isHorizontal && !iconFirst ? 1 : 0);
+            Grid.SetColumn(_textPresenter, isHorizontal && iconFirst ? 1 : 0);
+            Grid.SetRow(_iconPresenter, !isHorizontal && !iconFirst ? 1 : 0);
+            Grid.SetRow(_textPresenter, !isHorizontal && iconFirst ? 1 : 0);
         }
 
         /// <summary>
@@ -1009,7 +961,10 @@ namespace Flowery.Controls
             // Update spacing in icon panel
             if (_iconContentPanel != null)
             {
-                _iconContentPanel.Spacing = spacing;
+                var horizontal = _iconContentPanel.ColumnDefinitions.Count > 0;
+                var effectiveSpacing = Content != null && _iconPresenter.Visibility == Visibility.Visible ? spacing : 0;
+                _iconContentPanel.ColumnSpacing = horizontal ? effectiveSpacing : 0;
+                _iconContentPanel.RowSpacing = horizontal ? 0 : effectiveSpacing;
             }
 
             // Both IconData (Path) and IconSymbol (SymbolIcon) are wrapped in Viewbox
@@ -1063,6 +1018,19 @@ namespace Flowery.Controls
         private void ComputeThemeBrushes(ResourceDictionary? resources)
         {
             var transparent = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0));
+
+            if (DaisySystemAppearance.HighContrast)
+            {
+                _normalBackground = DaisyResourceLookup.GetBrush(resources, "DaisyBase100Brush", new SolidColorBrush(Microsoft.UI.Colors.Black));
+                _normalForeground = DaisyResourceLookup.GetBrush(resources, "DaisyBaseContentBrush", new SolidColorBrush(Microsoft.UI.Colors.White));
+                _pointerOverBackground = _pressedBackground = DaisyResourceLookup.GetBrush(resources, "DaisyPrimaryBrush", _normalBackground);
+                _pointerOverForeground = _pressedForeground = DaisyResourceLookup.GetBrush(resources, "DaisyPrimaryContentBrush", _normalForeground);
+                _normalBorderBrush = _pointerOverBorderBrush = _pressedBorderBrush = _normalForeground;
+                _normalBorderThickness = _pointerOverBorderThickness = _pressedBorderThickness = new Thickness(1);
+                _disabledBackground = _normalBackground;
+                SyncTemplateResources();
+                return;
+            }
 
             var base100 = DaisyResourceLookup.GetBrush(resources, "DaisyBase100Brush", new SolidColorBrush(Microsoft.UI.Colors.White));
             var base200 = DaisyResourceLookup.GetBrush(resources, "DaisyBase200Brush", new SolidColorBrush(Color.FromArgb(255, 211, 211, 211)));
@@ -1434,7 +1402,8 @@ namespace Flowery.Controls
             {
                 Background = _disabledBackground
                     ?? DaisyResourceLookup.WithOpacity(_normalBackground, 0.5) ?? _normalBackground;
-                Foreground = DaisyResourceLookup.WithOpacity(_normalForeground, 0.5) ?? _normalForeground;
+                Foreground = DaisyResourceLookup.GetBrush(Application.Current?.Resources, "DaisyDisabledForegroundBrush",
+                    DaisyResourceLookup.WithOpacity(_normalForeground, 0.5) ?? _normalForeground!);
                 BorderBrush = DaisyResourceLookup.WithOpacity(_normalBorderBrush, 0.5) ?? _normalBorderBrush;
                 BorderThickness = _normalBorderThickness;
             }

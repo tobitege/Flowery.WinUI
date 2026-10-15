@@ -234,14 +234,18 @@ namespace Flowery.Controls
         protected override void OnLoaded()
         {
             base.OnLoaded();
+            DaisyMotion.Changed += OnMotionChanged;
             RebuildVisual();
         }
 
         protected override void OnUnloaded()
         {
             base.OnUnloaded();
+            DaisyMotion.Changed -= OnMotionChanged;
             StopAnimation();
         }
+
+        private void OnMotionChanged(object? sender, EventArgs e) => RebuildVisual();
 
         protected override void OnThemeChanged(string themeName)
         {
@@ -265,7 +269,7 @@ namespace Flowery.Controls
         private void RebuildVisual()
         {
             StopAnimation();
-            _isAnimating = true;
+            _isAnimating = DaisyMotion.AnimationsEnabled && IsLoaded;
 
             var pixelSize = PixelSize;
             var size = !double.IsNaN(pixelSize) && pixelSize > 0
@@ -506,7 +510,7 @@ namespace Flowery.Controls
 
         private void StartAnimation()
         {
-            _isAnimating = true;
+            _isAnimating = IsLoaded && DaisyMotion.AnimationsEnabled;
         }
 
         private void StopAnimation()
@@ -519,6 +523,8 @@ namespace Flowery.Controls
             {
                 visual.StopAnimation("Opacity");
                 visual.StopAnimation("Scale");
+                visual.StopAnimation("Scale.X");
+                visual.StopAnimation("Scale.Y");
                 visual.StopAnimation("Offset");
                 visual.StopAnimation("RotationAngle");
             }
@@ -528,6 +534,8 @@ namespace Flowery.Controls
                 try
                 {
                     visual.StopAnimation("Translation");
+                    visual.StopAnimation("Translation.X");
+                    visual.StopAnimation("Translation.Y");
                 }
                 catch
                 {

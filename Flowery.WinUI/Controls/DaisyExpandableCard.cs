@@ -29,6 +29,24 @@ namespace Flowery.Controls
             ToggleCommand = new SimpleCommand(_ => IsExpanded = !IsExpanded);
         }
 
+        protected override void OnLoaded()
+        {
+            base.OnLoaded();
+            DaisyMotion.Changed += OnMotionChanged;
+            UpdateExpandedState(animate: false);
+        }
+
+        protected override void OnUnloaded()
+        {
+            DaisyMotion.Changed -= OnMotionChanged;
+            _animationCts?.Cancel();
+            _animationCts?.Dispose();
+            _animationCts = null;
+            base.OnUnloaded();
+        }
+
+        private void OnMotionChanged(object? sender, EventArgs e) => UpdateExpandedState(animate: false);
+
         #region Dependency Properties
 
         public static readonly DependencyProperty IsExpandedProperty =
@@ -469,10 +487,11 @@ namespace Flowery.Controls
 
             // Cancel any running animation
             _animationCts?.Cancel();
+            _animationCts?.Dispose();
             _animationCts = new CancellationTokenSource();
             var token = _animationCts.Token;
 
-            if (!animate)
+            if (!animate || !IsLoaded || !DaisyMotion.AnimationsEnabled)
             {
                 // Instant update without animation
                 if (isExpanded)
@@ -540,7 +559,14 @@ namespace Flowery.Controls
                 wrapper.Width = currentWidth;
                 wrapper.Opacity = currentOpacity;
 
-                await Task.Delay(16, token); // ~60fps
+                try
+                {
+                    await Task.Delay(16, token); // ~60fps
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
             }
 
             // Final state

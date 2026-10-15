@@ -32,6 +32,9 @@ namespace Flowery.Services
 
         public static void StartAnimation(Visual visual, string property, KeyFrameAnimation animation, TimeSpan delay = default)
         {
+            if (!DaisyMotion.AnimationsEnabled)
+                return;
+
             if (delay > TimeSpan.Zero)
                 animation.DelayTime = delay;
 

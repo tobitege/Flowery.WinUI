@@ -1,5 +1,6 @@
 {
   "Kanban_Settings_Title": "Налаштування дошки",
+  "Kanban_Users_LoadError": "Не вдалося завантажити користувачів",
   "Kanban_Settings_Subtitle": "Керує підтвердженнями та автоматичним збереженням.",
   "Kanban_Settings_ConfirmColumnRemovals": "Підтверджувати видалення колонок",
   "Kanban_Settings_ConfirmCardRemovals": "Підтверджувати видалення карток",

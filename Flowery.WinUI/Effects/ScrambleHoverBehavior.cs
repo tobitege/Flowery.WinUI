@@ -43,6 +43,15 @@ namespace Flowery.Effects
     /// </summary>
     public static class ScrambleHoverBehavior
     {
+        private static readonly HashSet<TextBlock> LoadedElements = [];
+
+        static ScrambleHoverBehavior() => Flowery.Services.DaisyMotion.Changed += OnMotionChanged;
+
+        private static void OnMotionChanged(object? sender, EventArgs args)
+        {
+            if (Flowery.Services.DaisyMotion.AnimationsEnabled) return;
+            foreach (var element in LoadedElements.ToArray()) ResetScramble(element);
+        }
         private static readonly Random Random = new();
         private const string DefaultScrambleChars = "!@#$%^&*()[]{}|;:,.<>?/~`";
         private const string SplitFlapChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ";
@@ -187,6 +196,7 @@ namespace Flowery.Effects
                 textBlock.PointerPressed -= OnPointerPressed;
                 textBlock.Loaded -= OnLoaded;
                 textBlock.Unloaded -= OnUnloaded;
+                LoadedElements.Remove(textBlock);
                 StopAnimation(textBlock);
                 RestoreOriginalText(textBlock);
             }
@@ -201,11 +211,16 @@ namespace Flowery.Effects
         private static void OnUnloaded(object sender, RoutedEventArgs e)
         {
             if (sender is TextBlock tb)
+            {
+                LoadedElements.Remove(tb);
                 StopAnimation(tb);
+            }
         }
 
         private static void InitializeText(TextBlock textBlock)
         {
+            if (!GetIsEnabled(textBlock) || !textBlock.IsLoaded) return;
+            LoadedElements.Add(textBlock);
             var currentText = textBlock.Text ?? string.Empty;
             if (string.IsNullOrEmpty(currentText))
                 return;
@@ -216,7 +231,9 @@ namespace Flowery.Effects
                 storedOriginal = currentText;
             }
 
-            if (GetMode(textBlock) == ScrambleMode.RevealOnHover)
+            if (!Flowery.Services.DaisyMotion.AnimationsEnabled)
+                RestoreOriginalText(textBlock);
+            else if (GetMode(textBlock) == ScrambleMode.RevealOnHover)
             {
                 textBlock.Text = ScrambleAllChars(storedOriginal, GetScrambleChars(textBlock), GetRevealStyle(textBlock));
             }
@@ -242,6 +259,12 @@ namespace Flowery.Effects
             var mode = GetMode(tb);
             StopAnimation(tb);
 
+            if (!Flowery.Services.DaisyMotion.AnimationsEnabled)
+            {
+                RestoreOriginalText(tb);
+                return;
+            }
+
             if (mode == ScrambleMode.RevealOnHover)
             {
                 var original = tb.GetValue(OriginalTextProperty) as string;
@@ -256,6 +279,11 @@ namespace Flowery.Effects
 
         private static void StartAnimation(TextBlock textBlock)
         {
+            if (!Flowery.Services.DaisyMotion.AnimationsEnabled)
+            {
+                ResetScramble(textBlock);
+                return;
+            }
             if (textBlock.GetValue(TimerProperty) is DispatcherTimer)
                 return;
 

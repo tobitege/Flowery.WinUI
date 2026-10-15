@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Runtime.InteropServices.WindowsRuntime;
@@ -163,6 +164,9 @@ internal static class KioskSmokeTests
         Require(page.SlideCount == 6 && page.CurrentIndex == 5 && !page.IsAutoRunning,
             "The automatic cycle must begin in manual mode at the last of six slides.");
         Require(page.Interval == 8, "The normal slideshow interval must be eight seconds.");
+        var appearance = typeof(DaisyButton).Assembly.GetType("Flowery.Services.DaisySystemAppearance", true)!;
+        var setMotionPreference = appearance.GetMethod("SetMotionPreference", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var resetMotionPreference = appearance.GetMethod("ResetMotionPreference", BindingFlags.Static | BindingFlags.NonPublic)!;
         var expected = Enumerable.Range(0, page.SlideCount).ToArray();
         var observed = new List<(int Index, TimeSpan Elapsed)>();
         var stopwatch = new System.Diagnostics.Stopwatch();
@@ -186,6 +190,8 @@ internal static class KioskSmokeTests
         page.NavigationFailed += OnFailed;
         try
         {
+            // Exercise normal automatic navigation independently of the CI host's motion preference.
+            setMotionPreference.Invoke(null, new object[] { true });
             stopwatch.Start();
             page.ConfigureManualMode(false);
             Require(page.IsAutoRunning, "The native slideshow timer did not start.");
@@ -203,6 +209,7 @@ internal static class KioskSmokeTests
             page.SlideShown -= OnShown;
             page.NavigationFailed -= OnFailed;
             stopwatch.Stop();
+            resetMotionPreference.Invoke(null, null);
         }
         Require(!page.IsAutoRunning, "Manual mode did not stop the slideshow timer.");
         return $"Natural sequence {DescribeCycle()}; elapsed {stopwatch.Elapsed.TotalSeconds:F3}s; no advance before the eight-second interval.";

@@ -418,6 +418,11 @@ namespace Flowery.Controls
 
         private void RestartAnimations()
         {
+            if (!IsLoaded || !DaisyMotion.AnimationsEnabled)
+            {
+                StopAnimation();
+                return;
+            }
             // For status glyph variants (Battery, TrafficLight, Signal), they're static - no restart needed
             if (IsStatusGlyphVariant())
                 return;

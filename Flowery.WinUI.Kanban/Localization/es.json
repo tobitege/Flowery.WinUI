@@ -1,5 +1,6 @@
 {
   "Kanban_Settings_Title": "Configuración del tablero",
+  "Kanban_Users_LoadError": "No se pudieron cargar los usuarios",
   "Kanban_Settings_Subtitle": "Controla las confirmaciones y el guardado automático.",
   "Kanban_Settings_ConfirmColumnRemovals": "Confirmar eliminación de columnas",
   "Kanban_Settings_ConfirmCardRemovals": "Confirmar eliminación de tarjetas",

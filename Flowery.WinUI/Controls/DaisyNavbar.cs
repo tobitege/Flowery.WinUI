@@ -16,6 +16,12 @@ namespace Flowery.Controls
         private ContentPresenter? _centerPresenter;
         private ContentPresenter? _endPresenter;
         private Border? _rootBorder;
+        private DaisyShadowContainer? _shadowContainer;
+        private readonly DaisyShadowCollection _noShadows = new();
+        private readonly DaisyShadowCollection _shadows =
+        [
+            new DaisyShadow { OffsetY = 3, BlurRadius = 12, Opacity = 0.2 }
+        ];
 
         #region Dependency Properties
 
@@ -161,7 +167,8 @@ namespace Flowery.Controls
             _rootGrid.Children.Add(_endPresenter);
 
             _rootBorder.Child = _rootGrid;
-            Content = _rootBorder;
+            _shadowContainer = new DaisyShadowContainer { Content = _rootBorder };
+            Content = _shadowContainer;
 
             UpdateContent();
             UpdateAppearance();
@@ -183,6 +190,11 @@ namespace Flowery.Controls
 
             // Corner radius based on IsFullWidth
             _rootBorder.CornerRadius = IsFullWidth ? new CornerRadius(0) : new CornerRadius(12);
+            if (_shadowContainer != null)
+            {
+                _shadowContainer.CornerRadius = _rootBorder.CornerRadius;
+                _shadowContainer.Shadows = HasShadow ? _shadows : _noShadows;
+            }
 
             // Try to get theme background, fallback to a neutral color
             if (Application.Current.Resources.TryGetValue("DaisyBase200Brush", out var bg) && bg is Brush bgBrush)

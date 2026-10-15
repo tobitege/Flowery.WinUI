@@ -1,6 +1,7 @@
 (function () {
     "use strict";
     let configuration = null;
+    let requestedActive = true;
     const key = "native-host";
     const contexts = new WeakMap();
     const startupErrors = [];
@@ -146,7 +147,8 @@
                 else if (request.command === "sample") result = await sample(request.payload);
                 else if (request.command === "compile") result = await engine().compile();
                 else if (request.command === "active") {
-                    if (configuration) engine().setOverlayActive(key, request.payload && !document.hidden);
+                    requestedActive = Boolean(request.payload);
+                    if (configuration) engine().setOverlayActive(key, requestedActive && !document.hidden);
                     result = true;
                 }
                 else throw new Error("Unknown native GL command: " + request.command);
@@ -155,7 +157,7 @@
         });
         new ResizeObserver(resize).observe(document.documentElement);
         document.addEventListener("visibilitychange", () => {
-            if (configuration) engine().setOverlayActive(key, !document.hidden);
+            if (configuration) engine().setOverlayActive(key, requestedActive && !document.hidden);
         });
         window.addEventListener("pagehide", () => {
             if (configuration) engine().detachAllOverlays();

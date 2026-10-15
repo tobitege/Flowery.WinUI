@@ -266,6 +266,10 @@ namespace Flowery.Controls
                 case VirtualKey.Space:
                     SetSelection(SelectedIndex);
                     break;
+                case VirtualKey.Application:
+                case VirtualKey.F10 when KeyboardHelper.IsKeyPressed(KeyboardHelper.VK_SHIFT):
+                    handled = ShowSelectedTabContextMenu();
+                    break;
                 default:
                     handled = false;
                     break;
@@ -574,6 +578,18 @@ namespace Flowery.Controls
                 flyout.ShowAt(button);
                 e.Handled = true;
             }
+        }
+
+        private bool ShowSelectedTabContextMenu()
+        {
+            if (!EnableTabContextMenu || _tabStrip == null ||
+                _selectedIndex < 0 || _selectedIndex >= _tabStrip.Children.Count ||
+                _tabStrip.Children[_selectedIndex] is not Button button)
+                return false;
+
+            button.ContextFlyout ??= CreateTabContextMenu(_items[_selectedIndex], _selectedIndex);
+            button.ContextFlyout.ShowAt(button);
+            return true;
         }
 
         private void OnTabPaletteSwatchSelected(object? sender, DaisyTabPaletteColorEventArgs e)

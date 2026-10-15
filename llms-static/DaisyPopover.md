@@ -12,12 +12,19 @@ DaisyPopover is a lightweight popover control that hosts content inside a `Popup
 | `TriggerContent` (object?) | Content shown as the trigger (e.g. a button or icon). |
 | `PopoverContent` (object?) | Content hosted inside the popup. |
 | `IsOpen` (bool) | Controls whether the popover is open. |
-| `PlacementMode` (`PlacementMode`) | Popup placement relative to the trigger (default `Bottom`). |
+| `Placement` (`DaisyPopoverPlacement`) | Requested position relative to the trigger: `Top`, `Bottom`, `Left`, or `Right` (default `Bottom`). |
 | `HorizontalOffset` (double) | Horizontal popup offset (default 0). |
 | `VerticalOffset` (double) | Vertical popup offset (default 8). |
 | `IsLightDismissEnabled` (bool) | Closes the popover when clicking outside (default true). |
-| `MatchTargetWidth` (bool) | When true, the popup minimum width matches the trigger width (default false). |
 | `ToggleOnClick` (bool) | When true, clicking the trigger toggles `IsOpen` (default true). |
+
+## Placement Behavior
+
+Native popup placement constrains the popup to the `XamlRoot` bounds. Near a window edge, it can choose a different position from the requested `Placement`. The popup size is limited to the root width and height.
+
+Changes to `Placement`, `HorizontalOffset`, and `VerticalOffset` update the requested position while the popover is open. Root size changes also update the popup limits.
+
+Positive `HorizontalOffset` moves the popup left for `Left`, and right for the other placements. Positive `VerticalOffset` moves it up for `Top`, and down for the other placements.
 
 ## Quick Examples
 
@@ -39,7 +46,7 @@ DaisyPopover is a lightweight popover control that hosts content inside a `Popup
 <!-- Programmatic control -->
 <controls:DaisyPopover ToggleOnClick="False"
                       IsOpen="{Binding IsHelpOpen}"
-                      MatchTargetWidth="True">
+                      Placement="Bottom">
     <controls:DaisyPopover.TriggerContent>
         <controls:DaisyButton Content="Help" ButtonStyle="Outline" />
     </controls:DaisyPopover.TriggerContent>
@@ -51,6 +58,6 @@ DaisyPopover is a lightweight popover control that hosts content inside a `Popup
 
 ## Tips & Best Practices
 
-- Use `MatchTargetWidth="True"` for dropdown-like layouts where the popup should align with the trigger width.
+- Set `Placement` to request the side of the trigger for the popup.
 - Set `ToggleOnClick="False"` when you want to fully control the open state via binding or code.
 - For simple selection lists, `DaisyDropdown` can be a more specialized choice.

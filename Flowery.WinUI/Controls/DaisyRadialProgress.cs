@@ -193,6 +193,7 @@ namespace Flowery.Controls
         protected override void OnLoaded()
         {
             base.OnLoaded();
+            DaisyMotion.Changed += OnMotionChanged;
 
             if (_rootGrid != null)
             {
@@ -207,6 +208,7 @@ namespace Flowery.Controls
         protected override void OnUnloaded()
         {
             base.OnUnloaded();
+            DaisyMotion.Changed -= OnMotionChanged;
             StopShimmerAnimation();
         }
 
@@ -469,11 +471,13 @@ namespace Flowery.Controls
 
         private void UpdateShimmerAnimation()
         {
-            if (Shimmer)
+            if (Shimmer && IsLoaded && DaisyMotion.AnimationsEnabled)
                 StartShimmerAnimation();
             else
                 StopShimmerAnimation();
         }
+
+        private void OnMotionChanged(object? sender, EventArgs e) => UpdateShimmerAnimation();
 
         private void StartShimmerAnimation()
         {

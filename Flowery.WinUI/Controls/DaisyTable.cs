@@ -60,7 +60,7 @@ namespace Flowery.Controls
                 nameof(PinRows),
                 typeof(bool),
                 typeof(DaisyTable),
-                new PropertyMetadata(false));
+                new PropertyMetadata(false, OnPinningChanged));
 
         /// <summary>
         /// When true, header and footer rows are sticky.
@@ -76,7 +76,7 @@ namespace Flowery.Controls
                 nameof(PinCols),
                 typeof(bool),
                 typeof(DaisyTable),
-                new PropertyMetadata(false));
+                new PropertyMetadata(false, OnPinningChanged));
 
         /// <summary>
         /// When true, first column is sticky.
@@ -106,11 +106,13 @@ namespace Flowery.Controls
             if (_rootBorder != null)
             {
                 ApplyAll();
+                AttachScrollViewer();
                 return;
             }
 
             BuildVisualTree();
             ApplyAll();
+            AttachScrollViewer();
         }
 
         protected override void OnThemeChanged(string themeName)
@@ -210,6 +212,7 @@ namespace Flowery.Controls
                     row.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
                 }
             }
+            UpdatePinning();
         }
 
         #endregion
@@ -410,6 +413,11 @@ namespace Flowery.Controls
                 }
 
                 _cellsGrid.ColumnDefinitions.Add(colDef);
+                if (cell is DaisyTableCell observedCell)
+                {
+                    observedCell.RegisterPropertyChangedCallback(DaisyTableCell.ColumnWidthProperty,
+                        OnCellColumnWidthChanged);
+                }
                 if (cell is FrameworkElement fe)
                 {
                     Grid.SetColumn(fe, i);

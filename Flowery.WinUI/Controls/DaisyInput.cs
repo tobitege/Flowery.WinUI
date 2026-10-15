@@ -35,6 +35,7 @@ namespace Flowery.Controls
         private Storyboard? _floatingLabelStoryboard;
         private long _paddingChangedToken;
         private long _verticalContentAlignmentChangedToken;
+        private long _automationNameChangedToken;
         private CancellationTokenSource? _floatingPlaceholderCts;
         private Brush? _baseInputBackground;
         private Brush? _baseInputBorderBrush;
@@ -53,6 +54,14 @@ namespace Flowery.Controls
         protected override void OnLoaded()
         {
             base.OnLoaded();
+            Flowery.Services.DaisyMotion.Changed += OnMotionChanged;
+
+            if (_paddingChangedToken == 0)
+                _paddingChangedToken = RegisterPropertyChangedCallback(Control.PaddingProperty, OnPaddingChanged);
+            if (_verticalContentAlignmentChangedToken == 0)
+                _verticalContentAlignmentChangedToken = RegisterPropertyChangedCallback(Control.VerticalContentAlignmentProperty, OnVerticalContentAlignmentChanged);
+            if (_automationNameChangedToken == 0)
+                _automationNameChangedToken = RegisterPropertyChangedCallback(Microsoft.UI.Xaml.Automation.AutomationProperties.NameProperty, OnAutomationNameChanged);
 
             if (_rootGrid != null)
             {
@@ -64,8 +73,6 @@ namespace Flowery.Controls
             _isLoaded = true;
             BuildVisualTree();
             ApplyAll();
-            _paddingChangedToken = RegisterPropertyChangedCallback(Control.PaddingProperty, OnPaddingChanged);
-            _verticalContentAlignmentChangedToken = RegisterPropertyChangedCallback(Control.VerticalContentAlignmentProperty, OnVerticalContentAlignmentChanged);
             if (_pendingFocusRequest)
             {
                 AttachPendingFocusHandler();
@@ -75,6 +82,8 @@ namespace Flowery.Controls
 
         protected override void OnUnloaded()
         {
+            Flowery.Services.DaisyMotion.Changed -= OnMotionChanged;
+            _floatingLabelStoryboard?.Stop();
             base.OnUnloaded();
 
             _isLoaded = false;
@@ -93,6 +102,11 @@ namespace Flowery.Controls
             }
 
             _pendingFocusRequest = false;
+            if (_automationNameChangedToken != 0)
+            {
+                UnregisterPropertyChangedCallback(Microsoft.UI.Xaml.Automation.AutomationProperties.NameProperty, _automationNameChangedToken);
+                _automationNameChangedToken = 0;
+            }
             DetachPendingFocusHandler();
         }
 
@@ -629,7 +643,7 @@ namespace Flowery.Controls
                 }
             }
 
-            if (!animate)
+            if (!animate || !Flowery.Services.DaisyMotion.AnimationsEnabled)
             {
                 _floatingLabelStoryboard?.Stop();
                 _floatingLabelTransform.ScaleX = targetScale;
@@ -702,6 +716,11 @@ namespace Flowery.Controls
 
             _floatingLabelStoryboard = sb;
             sb.Begin();
+        }
+
+        private void OnMotionChanged(object? sender, EventArgs args)
+        {
+            if (!Flowery.Services.DaisyMotion.AnimationsEnabled) UpdateFloatingLabelState();
         }
 
         private void UpdateFocusBorder()
@@ -1217,7 +1236,7 @@ namespace Flowery.Controls
             }
         }
 
-        private void ApplyAll()
+        private protected void ApplyAll()
         {
             if (!_isLoaded || _rootGrid == null)
                 return;
@@ -1712,6 +1731,25 @@ namespace Flowery.Controls
             }
 
             UpdateFloatingLabelMargin();
+            UpdateInputAccessibility();
+        }
+
+        private void OnAutomationNameChanged(DependencyObject sender, DependencyProperty property) => UpdateInputAccessibility();
+
+        private void UpdateInputAccessibility()
+        {
+            if (_textBox == null) return;
+            var name = Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(this);
+            if (string.IsNullOrWhiteSpace(name))
+                _textBox.ClearValue(Microsoft.UI.Xaml.Automation.AutomationProperties.NameProperty);
+            else
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_textBox, name);
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetLabeledBy(_textBox,
+                LabelPosition == DaisyLabelPosition.Floating ? _floatingLabelText : _labelText);
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetIsRequiredForForm(_textBox, IsRequired);
+            var helper = string.IsNullOrWhiteSpace(Description) ? HelperText : Description;
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(_textBox, string.Join(" ",
+                new[] { HintText, helper }.Where(value => !string.IsNullOrWhiteSpace(value))));
         }
 
         /// <summary>

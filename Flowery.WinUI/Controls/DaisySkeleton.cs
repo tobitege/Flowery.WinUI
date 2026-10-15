@@ -39,6 +39,7 @@ namespace Flowery.Controls
         protected override void OnLoaded()
         {
             base.OnLoaded();
+            DaisyMotion.Changed += OnMotionChanged;
             BuildVisualTree();
             ApplyAll();
             StopAnimation();
@@ -48,6 +49,7 @@ namespace Flowery.Controls
         protected override void OnUnloaded()
         {
             base.OnUnloaded();
+            DaisyMotion.Changed -= OnMotionChanged;
             StopAnimation();
         }
 
@@ -178,6 +180,11 @@ namespace Flowery.Controls
 
         private void StartAnimation()
         {
+            if (!DaisyMotion.AnimationsEnabled || !IsLoaded)
+            {
+                StopAnimation();
+                return;
+            }
             if (_isAnimating && _pulseVisual != null)
                 return;
 
@@ -196,6 +203,8 @@ namespace Flowery.Controls
                 _ = TryStartPulseAnimation(this);
             }
         }
+
+        private void OnMotionChanged(object? sender, EventArgs e) => StartAnimation();
 
         private void UpdateContentPresenter()
         {

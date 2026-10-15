@@ -132,6 +132,7 @@ namespace Flowery.Controls
 
             button.Content = ellipse;
             ToolTipService.SetToolTip(button, swatch.Name);
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, swatch.Name);
             button.Click += OnSwatchButtonClick;
             return button;
         }

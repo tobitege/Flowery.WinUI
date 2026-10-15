@@ -266,6 +266,26 @@ namespace Flowery.WinUI.Kanban.Controls
         #endregion
 
         #region IsLoading
+        public static readonly DependencyProperty LoadErrorMessageProperty =
+            DependencyProperty.Register(nameof(LoadErrorMessage), typeof(string), typeof(FlowKanbanUserManagement),
+                new PropertyMetadata(string.Empty));
+
+        public string LoadErrorMessage
+        {
+            get => (string)GetValue(LoadErrorMessageProperty);
+            private set => SetValue(LoadErrorMessageProperty, value);
+        }
+
+        public static readonly DependencyProperty HasLoadErrorProperty =
+            DependencyProperty.Register(nameof(HasLoadError), typeof(bool), typeof(FlowKanbanUserManagement),
+                new PropertyMetadata(false));
+
+        public bool HasLoadError
+        {
+            get => (bool)GetValue(HasLoadErrorProperty);
+            private set => SetValue(HasLoadErrorProperty, value);
+        }
+
         public static readonly DependencyProperty IsLoadingProperty =
             DependencyProperty.Register(
                 nameof(IsLoading),
@@ -961,6 +981,9 @@ namespace Flowery.WinUI.Kanban.Controls
             var token = refreshCts.Token;
 
             IsLoading = true;
+            HasLoadError = false;
+            LoadErrorMessage = string.Empty;
+            UpdateUserVisibilityState();
             try
             {
                 if (forceReload && refreshProvider)
@@ -987,6 +1010,11 @@ namespace Flowery.WinUI.Kanban.Controls
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"FlowKanban user refresh failed: {ex.GetType().Name} - {ex.Message}");
+                if (ReferenceEquals(_refreshCts, refreshCts))
+                {
+                    LoadErrorMessage = ex.Message;
+                    HasLoadError = true;
+                }
             }
             finally
             {
@@ -994,7 +1022,9 @@ namespace Flowery.WinUI.Kanban.Controls
                 {
                     _refreshCts = null;
                     IsLoading = false;
+                    UpdateUserVisibilityState();
                 }
+                refreshCts.Dispose();
             }
         }
 
@@ -1030,6 +1060,8 @@ namespace Flowery.WinUI.Kanban.Controls
             SelectedUser = null;
             UserCount = 0;
             IsLoading = false;
+            HasLoadError = false;
+            LoadErrorMessage = string.Empty;
             UpdateUserVisibilityState();
         }
 
@@ -1072,8 +1104,8 @@ namespace Flowery.WinUI.Kanban.Controls
             var hasFiltered = FilteredUsers.Count > 0;
             HasAnyUsers = hasAny;
             HasFilteredUsers = hasFiltered;
-            IsEmptyStateVisible = !hasAny && string.IsNullOrWhiteSpace(SearchText);
-            IsSearchEmptyStateVisible = !hasFiltered && !string.IsNullOrWhiteSpace(SearchText);
+            IsEmptyStateVisible = !IsLoading && !HasLoadError && !hasAny && string.IsNullOrWhiteSpace(SearchText);
+            IsSearchEmptyStateVisible = !IsLoading && !HasLoadError && !hasFiltered && !string.IsNullOrWhiteSpace(SearchText);
         }
 
         private void RefreshProviderSummaries()

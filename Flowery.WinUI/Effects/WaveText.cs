@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Media;
 using Windows.Foundation;
+using Flowery.Services;
 
 namespace Flowery.Effects
 {
@@ -96,18 +97,27 @@ namespace Flowery.Effects
             if (d is WaveText wt && wt.IsLoaded)
             {
                 wt.RebuildVisual();
+                wt.Start();
             }
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            DaisyMotion.Changed += OnMotionChanged;
             RebuildVisual();
             Start();
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
+            DaisyMotion.Changed -= OnMotionChanged;
             Stop();
+        }
+
+        private void OnMotionChanged(object? sender, EventArgs e)
+        {
+            Stop();
+            if (IsLoaded) Start();
         }
 
         private void RebuildVisual()
@@ -168,6 +178,7 @@ namespace Flowery.Effects
 
         private void Start()
         {
+            if (!DaisyMotion.AnimationsEnabled || _timer != null) return;
             _start = DateTimeOffset.Now;
             _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
             _timer.Tick += Timer_Tick;

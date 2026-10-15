@@ -13,6 +13,14 @@ DaisyModal is an overlay dialog container with backdrop and configurable corner 
 | `TopLeftRadius` / `TopRightRadius` / `BottomLeftRadius` / `BottomRightRadius` | Individual corner radii combined via `ModalCornerRadiusConverter`. |
 | `Padding` | Inner spacing for modal content (default 24). |
 
+## Keyboard Focus
+
+When the modal opens, it records the previous focus target. After layout, it tries to focus the first focusable control in its content. If that control cannot accept focus, the modal tries to focus itself.
+
+Tab and Shift+Tab cycle within the modal. If the previous target is a control that is still loaded, the modal tries to restore its focus after closure. Focus restoration depends on whether that control can still accept focus.
+
+Derived dialogs can override the protected `GetInitialFocusTarget()` method to select a specific initial control.
+
 ## Quick Examples
 
 ```xml

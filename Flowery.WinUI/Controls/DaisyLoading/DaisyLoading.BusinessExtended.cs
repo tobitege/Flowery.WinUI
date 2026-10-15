@@ -6,10 +6,11 @@ namespace Flowery.Controls
 
         private void StartDaisyLoadingFrameTimer(int frameCount, int intervalMs, Action<int> applyFrame)
         {
-            if (!_isAnimating || frameCount <= 0) return;
+            if (frameCount <= 0) return;
 
             var frame = 0;
             applyFrame(frame);
+            if (!_isAnimating || !DaisyMotion.AnimationsEnabled) return;
 
             var timer = new DispatcherTimer
             {

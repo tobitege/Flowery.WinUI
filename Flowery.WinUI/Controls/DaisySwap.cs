@@ -2,6 +2,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
+using Flowery.Services;
 using Flowery.Theming;
 
 namespace Flowery.Controls
@@ -14,7 +16,9 @@ namespace Flowery.Controls
     {
         private ContentPresenter? _onPresenter;
         private ContentPresenter? _offPresenter;
+        private ContentPresenter? _indeterminatePresenter;
         private Grid? _contentGrid;
+        private Storyboard? _swapStoryboard;
 
         #region OnContent
         public static readonly DependencyProperty OnContentProperty =
@@ -58,7 +62,7 @@ namespace Flowery.Controls
                 nameof(IndeterminateContent),
                 typeof(object),
                 typeof(DaisySwap),
-                new PropertyMetadata(null));
+                new PropertyMetadata(null, OnContentChanged));
 
         /// <summary>
         /// Content displayed when the swap is in indeterminate state.
@@ -76,7 +80,7 @@ namespace Flowery.Controls
                 nameof(TransitionEffect),
                 typeof(SwapEffect),
                 typeof(DaisySwap),
-                new PropertyMetadata(SwapEffect.None));
+                new PropertyMetadata(SwapEffect.None, OnContentChanged));
 
         /// <summary>
         /// The transition effect when swapping between states.
@@ -92,11 +96,17 @@ namespace Flowery.Controls
         {
             DefaultStyleKey = typeof(DaisySwap);
             Loaded += OnLoaded;
-            Click += OnClick;
+            Unloaded += OnUnloaded;
+            Checked += OnCheckedChanged;
+            Unchecked += OnCheckedChanged;
+            Indeterminate += OnCheckedChanged;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            DaisySystemAppearance.Initialize(XamlRoot);
+            DaisyMotion.Changed -= OnMotionChanged;
+            DaisyMotion.Changed += OnMotionChanged;
             if (_contentGrid != null)
             {
                 UpdateVisualState();
@@ -107,10 +117,19 @@ namespace Flowery.Controls
             UpdateVisualState();
         }
 
-        private void OnClick(object sender, RoutedEventArgs e)
+        private void OnCheckedChanged(object sender, RoutedEventArgs e)
         {
-            UpdateVisualState();
+            UpdateVisualState(animate: IsLoaded);
         }
+
+        private void OnUnloaded(object sender, RoutedEventArgs e)
+        {
+            DaisyMotion.Changed -= OnMotionChanged;
+            _swapStoryboard?.Stop();
+            _swapStoryboard = null;
+        }
+
+        private void OnMotionChanged(object? sender, System.EventArgs e) => UpdateVisualState();
 
         private static void OnContentChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
@@ -145,6 +164,13 @@ namespace Flowery.Controls
 
             _contentGrid.Children.Add(_offPresenter);
             _contentGrid.Children.Add(_onPresenter);
+            _indeterminatePresenter = new ContentPresenter
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Visibility = Visibility.Collapsed
+            };
+            _contentGrid.Children.Add(_indeterminatePresenter);
 
             Content = _contentGrid;
 
@@ -162,23 +188,49 @@ namespace Flowery.Controls
             {
                 _offPresenter.Content = OffContent;
             }
+            if (_indeterminatePresenter != null)
+                _indeterminatePresenter.Content = IndeterminateContent;
         }
 
-        private void UpdateVisualState()
+        private void UpdateVisualState(bool animate = false)
         {
-            if (_onPresenter == null || _offPresenter == null)
+            if (_onPresenter == null || _offPresenter == null || _indeterminatePresenter == null)
                 return;
 
-            if (IsChecked == true)
+            _swapStoryboard?.Stop();
+            _swapStoryboard = null;
+            var selected = IsChecked switch
             {
-                _onPresenter.Visibility = Visibility.Visible;
-                _offPresenter.Visibility = Visibility.Collapsed;
-            }
-            else
+                true => _onPresenter,
+                false => _offPresenter,
+                null => _indeterminatePresenter
+            };
+            foreach (var presenter in new[] { _onPresenter, _offPresenter, _indeterminatePresenter })
             {
-                _onPresenter.Visibility = Visibility.Collapsed;
-                _offPresenter.Visibility = Visibility.Visible;
+                presenter.Visibility = ReferenceEquals(presenter, selected) ? Visibility.Visible : Visibility.Collapsed;
+                presenter.Opacity = 1;
+                presenter.RenderTransform = null;
             }
+
+            if (!animate || !DaisyMotion.AnimationsEnabled || TransitionEffect == SwapEffect.None)
+                return;
+
+            var transform = new CompositeTransform();
+            selected.RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5);
+            selected.RenderTransform = transform;
+            var animation = new DoubleAnimation
+            {
+                From = TransitionEffect == SwapEffect.Rotate ? -90 : 0,
+                To = TransitionEffect == SwapEffect.Rotate ? 0 : 1,
+                Duration = new Duration(System.TimeSpan.FromMilliseconds(200)),
+                EnableDependentAnimation = true,
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            Storyboard.SetTarget(animation, transform);
+            Storyboard.SetTargetProperty(animation, TransitionEffect == SwapEffect.Rotate ? "Rotation" : "ScaleX");
+            _swapStoryboard = new Storyboard();
+            _swapStoryboard.Children.Add(animation);
+            _swapStoryboard.Begin();
         }
 
         private void ApplyTheme()

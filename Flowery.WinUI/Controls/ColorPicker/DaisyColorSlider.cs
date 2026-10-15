@@ -19,6 +19,7 @@ namespace Flowery.Controls.ColorPicker
     /// </summary>
     public partial class DaisyColorSlider : DaisyBaseContentControl, IScalableControl
     {
+        protected override Microsoft.UI.Xaml.Automation.Peers.AutomationPeer OnCreateAutomationPeer() => new DaisyColorSliderAutomationPeer(this);
         private const double BaseTextFontSize = 12.0;
 
         private WriteableBitmap? _gradientBitmap;
@@ -247,6 +248,7 @@ namespace Flowery.Controls.ColorPicker
             if (d is DaisyColorSlider slider)
             {
                 slider.HandleValueChanged((double)e.NewValue);
+                DaisySelectorAutomationPeers.RaiseRangeValueChanged(slider, (double)e.OldValue, (double)e.NewValue);
                 slider.UpdateAutomationProperties();
             }
         }

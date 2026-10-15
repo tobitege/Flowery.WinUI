@@ -1,5 +1,6 @@
 {
   "Kanban_Settings_Title": "Pano ayarları",
+  "Kanban_Users_LoadError": "Kullanıcılar yüklenemedi",
   "Kanban_Settings_Subtitle": "Onay istemlerini ve otomatik kaydetmeyi yönetir.",
   "Kanban_Settings_ConfirmColumnRemovals": "Sütun silmeyi onayla",
   "Kanban_Settings_ConfirmCardRemovals": "Kart silmeyi onayla",

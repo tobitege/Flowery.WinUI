@@ -148,7 +148,7 @@ namespace Flowery.Controls
         }
 
         public static readonly DependencyProperty DisplayMemberPathProperty =
-            DependencyProperty.Register(nameof(DisplayMemberPath), typeof(string), typeof(DaisyComboBoxBase), new PropertyMetadata(null));
+            DependencyProperty.Register(nameof(DisplayMemberPath), typeof(string), typeof(DaisyComboBoxBase), new PropertyMetadata(null, OnDisplayMemberPathChanged));
 
         public string? DisplayMemberPath
         {
@@ -376,6 +376,11 @@ namespace Flowery.Controls
             }
         }
 
+        private static void OnDisplayMemberPathChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            ((DaisyComboBoxBase)d).UpdateTriggerContent();
+        }
+
         private static void OnIsDropDownOpenChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
              if (d is DaisyComboBoxBase combo)
@@ -417,6 +422,7 @@ namespace Flowery.Controls
 
         private void OnBaseLoaded(object sender, RoutedEventArgs e)
         {
+            DaisySystemAppearance.Initialize(XamlRoot);
             _isUnloading = false;
             OnBeforeLoaded();
             BuildVisualTree();
@@ -1360,15 +1366,6 @@ namespace Flowery.Controls
 
                 if (!string.IsNullOrEmpty(displayMemberPath))
                 {
-                    // Use ToString() which item classes should override for proper display.
-                    // The deferred UpdateTriggerContent after dropdown close handles any timing issues.
-                    var displayText = displayItem?.ToString();
-                    if (!string.IsNullOrEmpty(displayText))
-                    {
-                        _triggerButton.Content = displayText;
-                        return;
-                    }
-                    // Fallback to binding
                     _triggerButton.SetBinding(ContentControl.ContentProperty, new Binding
                     {
                         Source = displayItem,

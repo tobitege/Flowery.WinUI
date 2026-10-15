@@ -76,17 +76,43 @@ Enable digit selection for fine-grained control over individual digits:
 | Property | Type | Default | Description |
 | --- | --- | --- | --- |
 | `AllowDigitSelection` | bool | False | Enable tapping digits to select which one to control |
-| `SelectedDigitIndex` | int? | null | Currently selected digit (0 = rightmost/ones place) |
+| `SelectedDigitIndex` | int? | null | Selected digit, counted from the right. Index 0 is the rightmost displayed digit. |
 
 When `AllowDigitSelection="True"`:
 
 - Tap any digit to select it (cursor changes to hand)
 - The selected digit shows an accent-colored bottom border indicator
-- The +/- buttons adjust only the selected digit position (e.g., selecting digit 2 adds/subtracts 100)
+- The +/- buttons add or subtract the numeric place value of the selected digit.
+- Digit entry changes the selected digit and preserves the sign of a negative value.
+
+Leading zeros count as digits. The minus sign, decimal separator, group separators, and currency or percent symbols do not count.
+For `000`, index 2 selects the hundreds place, including a leading zero.
+For `N2` or `000.00`, index 2 selects the ones place.
+
+### Formats for Digit Editing
+
+Digit editing supports the standard formats `N`, `F`, `C`, and `P`, with optional precision digits.
+It also supports `G` when the displayed result has no exponent.
+Simple custom formats contain one or more `0` placeholders, with an optional decimal point and more `0` placeholders.
+Examples include `0`, `000`, `0.00`, and `000.00`.
+
+The format uses a dot for its decimal point. The displayed separator follows `Culture`.
+Only positions that `decimal` can represent support digit editing.
+
+| Format | Value | Change for index 0 |
+| --- | --- | --- |
+| `000` | `28` | `1` |
+| `000.00` | `12.34` | `0.01` |
+| `N2` | `12.34` | `0.01` |
+| `P2` | `0.1234` | `0.0001` |
+
+Complex custom formats still control the display. They do not support digit editing.
+These formats include literals, `#` placeholders, grouping, scaling, percent symbols, multiple sections, or scientific notation.
+For fixed units or labels beside editable digits, use `Prefix` or `Suffix`.
 
 ### Keyboard Support
 
-When `AllowDigitSelection="True"`, full keyboard navigation is available:
+When `AllowDigitSelection="True"` and the format supports digit editing, these keys control the selected digit:
 
 | Key | Action |
 | --- | --- |
@@ -98,6 +124,8 @@ When `AllowDigitSelection="True"`, full keyboard navigation is available:
 | **Arrow Down** | Decrement the selected digit |
 | **0-9** | Directly set the selected digit to that value (with animation) |
 | **Space / Enter** | Trigger focused +/- button |
+
+When digit editing is unavailable and `ShowControls` is true, Arrow Up and Arrow Down change `Value` by `Step`.
 
 The control shows an accent border when focused via keyboard (`:focus-visible`). The selected digit shows an accent-colored bottom border.
 

@@ -174,6 +174,18 @@ namespace Flowery.WinUI.Kanban.Controls
             }
             if (ParentKanban != null)
             {
+                ParentKanban.BoardSizeChanged -= OnBoardSizeChanged;
+                ParentKanban.ColumnWidthChanged -= OnColumnWidthChanged;
+                ParentKanban.DragEnded -= OnParentDragEnded;
+                ParentKanban.LaneGroupingChanged -= OnLaneGroupingChanged;
+                ParentKanban.CompactLayoutChanged -= OnCompactLayoutChanged;
+                ParentKanban.SearchFilterChanged -= OnSearchFilterChanged;
+                ParentKanban.BoardSizeChanged += OnBoardSizeChanged;
+                ParentKanban.ColumnWidthChanged += OnColumnWidthChanged;
+                ParentKanban.DragEnded += OnParentDragEnded;
+                ParentKanban.LaneGroupingChanged += OnLaneGroupingChanged;
+                ParentKanban.CompactLayoutChanged += OnCompactLayoutChanged;
+                ParentKanban.SearchFilterChanged += OnSearchFilterChanged;
                 ParentKanban.RegisterColumn(this);
             }
 
@@ -410,6 +422,7 @@ namespace Flowery.WinUI.Kanban.Controls
                 ParentKanban.DragEnded -= OnParentDragEnded;
                 ParentKanban.LaneGroupingChanged -= OnLaneGroupingChanged;
                 ParentKanban.CompactLayoutChanged -= OnCompactLayoutChanged;
+                ParentKanban.SearchFilterChanged -= OnSearchFilterChanged;
             }
 
             if (_columnGripElement != null)

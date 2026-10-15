@@ -480,6 +480,7 @@ namespace Flowery.Controls.Weather
         {
             base.OnLoaded();
             ApplyAll();
+            HandleAutoRefreshChanged();
         }
 
         private void OnLayoutUpdated(object? sender, object e)
@@ -497,6 +498,7 @@ namespace Flowery.Controls.Weather
 
             _loadingCts?.Cancel();
             _loadingCts = null;
+            IsLoading = false;
 
             _autoRefreshCts?.Cancel();
             _autoRefreshCts = null;
@@ -572,18 +574,19 @@ namespace Flowery.Controls.Weather
             _autoRefreshCts?.Cancel();
             _autoRefreshCts = null;
 
-            if (AutoRefresh && WeatherService != null && !string.IsNullOrWhiteSpace(Location))
+            if (IsLoaded && AutoRefresh && WeatherService != null && !string.IsNullOrWhiteSpace(Location))
             {
                 _autoRefreshCts = new CancellationTokenSource();
-                _ = RunAutoRefreshLoop(_autoRefreshCts.Token);
+                _ = RunAutoRefreshLoop(_autoRefreshCts);
             }
         }
 
-        private async Task RunAutoRefreshLoop(CancellationToken token)
+        private async Task RunAutoRefreshLoop(CancellationTokenSource owner)
         {
-            while (!token.IsCancellationRequested)
+            var token = owner.Token;
+            try
             {
-                try
+                while (!token.IsCancellationRequested)
                 {
                     await Task.Delay(RefreshInterval, token);
                     if (!token.IsCancellationRequested)
@@ -591,11 +594,9 @@ namespace Flowery.Controls.Weather
                         await LoadWeatherDataAsync();
                     }
                 }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+            finally { owner.Dispose(); }
         }
 
         /// <summary>
@@ -608,12 +609,15 @@ namespace Flowery.Controls.Weather
 
         private async Task LoadWeatherDataAsync()
         {
-            if (WeatherService == null || string.IsNullOrWhiteSpace(Location))
+            var service = WeatherService;
+            var location = Location;
+            if (service == null || string.IsNullOrWhiteSpace(location))
                 return;
 
             _loadingCts?.Cancel();
-            _loadingCts = new CancellationTokenSource();
-            var token = _loadingCts.Token;
+            var request = new CancellationTokenSource();
+            _loadingCts = request;
+            var token = request.Token;
 
             try
             {
@@ -623,12 +627,12 @@ namespace Flowery.Controls.Weather
                     ErrorMessage = null;
                 });
 
-                var current = await WeatherService.GetCurrentWeatherAsync(Location, token);
+                var current = await service.GetCurrentWeatherAsync(location, token);
                 IEnumerable<ForecastDay>? forecast = ShowForecast
-                    ? await WeatherService.GetForecastAsync(Location, ForecastDays, token)
+                    ? await service.GetForecastAsync(location, ForecastDays, token)
                     : null;
                 WeatherMetrics? metrics = ShowMetrics
-                    ? await WeatherService.GetMetricsAsync(Location, token)
+                    ? await service.GetMetricsAsync(location, token)
                     : null;
 
                 if (token.IsCancellationRequested)
@@ -636,6 +640,7 @@ namespace Flowery.Controls.Weather
 
                 await EnqueueAsync(() =>
                 {
+                    if (!ReferenceEquals(_loadingCts, request) || token.IsCancellationRequested) return;
                     Temperature = current.Temperature;
                     FeelsLike = current.FeelsLike;
                     Condition = current.Condition;
@@ -668,15 +673,20 @@ namespace Flowery.Controls.Weather
             {
                 await EnqueueAsync(() =>
                 {
-                    ErrorMessage = ex.Message;
+                    if (ReferenceEquals(_loadingCts, request)) ErrorMessage = ex.Message;
                 });
             }
             finally
             {
                 await EnqueueAsync(() =>
                 {
-                    IsLoading = false;
+                    if (ReferenceEquals(_loadingCts, request))
+                    {
+                        IsLoading = false;
+                        _loadingCts = null;
+                    }
                 });
+                request.Dispose();
             }
         }
 
@@ -690,7 +700,7 @@ namespace Flowery.Controls.Weather
             }
 
             var tcs = new TaskCompletionSource<bool>();
-            dispatcherQueue.TryEnqueue(() =>
+            if (!dispatcherQueue.TryEnqueue(() =>
             {
                 try
                 {
@@ -701,7 +711,7 @@ namespace Flowery.Controls.Weather
                 {
                     tcs.SetException(ex);
                 }
-            });
+            })) tcs.SetCanceled();
 
             return tcs.Task;
         }

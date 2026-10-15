@@ -9,6 +9,15 @@ namespace Flowery.Effects
     /// </summary>
     public static class TypewriterBehavior
     {
+        private static readonly HashSet<TextBlock> LoadedElements = [];
+
+        static TypewriterBehavior() => Flowery.Services.DaisyMotion.Changed += OnMotionChanged;
+
+        private static void OnMotionChanged(object? sender, EventArgs args)
+        {
+            if (Flowery.Services.DaisyMotion.AnimationsEnabled) return;
+            foreach (var element in LoadedElements.ToArray()) StopTypewriter(element, restoreText: true);
+        }
         public static readonly DependencyProperty IsEnabledProperty =
             DependencyProperty.RegisterAttached(
                 "IsEnabled",
@@ -79,6 +88,7 @@ namespace Flowery.Effects
             {
                 textBlock.Loaded -= OnLoaded;
                 textBlock.Unloaded -= OnUnloaded;
+                LoadedElements.Remove(textBlock);
                 StopTypewriter(textBlock, restoreText: true);
             }
         }
@@ -100,14 +110,23 @@ namespace Flowery.Effects
         private static void OnUnloaded(object sender, RoutedEventArgs e)
         {
             if (sender is TextBlock tb)
+            {
+                LoadedElements.Remove(tb);
                 StopTypewriter(tb, restoreText: false);
+            }
         }
 
         private static void StartTypewriter(TextBlock textBlock)
         {
-            if (!GetIsEnabled(textBlock))
+            if (!GetIsEnabled(textBlock) || !textBlock.IsLoaded)
                 return;
 
+            LoadedElements.Add(textBlock);
+            if (!Flowery.Services.DaisyMotion.AnimationsEnabled)
+            {
+                StopTypewriter(textBlock, restoreText: true);
+                return;
+            }
             if (textBlock.GetValue(TimerProperty) is DispatcherTimer)
                 return;
 

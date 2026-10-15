@@ -38,11 +38,18 @@ namespace Flowery.Helpers
         {
             public void Start()
             {
+                Flowery.Services.DaisyMotion.Changed += OnMotionChanged;
                 storyboard.Completed += OnCompleted;
                 storyboard.Begin();
             }
 
             public void Stop() => Finish(completed: false);
+
+            private void OnMotionChanged(object? sender, EventArgs args)
+            {
+                if (Flowery.Services.DaisyMotion.AnimationsEnabled) return;
+                if (_activeTransitions.Remove(element)) Finish(completed: true);
+            }
 
             private void OnCompleted(object? sender, object args)
             {
@@ -55,12 +62,20 @@ namespace Flowery.Helpers
 
             private void Finish(bool completed)
             {
+                Flowery.Services.DaisyMotion.Changed -= OnMotionChanged;
                 storyboard.Completed -= OnCompleted;
                 storyboard.Stop();
                 storyboard.Children.Clear();
                 CleanupTransitionResources(element, oldElement);
                 if (completed)
                 {
+                    element.Visibility = Visibility.Visible;
+                    if (element.Projection is PlaneProjection projection)
+                    {
+                        projection.RotationX = 0;
+                        projection.RotationY = 0;
+                        projection.GlobalOffsetZ = 0;
+                    }
                     if (oldElement is not null)
                         oldElement.Visibility = Visibility.Collapsed;
                     onComplete?.Invoke();
@@ -179,8 +194,11 @@ namespace Flowery.Helpers
             // Cancellation must also clean resources when switching to an instant swap.
             StopTransition(newElement);
 
+            if (!Flowery.Services.DaisyMotion.AnimationsEnabled)
+                resolvedTransition = FlowerySlideTransition.None;
+
             // Handle Random transition selection
-            if (transition == FlowerySlideTransition.Random)
+            if (resolvedTransition == FlowerySlideTransition.Random)
             {
                 // Default to Tier 1 (Transform) transitions.
                 resolvedTransition = FlowerySlideTransitionParser.PickRandom(FloweryTransitionTier.Transform);

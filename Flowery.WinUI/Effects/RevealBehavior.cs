@@ -11,6 +11,31 @@ namespace Flowery.Effects
     /// </summary>
     public static class RevealBehavior
     {
+        private static readonly HashSet<FrameworkElement> ActiveElements = [];
+
+        static RevealBehavior() => Flowery.Services.DaisyMotion.Changed += OnMotionChanged;
+
+        private static void OnMotionChanged(object? sender, EventArgs args)
+        {
+            if (Flowery.Services.DaisyMotion.AnimationsEnabled) return;
+            foreach (var element in ActiveElements.ToArray())
+            {
+                StopActiveStoryboard(element);
+                ShowFinalState(element);
+            }
+        }
+
+        private static void ShowFinalState(FrameworkElement element)
+        {
+            element.Opacity = 1;
+            if (element.RenderTransform is CompositeTransform transform)
+            {
+                transform.TranslateX = 0;
+                transform.TranslateY = 0;
+                transform.ScaleX = 1;
+                transform.ScaleY = 1;
+            }
+        }
         public static readonly DependencyProperty IsEnabledProperty =
             DependencyProperty.RegisterAttached(
                 "IsEnabled",
@@ -94,6 +119,12 @@ namespace Flowery.Effects
                 return;
 
             StopActiveStoryboard(element);
+
+            if (!Flowery.Services.DaisyMotion.AnimationsEnabled)
+            {
+                ShowFinalState(element);
+                return;
+            }
 
             var mode = GetMode(element);
             var duration = GetDuration(element);
@@ -214,9 +245,11 @@ namespace Flowery.Effects
             }
 
             element.SetValue(ActiveStoryboardProperty, sb);
+            ActiveElements.Add(element);
             sb.Completed += (_, _) =>
             {
                 element.ClearValue(ActiveStoryboardProperty);
+                ActiveElements.Remove(element);
                 element.Opacity = 1.0;
                 transform.TranslateX = 0;
                 transform.TranslateY = 0;
@@ -241,7 +274,7 @@ namespace Flowery.Effects
                 // If IsEnabled is set after load, we still want it to run.
                 element.DispatcherQueue?.TryEnqueue(() =>
                 {
-                    if (!GetManualTriggerOnly(element))
+                    if (element.IsLoaded && !GetManualTriggerOnly(element))
                         TriggerReveal(element);
                 });
             }
@@ -277,6 +310,7 @@ namespace Flowery.Effects
 
         private static void StopActiveStoryboard(FrameworkElement element)
         {
+            ActiveElements.Remove(element);
             if (element.GetValue(ActiveStoryboardProperty) is Storyboard sb)
             {
                 try

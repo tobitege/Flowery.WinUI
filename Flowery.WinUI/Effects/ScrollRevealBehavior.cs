@@ -11,6 +11,22 @@ namespace Flowery.Effects
     /// </summary>
     public static class ScrollRevealBehavior
     {
+        private static readonly HashSet<FrameworkElement> LoadedElements = [];
+
+        static ScrollRevealBehavior() => Flowery.Services.DaisyMotion.Changed += OnMotionChanged;
+
+        private static void OnMotionChanged(object? sender, EventArgs args)
+        {
+            if (Flowery.Services.DaisyMotion.AnimationsEnabled) return;
+            foreach (var element in LoadedElements.ToArray()) ShowWithoutMotion(element);
+        }
+
+        private static void ShowWithoutMotion(FrameworkElement element)
+        {
+            SetWasTriggered(element, true);
+            element.Opacity = 1;
+            if (RevealBehavior.GetIsEnabled(element)) RevealBehavior.TriggerReveal(element);
+        }
         public static readonly DependencyProperty IsEnabledProperty =
             DependencyProperty.RegisterAttached(
                 "IsEnabled",
@@ -47,6 +63,7 @@ namespace Flowery.Effects
             {
                 element.Loaded -= OnLoaded;
                 element.Unloaded -= OnUnloaded;
+                LoadedElements.Remove(element);
                 SetWasTriggered(element, false);
             }
         }
@@ -59,14 +76,21 @@ namespace Flowery.Effects
 
         private static void OnUnloaded(object sender, RoutedEventArgs e)
         {
+            if (sender is FrameworkElement element) LoadedElements.Remove(element);
             // No-op: event handlers are attached to the ScrollViewer instance and are short-lived in examples.
         }
 
         private static void Attach(FrameworkElement element)
         {
-            if (!GetIsEnabled(element))
+            if (!GetIsEnabled(element) || !element.IsLoaded)
                 return;
 
+            LoadedElements.Add(element);
+            if (!Flowery.Services.DaisyMotion.AnimationsEnabled)
+            {
+                ShowWithoutMotion(element);
+                return;
+            }
             // Hide initially if RevealBehavior is set to manual trigger only.
             if (RevealBehavior.GetIsEnabled(element) && RevealBehavior.GetManualTriggerOnly(element))
                 element.Opacity = 0;

@@ -15,6 +15,33 @@ Add the namespace to your XAML:
 xmlns:fx="using:Flowery.Effects"
 ```
 
+## Windows Animation Setting
+
+The built-in behaviors follow the Windows animation setting automatically.
+No additional public switch is required.
+
+If Windows animations are disabled during an effect, the effect stops and leaves readable content:
+
+| Effect | Result without animation |
+| --- | --- |
+| `RevealBehavior`, `ScrollRevealBehavior` | Content is visible at its final position and scale. |
+| `TypewriterBehavior` | The complete text is visible. |
+| `ScrambleHoverBehavior` | The original text is readable. |
+| `WaveTextBehavior`, `WaveText` | Text remains at its normal position. |
+| `CursorFollowBehavior` | The decorative follower is removed. The system pointer is unaffected. |
+| Slide transitions | The target slide becomes visible immediately. A running transition completes with its final state and callback. |
+| Automatic slideshow navigation | The slideshow pauses. A previously running controller resumes after animations are enabled again. |
+
+Enabled continuous behaviors can resume after Windows animations are enabled again, while their targets remain loaded.
+An explicitly stopped slideshow remains stopped.
+One-time text reveals keep their completed content.
+Unloading a target releases the active behavior subscriptions and animation work.
+
+The built-in controls apply the same setting to decorative loaders, status effects, shimmer, and animated value changes.
+Custom application animation code must handle the Windows setting separately.
+
+See [DaisyAccessibility](DaisyAccessibility.md) for Windows contrast themes and UI Automation.
+
 ## Effects
 
 ### RevealBehavior
@@ -299,49 +326,19 @@ private async Task AnimateInfinityPath(Grid panel, CancellationToken ct)
 
 ---
 
-## AnimationHelper
+## Custom Animations
 
-Core utility for cross-platform compatible animations. Use this for custom effects:
-
-```csharp
-using Flowery.Effects;
-
-// Animate a single value
-await AnimationHelper.AnimateAsync(
-    value => element.Opacity = value,
-    from: 0.0,
-    to: 1.0,
-    duration: TimeSpan.FromMilliseconds(500),
-    easing: new CubicEaseOut());
-
-// Animate with progress callback (t = 0 to 1, eased)
-await AnimationHelper.AnimateAsync(
-    t =>
-    {
-        element.Opacity = t;
-        transform.X = AnimationHelper.Lerp(startX, endX, t);
-    },
-    duration: TimeSpan.FromMilliseconds(500),
-    easing: new CubicEaseInOut());
-```
+Applications can use native WinUI storyboards or Windows Composition for custom animations.
+`Flowery.Effects.AnimationHelper` is an internal interpolation helper, not a public animation API.
+The public behavior methods in the Runtime Usage section control the built-in effects.
 
 ---
 
 ## Native Windows Runtime
 
-The effects use Task.Delay and DispatcherQueue interpolation in the native Windows application.
-The active solution does not target browser or mobile platforms.
-
-### The Pattern
-
-```csharp
-for (int i = 0; i <= steps; i++)
-{
-    var t = easing.Ease((double)i / steps);
-    DispatcherQueue.GetForCurrentThread().TryEnqueue(() => ApplyValue(t));
-    if (i < steps) await Task.Delay(stepDuration, ct);
-}
-```
+The effects run in the native Windows application.
+They use UI-thread timers, WinUI storyboards, or Windows Composition, according to the effect.
+UI changes use the WinUI dispatcher. The active solution targets Windows.
 
 ---
 

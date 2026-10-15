@@ -1,5 +1,6 @@
 {
   "Kanban_Settings_Title": "Impostazioni della bacheca",
+  "Kanban_Users_LoadError": "Impossibile caricare gli utenti",
   "Kanban_Settings_Subtitle": "Gestisci le conferme e il salvataggio automatico.",
   "Kanban_Settings_ConfirmColumnRemovals": "Conferma rimozione colonne",
   "Kanban_Settings_ConfirmCardRemovals": "Conferma rimozione schede",

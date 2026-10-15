@@ -9,8 +9,8 @@ DaisyCard provides a panel for grouping content with padding, rounded corners, a
 
 | Variant | Description |
 | --- | --- |
-| Normal (default) | Standard padding (32) and 16px corner radius. |
-| Compact | Reduced padding (16) for dense layouts or nested cards. |
+| Normal (default) | Size-dependent padding (32 at Medium) and 16px corner radius. |
+| Compact | Reduced size-dependent padding (16 at Medium) for dense layouts or nested cards. |
 | Side | Reserved for side-by-side card styling; currently matches Normal styling. |
 
 ## Color Variants
@@ -37,7 +37,7 @@ When you set a custom `Background` using a Daisy palette brush, the card **autom
 
 ```xml
 <!-- Auto-foreground detection - Foreground is automatically set to DaisyPrimaryContentBrush -->
-<controls:DaisyCard Background="{DynamicResource DaisyPrimaryBrush}">
+<controls:DaisyCard Background="{ThemeResource DaisyPrimaryBrush}">
     <TextBlock Text="Hello World"/>  <!-- Inherits correct foreground automatically -->
 </controls:DaisyCard>
 
@@ -81,13 +81,36 @@ This feature:
 | `BlurMode` | Blur rendering mode: Simulated, BitmapCapture, or SkiaSharp. |
 | `GlassSaturation` | Saturation of blur (0.0 = grayscale, 1.0 = normal). |
 
+### Windows Contrast Themes
+
+In a Windows contrast theme, the card uses an opaque system-colored surface and a visible border.
+Blur captures, tint overlays, reflections, and decorative shadows are disabled.
+The original glass settings apply again after Windows contrast mode ends.
+This behavior also applies to derived patterned and expandable cards.
+
 ## Typography & Layout
 
 | Property | Description |
 | --- | --- |
-| `BodyPadding` | Controls padding around content (default 32; compact sets 16). |
+| `BodyPadding` | Content padding. Follows `Size` and `Variant` until the application sets a local value. |
 | `BodyFontSize` | Default body text size for custom layouts (default 14). |
 | `TitleFontSize` | Default title text size for custom layouts (default 20). |
+
+### Automatic Body Padding
+
+These values apply to all four sides, in device-independent pixels:
+
+| Size | Normal / Side | Compact |
+| --- | --- | --- |
+| ExtraSmall | 16 | 8 |
+| Small | 24 | 12 |
+| Medium | 32 | 16 |
+| Large | 40 | 20 |
+| ExtraLarge | 48 | 24 |
+
+Changing `Size` or `Variant` updates automatic padding.
+A local `BodyPadding` value remains unchanged during these updates.
+Call `card.ClearValue(DaisyCard.BodyPaddingProperty)` to restore automatic padding for the current size and variant.
 
 ## Batteries-Included Header
 
@@ -142,7 +165,7 @@ Place any layout/content inside the card; common patterns:
 </controls:DaisyCard>
 
 <!-- Custom background with auto-foreground -->
-<controls:DaisyCard Background="{DynamicResource DaisySuccessBrush}">
+<controls:DaisyCard Background="{ThemeResource DaisySuccessBrush}">
     <StackPanel Spacing="6">
         <TextBlock Text="Success Card" FontWeight="Bold" />
         <TextBlock Text="Foreground auto-detected from background!" />

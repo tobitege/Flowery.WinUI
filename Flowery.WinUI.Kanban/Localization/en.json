@@ -1,5 +1,6 @@
 {
   "Kanban_AddSection": "Add Section",
+  "Kanban_Users_LoadError": "Could not load users",
   "Kanban_AddCard": "Add Card",
   "Kanban_ZoomIn": "Zoom In",
   "Kanban_ZoomOut": "Zoom Out",

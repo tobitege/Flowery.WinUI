@@ -141,6 +141,11 @@
             <Setter.Value>
                 <ControlTemplate TargetType="controls:DaisyPatternedCard">
                     <Grid x:Name="PART_Root">
+                        <Image x:Name="PART_BlurredBackdrop"
+                               Stretch="Fill"
+                               HorizontalAlignment="Stretch"
+                               VerticalAlignment="Stretch"
+                               Visibility="Collapsed" />
                         <Border x:Name="PART_BeveledShadow"
                                 Background="Black"
                                 Opacity="0.15"
@@ -294,6 +299,11 @@
                 <ControlTemplate TargetType="controls:DaisyExpandableCard">
                     <!-- Note: Glass mode and Styles are handled via code-behind -->
                     <Grid x:Name="PART_Root">
+                        <Image x:Name="PART_BlurredBackdrop"
+                               Stretch="Fill"
+                               HorizontalAlignment="Stretch"
+                               VerticalAlignment="Stretch"
+                               Visibility="Collapsed" />
                         <!-- 3D Shadow lift for Beveled style -->
                         <Border x:Name="PART_BeveledShadow"
                                 Background="Black"

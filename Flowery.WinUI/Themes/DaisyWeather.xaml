@@ -138,12 +138,16 @@
                                 </VisualState>
                                 <VisualState x:Name="ExtraLarge">
                                     <VisualState.Setters>
-                                        <Setter Target="ConditionIcon.IconSize" Value="56" />
-                                        <Setter Target="DayText.FontSize" Value="16" />
-                                        <Setter Target="DatePartText.FontSize" Value="14" />
-                                        <Setter Target="TemperatureText.FontSize" Value="42" />
-                                        <Setter Target="TemperatureUnitText.FontSize" Value="21" />
-                                        <Setter Target="FeelsLikeLabel.FontSize" Value="13" />
+                                        <Setter Target="ConditionIcon.IconSize" Value="72" />
+                                        <Setter Target="DayText.FontSize" Value="20" />
+                                        <Setter Target="DatePartText.FontSize" Value="18" />
+                                        <Setter Target="TemperatureText.FontSize" Value="56" />
+                                        <Setter Target="TemperatureUnitText.FontSize" Value="28" />
+                                        <Setter Target="FeelsLikeLabel.FontSize" Value="14" />
+                                        <Setter Target="FeelsLikeValue.FontSize" Value="14" />
+                                        <Setter Target="FeelsLikeUnit.FontSize" Value="14" />
+                                        <Setter Target="SunriseText.FontSize" Value="14" />
+                                        <Setter Target="SunsetText.FontSize" Value="14" />
                                     </VisualState.Setters>
                                 </VisualState>
                             </VisualStateGroup>
@@ -301,7 +305,6 @@
                                         <Setter Target="DayText.FontSize" Value="13" />
                                         <Setter Target="ConditionIcon.IconSize" Value="32" />
                                         <Setter Target="HighTempText.FontSize" Value="12" />
-                                        <Setter Target="TempSeparator.FontSize" Value="12" />
                                         <Setter Target="LowTempText.FontSize" Value="12" />
                                     </VisualState.Setters>
                                 </VisualState>
@@ -311,7 +314,6 @@
                                         <Setter Target="DayText.FontSize" Value="14" />
                                         <Setter Target="ConditionIcon.IconSize" Value="40" />
                                         <Setter Target="HighTempText.FontSize" Value="13" />
-                                        <Setter Target="TempSeparator.FontSize" Value="13" />
                                         <Setter Target="LowTempText.FontSize" Value="13" />
                                     </VisualState.Setters>
                                 </VisualState>
@@ -360,6 +362,12 @@
                                            HorizontalAlignment="Center"
                                            Foreground="{TemplateBinding Foreground}" />
                             </StackPanel>
+                             <TextBlock x:Name="PrecipitationText"
+                                        Text="{Binding PrecipitationChance, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToIntStringConverter}, ConverterParameter=percent}"
+                                        Visibility="{Binding ShowPrecipitation, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                        FontSize="11"
+                                        HorizontalAlignment="Center"
+                                        Foreground="{TemplateBinding Foreground}" />
                         </StackPanel>
 
 
@@ -464,7 +472,7 @@
                                               Opacity="0.8"
                                               Margin="-6,0,0,0"
                                               Visibility="Collapsed">
-                            <Path Data="M15.41,16.58L10.83,12L15.41,7.41L14,6L8,12L14,18L15.41,16.58Z"
+                            <Path x:Name="LeftScrollIcon" Data="M15.41,16.58L10.83,12L15.41,7.41L14,6L8,12L14,18L15.41,16.58Z"
                                   Fill="{ThemeResource DaisyBaseContentBrush}"
                                   Stretch="Uniform"
                                   Width="12" Height="12" />
@@ -480,7 +488,7 @@
                                               Opacity="0.8"
                                               Margin="0,0,-6,0"
                                               Visibility="Collapsed">
-                            <Path Data="M10,6L8.59,7.41L13.17,12L8.59,16.58L10,18L16,12L10,6Z"
+                            <Path x:Name="RightScrollIcon" Data="M10,6L8.59,7.41L13.17,12L8.59,16.58L10,18L16,12L10,6Z"
                                   Fill="{ThemeResource DaisyBaseContentBrush}"
                                   Stretch="Uniform"
                                   Width="12" Height="12" />

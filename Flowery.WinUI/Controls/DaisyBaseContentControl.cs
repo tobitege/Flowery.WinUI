@@ -398,6 +398,7 @@ namespace Flowery.Controls
 
         private void OnBaseLoaded(object sender, RoutedEventArgs e)
         {
+            Flowery.Services.DaisySystemAppearance.Initialize(XamlRoot);
             _isLoaded = true;
             if (!_themeSubscribed)
             {
@@ -654,7 +655,8 @@ namespace Flowery.Controls
             var scope = DaisyNeumorphic.GetScopeEnabled(this);
             bool isActuallyEnabled = (scope ?? NeumorphicEnabled ?? _globalNeumorphicEnabled);
 
-            return isActuallyEnabled && GetEffectiveNeumorphicMode() != DaisyNeumorphicMode.None;
+            return !Flowery.Services.DaisySystemAppearance.HighContrast && isActuallyEnabled
+                && GetEffectiveNeumorphicMode() != DaisyNeumorphicMode.None;
         }
 
         protected virtual bool IsNeumorphicRimLightEffectivelyEnabled()

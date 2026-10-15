@@ -1,5 +1,6 @@
 {
   "Kanban_Settings_Title": "보드 설정",
+  "Kanban_Users_LoadError": "사용자를 불러올 수 없습니다",
   "Kanban_Settings_Subtitle": "확인 프롬프트와 자동 저장 동작을 제어합니다.",
   "Kanban_Settings_ConfirmColumnRemovals": "열 삭제 확인",
   "Kanban_Settings_ConfirmCardRemovals": "카드 삭제 확인",

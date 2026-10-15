@@ -156,6 +156,7 @@ namespace Flowery.Controls.Weather
         {
             base.OnLoaded();
             _isLoaded = true;
+            Flowery.Services.DaisyMotion.Changed += OnMotionChanged;
             ApplyAll();
             UpdateVisualState();
         }
@@ -164,8 +165,11 @@ namespace Flowery.Controls.Weather
         {
             base.OnUnloaded();
             _isLoaded = false;
+            Flowery.Services.DaisyMotion.Changed -= OnMotionChanged;
             StopAnimations();
         }
+
+        private void OnMotionChanged(object? sender, EventArgs e) => UpdateVisualState();
 
         protected override void OnThemeChanged(string themeName)
         {
@@ -190,7 +194,7 @@ namespace Flowery.Controls.Weather
             var group = GetAnimationGroup(Condition);
             UpdateAuxVisibility(group);
 
-            if (!IsAnimated || group == WeatherAnimationGroup.None)
+            if (!IsAnimated || !Flowery.Services.DaisyMotion.AnimationsEnabled || group == WeatherAnimationGroup.None)
             {
                 StopAnimations();
                 return;

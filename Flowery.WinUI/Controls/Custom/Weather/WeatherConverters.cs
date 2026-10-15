@@ -179,6 +179,10 @@ namespace Flowery.Controls.Weather
             {
                 text += "\u00B0";
             }
+            else if (parameter is string percentage && string.Equals(percentage, "percent", StringComparison.OrdinalIgnoreCase))
+            {
+                text += "%";
+            }
 
             return text;
         }

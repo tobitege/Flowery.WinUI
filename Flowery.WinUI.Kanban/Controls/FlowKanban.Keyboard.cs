@@ -294,15 +294,6 @@ namespace Flowery.WinUI.Kanban.Controls
                 return;
             }
 
-            if (e.Key == VirtualKey.Up || e.Key == VirtualKey.Down)
-            {
-                if (!isControlDown && !isShiftDown && !isAltDown)
-                {
-                    e.Handled = true;
-                    return;
-                }
-            }
-
             if (!IsDirectionalKey(e.Key))
                 return;
 

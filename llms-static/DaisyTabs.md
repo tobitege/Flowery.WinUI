@@ -168,19 +168,21 @@ If you want tab colors to follow the active theme, use `DaisyTabs.TabColor` with
 
 ## Context Menu
 
-Enable a right-click context menu on tabs with close actions and color selection. The menu is **off by default** and only raises events/callbacks - your app handles the actual tab manipulation.
+The context menu provides close actions and color selection. The menu is **off by default**. Close actions raise events and callbacks. Your app handles the tab changes.
 
 | Property | Type | Default | Description |
 | --- | --- | --- | --- |
-| EnableTabContextMenu | bool | false | Shows context menu on right-click |
+| EnableTabContextMenu | bool | false | Enables the context menu for pointer and keyboard input. |
+
+With `EnableTabContextMenu=True`, a right-click opens the menu for that tab. The Context Menu key or Shift+F10 opens the menu for the selected tab. These shortcuts require keyboard focus within DaisyTabs.
 
 ### Context Menu Items
 
-When enabled, right-clicking a tab shows:
+The menu contains:
 
-- **Close Tab** – Requests closing the clicked tab
-- **Close Other Tabs** – Requests closing all tabs except the clicked one
-- **Close Tabs to the Right** – Requests closing tabs after the clicked one
+- **Close Tab** – Requests that the app close the target tab.
+- **Close Other Tabs** – Requests that the app close all other tabs.
+- **Close Tabs to the Right** – Requests that the app close tabs after the target tab.
 - **Tab Color** – Inline color dots (palette). Click a dot to apply it; click the hollow dot to reset.
 
 ### Events & Callbacks

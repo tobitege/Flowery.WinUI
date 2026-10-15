@@ -19,6 +19,7 @@ namespace Flowery.Controls
     /// </summary>
     public partial class DaisyRating : DaisyBaseContentControl
     {
+        protected override Microsoft.UI.Xaml.Automation.Peers.AutomationPeer OnCreateAutomationPeer() => new DaisyRatingAutomationPeer(this);
         private StackPanel? _starsPanel;
         private readonly List<Microsoft.UI.Xaml.Shapes.Path> _stars = [];
         private bool _isDragging;
@@ -143,6 +144,7 @@ namespace Flowery.Controls
             {
                 r.UpdateStarFills();
                 r.UpdateAutomationProperties();
+                DaisySelectorAutomationPeers.RaiseRangeValueChanged(r, (double)e.OldValue, (double)e.NewValue);
             }
         }
 

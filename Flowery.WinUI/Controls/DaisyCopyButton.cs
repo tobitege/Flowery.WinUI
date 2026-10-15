@@ -87,7 +87,7 @@ namespace Flowery.Controls
             _isBusy = true;
 
             // Save idle state
-            _idleContent ??= Content;
+            _idleContent = Content;
             var idleEnabled = IsEnabled;
 
             try
@@ -103,7 +103,8 @@ namespace Flowery.Controls
                 }
                 catch
                 {
-                    // Even if clipboard fails, keep UX consistent with Avalonia demo: show success state briefly.
+                    // A failed clipboard write must not be presented as a successful copy.
+                    return;
                 }
 
                 Content = SuccessContent;

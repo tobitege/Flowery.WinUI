@@ -47,7 +47,16 @@
                         BorderBrush="{TemplateBinding BorderBrush}"
                         BorderThickness="{TemplateBinding BorderThickness}"
                         CornerRadius="{TemplateBinding CornerRadius}">
-                    <ContentPresenter x:Name="ContentPresenter"
+                    <Grid x:Name="PART_IconContentPanel"
+                                HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                Margin="{TemplateBinding Padding}">
+                        <ContentPresenter x:Name="PART_IconPresenter"
+                                          Foreground="{TemplateBinding Foreground}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Visibility="Collapsed" />
+                        <ContentPresenter x:Name="ContentPresenter"
                                       Content="{TemplateBinding Content}"
                                       ContentTemplate="{TemplateBinding ContentTemplate}"
                                       ContentTemplateSelector="{TemplateBinding ContentTemplateSelector}"
@@ -55,7 +64,8 @@
                                       Foreground="{TemplateBinding Foreground}"
                                       HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                       VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
-                                      Margin="{TemplateBinding Padding}" />
+                                      />
+                    </Grid>
                 </Border>
             </controls:DaisyShadowContainer>
         </Grid>

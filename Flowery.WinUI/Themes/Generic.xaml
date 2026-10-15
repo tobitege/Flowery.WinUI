@@ -3,31 +3,91 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Flowery.Controls">
 
-    <!-- Default fallback brushes (overwritten by DaisyThemeManager.ApplyTheme) -->
-    <SolidColorBrush x:Key="DaisyPrimaryBrush" Color="#570DF8" />
-    <SolidColorBrush x:Key="DaisyPrimaryFocusBrush" Color="#4506CB" />
-    <SolidColorBrush x:Key="DaisyPrimaryContentBrush" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="DaisySecondaryBrush" Color="#F000B8" />
-    <SolidColorBrush x:Key="DaisySecondaryFocusBrush" Color="#BD0091" />
-    <SolidColorBrush x:Key="DaisySecondaryContentBrush" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="DaisyAccentBrush" Color="#37CDBE" />
-    <SolidColorBrush x:Key="DaisyAccentFocusBrush" Color="#2AA79B" />
-    <SolidColorBrush x:Key="DaisyAccentContentBrush" Color="#163835" />
-    <SolidColorBrush x:Key="DaisyNeutralBrush" Color="#2A323C" />
-    <SolidColorBrush x:Key="DaisyNeutralFocusBrush" Color="#1D232A" />
-    <SolidColorBrush x:Key="DaisyNeutralContentBrush" Color="#A6ADBB" />
-    <SolidColorBrush x:Key="DaisyBase100Brush" Color="#1D232A" />
-    <SolidColorBrush x:Key="DaisyBase200Brush" Color="#191E24" />
-    <SolidColorBrush x:Key="DaisyBase300Brush" Color="#15191E" />
-    <SolidColorBrush x:Key="DaisyBaseContentBrush" Color="#A6ADBB" />
-    <SolidColorBrush x:Key="DaisyInfoBrush" Color="#00B5FF" />
-    <SolidColorBrush x:Key="DaisyInfoContentBrush" Color="#002B3D" />
-    <SolidColorBrush x:Key="DaisySuccessBrush" Color="#00A96E" />
-    <SolidColorBrush x:Key="DaisySuccessContentBrush" Color="#001A11" />
-    <SolidColorBrush x:Key="DaisyWarningBrush" Color="#FFBE00" />
-    <SolidColorBrush x:Key="DaisyWarningContentBrush" Color="#1D1600" />
-    <SolidColorBrush x:Key="DaisyErrorBrush" Color="#FF5861" />
-    <SolidColorBrush x:Key="DaisyErrorContentBrush" Color="#160205" />
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Dark">
+            <SolidColorBrush x:Key="DaisyPrimaryBrush" Color="#570DF8" />
+            <SolidColorBrush x:Key="DaisyPrimaryFocusBrush" Color="#4506CB" />
+            <SolidColorBrush x:Key="DaisyPrimaryContentBrush" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="DaisySecondaryBrush" Color="#F000B8" />
+            <SolidColorBrush x:Key="DaisySecondaryFocusBrush" Color="#BD0091" />
+            <SolidColorBrush x:Key="DaisySecondaryContentBrush" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="DaisyAccentBrush" Color="#37CDBE" />
+            <SolidColorBrush x:Key="DaisyAccentFocusBrush" Color="#2AA79B" />
+            <SolidColorBrush x:Key="DaisyAccentContentBrush" Color="#163835" />
+            <SolidColorBrush x:Key="DaisyNeutralBrush" Color="#2A323C" />
+            <SolidColorBrush x:Key="DaisyNeutralFocusBrush" Color="#1D232A" />
+            <SolidColorBrush x:Key="DaisyNeutralContentBrush" Color="#A6ADBB" />
+            <SolidColorBrush x:Key="DaisyBase100Brush" Color="#1D232A" />
+            <SolidColorBrush x:Key="DaisyBase200Brush" Color="#191E24" />
+            <SolidColorBrush x:Key="DaisyBase300Brush" Color="#15191E" />
+            <SolidColorBrush x:Key="DaisyBaseContentBrush" Color="#A6ADBB" />
+            <SolidColorBrush x:Key="DaisyInfoBrush" Color="#00B5FF" />
+            <SolidColorBrush x:Key="DaisyInfoContentBrush" Color="#002B3D" />
+            <SolidColorBrush x:Key="DaisySuccessBrush" Color="#00A96E" />
+            <SolidColorBrush x:Key="DaisySuccessContentBrush" Color="#001A11" />
+            <SolidColorBrush x:Key="DaisyWarningBrush" Color="#FFBE00" />
+            <SolidColorBrush x:Key="DaisyWarningContentBrush" Color="#1D1600" />
+            <SolidColorBrush x:Key="DaisyErrorBrush" Color="#FF5861" />
+            <SolidColorBrush x:Key="DaisyErrorContentBrush" Color="#160205" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Light">
+            <SolidColorBrush x:Key="DaisyPrimaryBrush" Color="#422AD5" />
+            <SolidColorBrush x:Key="DaisyPrimaryFocusBrush" Color="#3421AA" />
+            <SolidColorBrush x:Key="DaisyPrimaryContentBrush" Color="#E0E7FF" />
+            <SolidColorBrush x:Key="DaisySecondaryBrush" Color="#F43098" />
+            <SolidColorBrush x:Key="DaisySecondaryFocusBrush" Color="#C32679" />
+            <SolidColorBrush x:Key="DaisySecondaryContentBrush" Color="#F9E4F0" />
+            <SolidColorBrush x:Key="DaisyAccentBrush" Color="#00D3BB" />
+            <SolidColorBrush x:Key="DaisyAccentFocusBrush" Color="#00A895" />
+            <SolidColorBrush x:Key="DaisyAccentContentBrush" Color="#084D49" />
+            <SolidColorBrush x:Key="DaisyNeutralBrush" Color="#09090B" />
+            <SolidColorBrush x:Key="DaisyNeutralFocusBrush" Color="#070708" />
+            <SolidColorBrush x:Key="DaisyNeutralContentBrush" Color="#E4E4E7" />
+            <SolidColorBrush x:Key="DaisyBase100Brush" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="DaisyBase200Brush" Color="#F2F2F2" />
+            <SolidColorBrush x:Key="DaisyBase300Brush" Color="#D1D5DB" />
+            <SolidColorBrush x:Key="DaisyBaseContentBrush" Color="#18181B" />
+            <SolidColorBrush x:Key="DaisyInfoBrush" Color="#00BAFE" />
+            <SolidColorBrush x:Key="DaisyInfoContentBrush" Color="#000000" />
+            <SolidColorBrush x:Key="DaisySuccessBrush" Color="#00D390" />
+            <SolidColorBrush x:Key="DaisySuccessContentBrush" Color="#000000" />
+            <SolidColorBrush x:Key="DaisyWarningBrush" Color="#FCB700" />
+            <SolidColorBrush x:Key="DaisyWarningContentBrush" Color="#000000" />
+            <SolidColorBrush x:Key="DaisyErrorBrush" Color="#FF627D" />
+            <SolidColorBrush x:Key="DaisyErrorContentBrush" Color="#000000" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="HighContrast">
+            <SolidColorBrush x:Key="DaisyPrimaryBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="DaisyPrimaryFocusBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="DaisyPrimaryContentBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="DaisySecondaryBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="DaisySecondaryFocusBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="DaisySecondaryContentBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="DaisyAccentBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="DaisyAccentFocusBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="DaisyAccentContentBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="DaisyNeutralBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="DaisyNeutralFocusBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="DaisyNeutralContentBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="DaisyBase100Brush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="DaisyBase200Brush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="DaisyBase300Brush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="DaisyBaseContentBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="DaisyInfoBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="DaisyInfoContentBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="DaisySuccessBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="DaisySuccessContentBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="DaisyWarningBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="DaisyWarningContentBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="DaisyErrorBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="DaisyErrorContentBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="DaisyPrimaryForegroundBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="DaisySecondaryForegroundBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="DaisyAccentForegroundBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="DaisyButtonPrimaryForegroundBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="DaisyDisabledForegroundBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
 
     <ResourceDictionary.MergedDictionaries>
         <!-- Use assembly-qualified URIs for resources in the Flowery.WinUI library. -->

@@ -11,6 +11,7 @@ using Flowery.Services;
 using Flowery.Theming;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
@@ -163,7 +164,7 @@ namespace Flowery.Controls
         public SidebarItem Item { get; } = item;
         public SidebarCategory Category { get; } = category;
         public bool IsHovered { get; set; }
-        public Button? FavoriteButton { get; set; }
+        public Microsoft.UI.Xaml.Controls.Primitives.ToggleButton? FavoriteButton { get; set; }
         public DaisyIconText? FavoriteFilled { get; set; }
         public DaisyIconText? FavoriteOutline { get; set; }
     }
@@ -1102,17 +1103,28 @@ namespace Flowery.Controls
                 NeumorphicEnabled = false
             };
             FlowerySizeManager.SetIgnoreGlobalSize(textItem, true);
-            Grid.SetColumn(textItem, 0);
-            grid.Children.Add(textItem);
+            var navigationButton = new Button
+            {
+                Content = textItem,
+                Background = new SolidColorBrush(Colors.Transparent),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(0),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch
+            };
+            AutomationProperties.SetName(navigationButton, item.DisplayName);
+            Grid.SetColumn(navigationButton, 0);
+            grid.Children.Add(navigationButton);
 
-            Button? favoriteButton = null;
+            Microsoft.UI.Xaml.Controls.Primitives.ToggleButton? favoriteButton = null;
             DaisyIconText? filledIcon = null;
             DaisyIconText? outlineIcon = null;
 
             if (item.ShowFavoriteIcon)
             {
-                favoriteButton = new Button
+                favoriteButton = new Microsoft.UI.Xaml.Controls.Primitives.ToggleButton
                 {
+                    IsChecked = item.IsFavorite,
                     Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0)),
                     BorderThickness = new Thickness(0),
                     Padding = new Thickness(4, 2, 4, 2),
@@ -1154,10 +1166,12 @@ namespace Flowery.Controls
                     favoritePanel.Children.Add(outlineIcon);
                 }
                 favoriteButton.Content = favoritePanel;
+                AutomationProperties.SetName(favoriteButton,
+                    $"{Flowery.Localization.FloweryLocalization.GetStringInternal("Sidebar_Favorite", "Favorite")}: {item.DisplayName}");
 
                 favoriteButton.Click += (_, args) =>
                 {
-                    item.IsFavorite = !item.IsFavorite;
+                    item.IsFavorite = favoriteButton.IsChecked == true;
                     item.RaiseFavoriteToggleRequested();
                     FavoriteToggled?.Invoke(this, new SidebarFavoriteToggledEventArgs(item));
                 };
@@ -1192,6 +1206,16 @@ namespace Flowery.Controls
             _itemViews[item] = view;
 
             RegisterItemLabelUpdate(item, textItem);
+            RegisterItemHandler(item, (_, args) =>
+            {
+                if (args.PropertyName == nameof(SidebarItem.DisplayName))
+                {
+                    AutomationProperties.SetName(navigationButton, item.DisplayName);
+                    if (favoriteButton != null)
+                        AutomationProperties.SetName(favoriteButton,
+                            $"{Flowery.Localization.FloweryLocalization.GetStringInternal("Sidebar_Favorite", "Favorite")}: {item.DisplayName}");
+                }
+            });
             RegisterFavoriteUpdate(item, view);
 
             container.PointerEntered += (_, _) =>
@@ -1204,11 +1228,8 @@ namespace Flowery.Controls
                 view.IsHovered = false;
                 ApplyItemVisuals(view);
             };
-            container.Tapped += (s, args) =>
+            navigationButton.Click += (s, args) =>
             {
-                if (favoriteButton != null && IsFromElement(args.OriginalSource as DependencyObject, favoriteButton))
-                    return;
-
                 SelectItem(item, category, view, scrollToView: false);
             };
 
@@ -1269,6 +1290,8 @@ namespace Flowery.Controls
             {
                 if (args.PropertyName == nameof(SidebarItem.IsFavorite))
                 {
+                    if (view.FavoriteButton != null)
+                        view.FavoriteButton.IsChecked = item.IsFavorite;
                     view.FavoriteFilled.Visibility = item.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
                     view.FavoriteOutline.Visibility = item.IsFavorite ? Visibility.Collapsed : Visibility.Visible;
                 }

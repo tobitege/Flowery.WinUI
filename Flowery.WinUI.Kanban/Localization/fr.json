@@ -1,5 +1,6 @@
 {
   "Kanban_Settings_Title": "Paramètres du tableau",
+  "Kanban_Users_LoadError": "Impossible de charger les utilisateurs",
   "Kanban_Settings_Subtitle": "Gère les confirmations et l'enregistrement automatique.",
   "Kanban_Settings_ConfirmColumnRemovals": "Confirmer la suppression des colonnes",
   "Kanban_Settings_ConfirmCardRemovals": "Confirmer la suppression des cartes",

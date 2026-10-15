@@ -29,6 +29,7 @@ namespace Flowery.Controls
         private Point _dragStartPosition;
         private Point _dragStartOffset;
         private bool _isSettingRoot;
+        private WeakReference<DependencyObject>? _previousFocus;
         public DaisyModal()
         {
             // Ensure control stretches to fill parent
@@ -36,7 +37,8 @@ namespace Flowery.Controls
             VerticalAlignment = VerticalAlignment.Stretch;
             HorizontalContentAlignment = HorizontalAlignment.Stretch;
             VerticalContentAlignment = VerticalAlignment.Stretch;
-            IsTabStop = true; // Required for KeyDown events
+            IsTabStop = false;
+            TabFocusNavigation = KeyboardNavigationMode.Cycle;
             // Modal starts closed - don't block hit-testing on elements behind it
             IsHitTestVisible = false;
 
@@ -140,9 +142,15 @@ namespace Flowery.Controls
         protected override void OnLoaded()
         {
             base.OnLoaded();
+            KeyDown -= OnKeyDown;
+            KeyDown += OnKeyDown;
+            SizeChanged -= OnSizeChanged;
+            SizeChanged += OnSizeChanged;
             ApplyCornerRadius();
             UpdateDialogBounds();
             ApplyAll();
+            if (IsOpen)
+                FocusInitialContent();
         }
 
         protected override void OnUnloaded()
@@ -347,6 +355,22 @@ namespace Flowery.Controls
             _dialogHost.Height = height;
         }
 
+        /// <summary>
+        /// Selects the initial content control, allowing dialog hosts to exclude focus boundaries.
+        /// </summary>
+        protected virtual Control? GetInitialFocusTarget() =>
+            FocusManager.FindFirstFocusableElement(_dialogHost) as Control;
+
+        private void FocusInitialContent()
+        {
+            if (!IsLoaded)
+                return;
+
+            UpdateLayout();
+            if (GetInitialFocusTarget() is not { } target || !target.Focus(FocusState.Programmatic))
+                Focus(FocusState.Programmatic);
+        }
+
         private static void OnIsOpenChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is DaisyModal modal)
@@ -355,16 +379,21 @@ namespace Flowery.Controls
                 modal._root.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
                 // Enable/disable hit-testing so closed modal doesn't block pointer events
                 modal.IsHitTestVisible = isOpen;
+                modal.IsTabStop = isOpen;
 
                 if (isOpen)
                 {
-                    // Try to focus the modal so it captures key events (ESC)
-                    modal.Focus(FocusState.Programmatic);
+                    var previous = modal.XamlRoot == null ? null : FocusManager.GetFocusedElement(modal.XamlRoot) as DependencyObject;
+                    modal._previousFocus = previous == null ? null : new WeakReference<DependencyObject>(previous);
                     modal.UpdateDialogBounds();
+                    modal.FocusInitialContent();
                 }
                 else
                 {
                     modal.StopDrag();
+                    if (modal._previousFocus?.TryGetTarget(out var previous) == true && previous is Control { IsLoaded: true } control)
+                        control.Focus(FocusState.Programmatic);
+                    modal._previousFocus = null;
                 }
             }
         }

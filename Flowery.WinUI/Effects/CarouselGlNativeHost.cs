@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
+using Flowery.Services;
 
 namespace Flowery.Effects
 {
@@ -103,7 +104,7 @@ namespace Flowery.Effects
                         assets.Add(asset.Key, await ResolveAssetAsync(asset.Value));
                     configuration = configuration with { Assets = assets };
                     await session.RequestAsync("configure", configuration);
-                    await session.RequestAsync("active", _inViewport);
+                    await session.RequestAsync("active", _inViewport && DaisyMotion.AnimationsEnabled);
                     if (revision == _revision) return;
                 }
             }
@@ -139,12 +140,14 @@ namespace Flowery.Effects
 
         private void OnLoaded(object sender, RoutedEventArgs args)
         {
+            DaisyMotion.Changed += OnMotionChanged;
             LastRenderError = null;
             RefreshRenderer();
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs args)
         {
+            DaisyMotion.Changed -= OnMotionChanged;
             _revision++;
             CloseRenderer();
         }
@@ -155,9 +158,16 @@ namespace Flowery.Effects
             _inViewport = viewport.Width > 0 && viewport.Height > 0
                 && viewport.Left < ActualWidth && viewport.Right > 0
                 && viewport.Top < ActualHeight && viewport.Bottom > 0;
+            await UpdateActivityAsync();
+        }
+
+        private async void OnMotionChanged(object? sender, EventArgs args) => await UpdateActivityAsync();
+
+        private async Task UpdateActivityAsync()
+        {
             var session = _session;
             if (session?.IsInitialized != true) return;
-            try { await session.RequestAsync("active", _inViewport); }
+            try { await session.RequestAsync("active", _inViewport && DaisyMotion.AnimationsEnabled); }
             catch (OperationCanceledException) when (!ReferenceEquals(session, _session)) { }
             catch (ObjectDisposedException) when (!ReferenceEquals(session, _session)) { }
             catch (Exception error) { if (ReferenceEquals(session, _session)) OnRendererFailed(this, error); }

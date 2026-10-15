@@ -104,6 +104,7 @@ namespace Flowery.Controls
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            Flowery.Services.DaisySystemAppearance.Initialize(XamlRoot);
             EnsureTemplate();
             _lifecycle.HandleLoaded();
             ApplyAll();

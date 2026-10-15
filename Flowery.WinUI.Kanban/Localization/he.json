@@ -1,5 +1,6 @@
 {
   "Kanban_Settings_Title": "הגדרות לוח",
+  "Kanban_Users_LoadError": "לא ניתן לטעון משתמשים",
   "Kanban_Settings_Subtitle": "ניהול אישורי מחיקה ושמירה אוטומטית.",
   "Kanban_Settings_ConfirmColumnRemovals": "אשר מחיקת עמודות",
   "Kanban_Settings_ConfirmCardRemovals": "אשר מחיקת כרטיסים",

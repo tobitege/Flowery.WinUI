@@ -120,6 +120,17 @@ namespace Flowery.Controls
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            if (_gripThumb != null)
+            {
+                _gripThumb.DragStarted -= OnGripDragStarted;
+                _gripThumb.DragStarted += OnGripDragStarted;
+                _gripThumb.DragDelta -= OnGripDragDelta;
+                _gripThumb.DragDelta += OnGripDragDelta;
+                _gripThumb.DragCompleted -= OnGripDragCompleted;
+                _gripThumb.DragCompleted += OnGripDragCompleted;
+                _gripThumb.PointerPressed -= OnGripPointerPressed;
+                _gripThumb.PointerPressed += OnGripPointerPressed;
+            }
             if (_itemsPanel == null)
                 _itemsPanel = ItemsPanelRoot;
 

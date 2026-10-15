@@ -1,5 +1,6 @@
 {
   "Kanban_Settings_Title": "ボード設定",
+  "Kanban_Users_LoadError": "ユーザーを読み込めませんでした",
   "Kanban_Settings_Subtitle": "確認ダイアログと自動保存の動作を設定します。",
   "Kanban_Settings_ConfirmColumnRemovals": "列の削除を確認する",
   "Kanban_Settings_ConfirmCardRemovals": "カードの削除を確認する",

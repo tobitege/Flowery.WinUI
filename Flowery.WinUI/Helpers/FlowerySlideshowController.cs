@@ -20,6 +20,7 @@ namespace Flowery.Helpers
         private readonly Func<int> _getCurrentIndex = getCurrentIndex ?? throw new ArgumentNullException(nameof(getCurrentIndex));
 
         private DispatcherTimer? _timer;
+        private bool _isStarted;
         private List<int>? _shuffledIndices;
         private int _shufflePosition;
         private readonly Random _random = new();
@@ -75,8 +76,21 @@ namespace Flowery.Helpers
         {
             Stop();
 
+            if (_mode == FlowerySlideshowMode.Manual || _getItemCount() <= 1) return;
+            _isStarted = true;
+            Flowery.Services.DaisyMotion.Changed += OnMotionChanged;
+            StartTimer();
+        }
+
+        private void OnMotionChanged(object? sender, EventArgs args) => StartTimer();
+
+        private void StartTimer()
+        {
+            StopTimer();
+
             int itemCount = _getItemCount();
-            if (_mode == FlowerySlideshowMode.Manual || itemCount <= 1)
+            if (!_isStarted || !Flowery.Services.DaisyMotion.AnimationsEnabled
+                || _mode == FlowerySlideshowMode.Manual || itemCount <= 1)
             {
                 return;
             }
@@ -99,6 +113,13 @@ namespace Flowery.Helpers
         /// </summary>
         public void Stop()
         {
+            _isStarted = false;
+            Flowery.Services.DaisyMotion.Changed -= OnMotionChanged;
+            StopTimer();
+        }
+
+        private void StopTimer()
+        {
             if (_timer is not null)
             {
                 _timer.Stop();
@@ -112,7 +133,7 @@ namespace Flowery.Helpers
         /// </summary>
         public void Restart()
         {
-            if (IsRunning || _mode != FlowerySlideshowMode.Manual)
+            if (_isStarted || _mode != FlowerySlideshowMode.Manual)
             {
                 Start();
             }
@@ -217,6 +238,11 @@ namespace Flowery.Helpers
 
         private void OnTimerTick(object? sender, object e)
         {
+            if (!Flowery.Services.DaisyMotion.AnimationsEnabled)
+            {
+                StopTimer();
+                return;
+            }
             int itemCount = _getItemCount();
             if (itemCount == 0)
             {

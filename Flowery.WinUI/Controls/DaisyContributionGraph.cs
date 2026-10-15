@@ -17,7 +17,7 @@ namespace Flowery.Controls
     /// </summary>
     public partial class DaisyContributionGraph : DaisyBaseContentControl
     {
-        private const int WeeksInYear = 53;
+        private int WeeksInYear = 53;
         private const int DaysInWeek = 7;
 
         private Grid? _rootGrid;
@@ -408,6 +408,15 @@ namespace Flowery.Controls
             if (_monthHeadersGrid == null || _dayLabelsPanel == null || _cellsGrid == null || _legendPanel == null)
                 return;
 
+            var first = GetFirstGridDate(new DateTime(Year, 1, 1));
+            WeeksInYear = (new DateTime(Year, 12, 31) - first).Days / DaysInWeek + 1;
+            _monthHeadersGrid.ColumnDefinitions.Clear();
+            _cellsGrid.ColumnDefinitions.Clear();
+            for (var week = 0; week < WeeksInYear; week++)
+            {
+                _monthHeadersGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                _cellsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            }
             UpdateCellSteps();
             RebuildDayLabels();
             RebuildMonthHeaders();

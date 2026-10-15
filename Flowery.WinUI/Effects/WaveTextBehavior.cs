@@ -11,6 +11,14 @@ namespace Flowery.Effects
     /// </summary>
     public static class WaveTextBehavior
     {
+        private static readonly HashSet<TextBlock> LoadedElements = [];
+
+        static WaveTextBehavior() => Flowery.Services.DaisyMotion.Changed += OnMotionChanged;
+
+        private static void OnMotionChanged(object? sender, EventArgs args)
+        {
+            foreach (var element in LoadedElements.ToArray()) StartWave(element);
+        }
         // This attached behavior animates the entire text element.
 
         public static readonly DependencyProperty IsEnabledProperty =
@@ -93,6 +101,7 @@ namespace Flowery.Effects
             {
                 textBlock.Loaded -= OnLoaded;
                 textBlock.Unloaded -= OnUnloaded;
+                LoadedElements.Remove(textBlock);
                 StopWave(textBlock);
             }
         }
@@ -115,15 +124,20 @@ namespace Flowery.Effects
         private static void OnUnloaded(object sender, RoutedEventArgs e)
         {
             if (sender is TextBlock tb)
+            {
+                LoadedElements.Remove(tb);
                 StopWave(tb);
+            }
         }
 
         private static void StartWave(TextBlock textBlock)
         {
-            if (!GetIsEnabled(textBlock))
+            if (!GetIsEnabled(textBlock) || !textBlock.IsLoaded)
                 return;
 
+            LoadedElements.Add(textBlock);
             StopWave(textBlock);
+            if (!Flowery.Services.DaisyMotion.AnimationsEnabled) return;
 
             var text = textBlock.Text ?? string.Empty;
             if (string.IsNullOrEmpty(text))

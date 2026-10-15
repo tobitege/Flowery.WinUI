@@ -10,6 +10,23 @@ namespace Flowery.Helpers
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TextBlock, ImageBrush> _brushes = new();
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TextBlock, Brush> _originalForegrounds = new();
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TextBlock, CompositeTransform> _relativeTransforms = new();
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TextBlock, object> _motionTargets = new();
+
+        static FloweryTextFillEffects()
+        {
+            DaisyMotion.Changed += OnMotionChanged;
+        }
+
+        private static void OnMotionChanged(object? sender, EventArgs e)
+        {
+            foreach (var target in _motionTargets.ToArray())
+            {
+                if (DaisyMotion.AnimationsEnabled && target.Key.IsLoaded)
+                    StartEffect(target.Key);
+                else
+                    StopStoryboard(target.Key);
+            }
+        }
 
         #region ImageSource Attached Property
 
@@ -216,7 +233,6 @@ namespace Flowery.Helpers
 
             textBlock.Loaded -= OnElementLoaded;
             StartEffect(textBlock);
-            textBlock.Unloaded += OnElementUnloaded;
         }
 
         private static void OnElementUnloaded(object sender, RoutedEventArgs e)
@@ -228,6 +244,8 @@ namespace Flowery.Helpers
 
             textBlock.Unloaded -= OnElementUnloaded;
             StopEffect(textBlock);
+            if (GetAutoStart(textBlock) && GetAnimate(textBlock) && GetImageSource(textBlock) != null)
+                textBlock.Loaded += OnElementLoaded;
         }
 
         private static void StartIfConfigured(TextBlock textBlock)
@@ -354,6 +372,16 @@ namespace Flowery.Helpers
                 return;
             }
 
+            _motionTargets.AddOrUpdate(textBlock, new object());
+            textBlock.Unloaded += OnElementUnloaded;
+            if (!textBlock.IsLoaded)
+            {
+                textBlock.Loaded += OnElementLoaded;
+                return;
+            }
+            if (!DaisyMotion.AnimationsEnabled)
+                return;
+
             double panX = Math.Max(-1.0, Math.Min(1.0, GetPanX(textBlock)));
             double panY = Math.Max(-1.0, Math.Min(1.0, GetPanY(textBlock)));
 
@@ -408,15 +436,29 @@ namespace Flowery.Helpers
             _storyboards.AddOrUpdate(textBlock, storyboard);
             storyboard.Begin();
 
-            textBlock.Unloaded += OnElementUnloaded;
         }
 
         public static void StopEffect(TextBlock textBlock)
+        {
+            textBlock.Loaded -= OnElementLoaded;
+            textBlock.Unloaded -= OnElementUnloaded;
+            _motionTargets.Remove(textBlock);
+            StopStoryboard(textBlock);
+        }
+
+        private static void StopStoryboard(TextBlock textBlock)
         {
             if (_storyboards.TryGetValue(textBlock, out Storyboard? storyboard))
             {
                 storyboard.Stop();
                 _ = _storyboards.Remove(textBlock);
+            }
+            if (_relativeTransforms.TryGetValue(textBlock, out var transform))
+            {
+                transform.TranslateX = 0;
+                transform.TranslateY = 0;
+                transform.ScaleX = 1;
+                transform.ScaleY = 1;
             }
         }
 

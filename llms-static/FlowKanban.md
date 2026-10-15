@@ -106,6 +106,20 @@ FlowKanban supports multiple user providers (local and external). The user manag
 - External identities can be linked to a local user (optional).
 - Unlinking removes only the link metadata; it does not delete the external or local user entries.
 
+### User Load State
+
+`FlowKanbanUserManagement` exposes these dependency properties with public getters and private setters. The control updates their values during provider requests.
+
+| Property | Type | Description |
+| --- | --- | --- |
+| `IsLoading` | `bool` | True during the current user request. |
+| `HasLoadError` | `bool` | True after the current provider request fails. |
+| `LoadErrorMessage` | `string` | Contains the provider error message. Empty before a new request. |
+
+The user management view shows an error `InfoBar` for `HasLoadError`.
+The empty and no-results states remain hidden during a request or after an error.
+The Refresh action starts a new request and clears the previous error state.
+
 ## Commands
 
 `FlowKanban` provides a suite of pre-wired commands for easy integration with your UI or ViewModels:
@@ -468,14 +482,9 @@ manager.MoveTask(task, inProgress);
 var json = manager.ExportToJson();
 ```
 
-## Accessibility & Keyboard Navigation (Plan)
+## Accessibility & Keyboard Navigation
 
-### Goals
-
-- Provide UI Automation metadata for board regions, columns, cards, swimlanes, and actions.
-- Ensure Tab navigation works across the header, board, and sidebar.
-- Add arrow-key navigation across columns and vertically within cards.
-- Keep keyboard shortcuts consistent with the board size and creation workflows.
+The board uses WinUI 3 focus APIs, keyboard events, and UI Automation peers.
 
 ### Focus Zones
 
@@ -488,6 +497,7 @@ var json = manager.ExportToJson();
 
 - Tab/Shift+Tab moves through focusable controls in header, board surface, and sidebar.
 - Cards and "Add Card" are focusable so screen readers can announce content in context.
+- Enter opens the focused card editor. Space toggles the focused card in the task selection.
 
 ### Arrow-Key Navigation (Board Surface)
 
@@ -500,16 +510,34 @@ var json = manager.ExportToJson();
 
 - `Ctrl + B` → Add column (append).
 - `Ctrl + D` → Delete last column (confirmation rules apply).
-- `Ctrl + T` → Rename active column (defaults to last column).
+- `Ctrl + T` → Open the active column editor (defaults to the last column).
 - `Ctrl + N` → Create card in active column (uses inline add).
+- `Ctrl + F` → Focus the search input.
 - `Ctrl + Alt + Left/Right` → Switch active column (for rename/add).
+- `Ctrl + Shift + Up/Down` → Move the focused card within its column.
+- `Ctrl + Shift + Left/Right` → Move the focused card to an adjacent column.
 - `Ctrl + +` / `Ctrl + -` → Zoom in/out.
+
+Column administration shortcuts (`Ctrl + B`, `Ctrl + D`, and `Ctrl + T`) are available to the current global administrator.
 
 ### Accessibility Metadata
 
 - Columns, cards, and action buttons expose `AutomationProperties.Name`.
 - Cards expose `AutomationProperties.AutomationId` via task ID for stable testing hooks.
 - Buttons and icon-only controls use their localized tooltip string as the UIA name.
+
+### UI Automation Selection and Invocation
+
+`FlowKanban` exposes the Selection pattern as a list. It supports multiple selected tasks and does not require a selection.
+`GetSelection()` returns providers for all selected tasks, including tasks without a realized card visual.
+These offscreen providers expose the task title, task ID, selected state, and board selection container.
+
+Realized `FlowTaskCard` controls expose the Invoke and SelectionItem patterns as list items.
+Invoke opens the card editor through the existing edit command.
+`Select()` clears the other selections and selects the task.
+`AddToSelection()` adds the task to the selection. `RemoveFromSelection()` removes it.
+The selected state follows `FlowTask.IsSelected`.
+Offscreen task providers support the same selection methods without a card visual.
 
 ### Native Windows Focus
 

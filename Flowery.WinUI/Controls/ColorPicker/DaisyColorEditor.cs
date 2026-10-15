@@ -100,7 +100,7 @@ namespace Flowery.Controls.ColorPicker
                 nameof(EditingMode),
                 typeof(ColorEditingMode),
                 typeof(DaisyColorEditor),
-                new PropertyMetadata(ColorEditingMode.Rgb));
+                new PropertyMetadata(ColorEditingMode.Rgb, OnLayoutPropertyChanged));
 
         public ColorEditingMode EditingMode
         {
@@ -602,7 +602,10 @@ namespace Flowery.Controls.ColorPicker
             _lockUpdates = true;
             try
             {
-                Color = hsl.ToRgbColor();
+                var color = hsl.ToRgbColor();
+                Color = color;
+                UpdateComponentsFromColor(color);
+                OnColorChangedRaised(new ColorChangedEventArgs(color));
             }
             finally
             {
@@ -757,10 +760,12 @@ namespace Flowery.Controls.ColorPicker
                 _hexPanel.Visibility = ShowHexInput ? Visibility.Visible : Visibility.Collapsed;
 
             if (_rgbPanel != null)
-                _rgbPanel.Visibility = ShowRgbSliders ? Visibility.Visible : Visibility.Collapsed;
+                _rgbPanel.Visibility = ShowRgbSliders && (EditingMode == ColorEditingMode.Rgb || !ShowHslSliders)
+                    ? Visibility.Visible : Visibility.Collapsed;
 
             if (_hslPanel != null)
-                _hslPanel.Visibility = ShowHslSliders ? Visibility.Visible : Visibility.Collapsed;
+                _hslPanel.Visibility = ShowHslSliders && (EditingMode == ColorEditingMode.Hsl || !ShowRgbSliders)
+                    ? Visibility.Visible : Visibility.Collapsed;
 
             if (_alphaSlider != null)
                 _alphaSlider.Visibility = ShowAlphaChannel ? Visibility.Visible : Visibility.Collapsed;

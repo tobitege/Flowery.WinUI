@@ -130,6 +130,9 @@ namespace Flowery.Theming
 
         public static Brush? WithOpacity(Brush? brush, double opacity)
         {
+            if (Flowery.Services.DaisySystemAppearance.HighContrast)
+                return brush;
+
             if (brush is SolidColorBrush scb)
             {
                 var c = scb.Color;

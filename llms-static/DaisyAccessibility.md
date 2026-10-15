@@ -39,6 +39,35 @@ This ensures screen readers announce "Delete item" instead of the emoji.
 | `GetEffectiveAccessibleText(control, defaultText)` | Gets accessible text with fallback to default |
 | `ApplyAccessibility(control, defaultText)` | Applies the effective accessible text to `AutomationProperties.Name` |
 
+## Windows Accessibility Settings
+
+Flowery controls respond automatically to Windows contrast themes and the Windows animation setting.
+These settings do not add another Flowery theme to the theme list.
+
+In a Windows contrast theme, the default palette uses system background, text, selection, and disabled-text colors.
+Glass panels use opaque surfaces. Decorative blur, reflections, and neumorphic shadows stop.
+See [DaisyThemeManager](DaisyThemeManager.md) for palette behavior and custom theme applicators.
+
+If Windows animations are disabled, animated controls show readable content without decorative motion.
+See [Effects](Effects.md) for stop, completion, and resume behavior.
+
+## UI Automation Patterns
+
+These controls expose values through UI Automation in addition to their accessible names:
+
+| Control | Pattern | Value |
+| --- | --- | --- |
+| `DaisyRange` | `RangeValue` | Numeric value, limits, and step sizes. |
+| `DaisyRating` | `RangeValue` | Rating value, maximum, and precision. `IsReadOnly` prevents changes. |
+| `DaisyColorSlider` | `RangeValue` | Numeric channel value and limits. |
+| `DaisyColorWheel`, `DaisyColorGrid` | `Value` | Color text in `#AARRGGBB` format. SetValue accepts a valid color string. |
+
+Disabled controls reject changes through these patterns.
+Numeric selectors reject values outside their limits. Value changes raise the corresponding UI Automation property event.
+The automation peers are internal. Applications use the standard UI Automation patterns.
+
+The [Kanban board](FlowKanban.md) also exposes selection and card invocation patterns.
+
 ## For Control Authors
 
 When creating a new Daisy control, call `SetupAccessibility` in the static constructor and `ApplyAccessibility` in `OnApplyTemplate`:

@@ -33,6 +33,7 @@ FloweryDialogBase leverages `DaisyModal`'s overlay, draggable grab-bar, and back
 | `IsOutsideClickDismissEnabled` | `bool` | false | Whether tapping outside closes the dialog. |
 | `IsCloseOnEnterEnabled` | `bool` | false | Whether pressing Enter closes the dialog. |
 | `IsDialogResizingEnabled` | `bool` | false | Whether the dialog can be resized within its container. |
+| `IsTabNavigationCycleEnabled` | `bool` | true | Controls the Tab and Shift+Tab cycle within the dialog. |
 
 ## Smart Sizing Algorithm
 
@@ -104,6 +105,20 @@ FloweryDialogBase automatically responds to theme changes:
 ## Input Handling
 
 FloweryDialogBase can close on Enter when `IsCloseOnEnterEnabled = true`. To customize Enter behavior, override `OnEnterKeyRequested()` in your dialog and return `true` to mark it handled.
+
+### Initial Focus and Tab Navigation
+
+The dialog selects the first visible, enabled focus target in its tab order. It excludes internal focus boundaries. The target can be a header or footer control. The dialog does not guarantee initial focus in the body.
+
+With `IsTabNavigationCycleEnabled=True`, Tab and Shift+Tab cycle through the dialog controls. `TabIndex` determines their order. Controls with the same `TabIndex` follow their order in the visual tree.
+
+To choose an initial target, override the protected `GetInitialFocusTarget()` method. For example, the dialog example in this page can select its Save button:
+
+```csharp
+protected override Control? GetInitialFocusTarget() => _saveButton;
+```
+
+If the target cannot accept focus, `DaisyModal` tries to focus the dialog itself. On closure, the dialog tries to restore focus to the previous loaded control. Restoration depends on whether that control can accept focus.
 
 ## Resizable Dialogs
 

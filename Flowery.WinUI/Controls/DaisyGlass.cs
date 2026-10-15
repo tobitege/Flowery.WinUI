@@ -371,6 +371,25 @@ namespace Flowery.Controls
             if (_backgroundBorder == null || _tintBorder == null || _highlightBorder == null)
                 return;
 
+            if (DaisySystemAppearance.HighContrast)
+            {
+                _backgroundBorder.Background = DaisyResourceLookup.GetBrush("DaisyBase200Brush");
+                _backgroundBorder.Opacity = 1;
+                _backgroundBorder.BorderBrush = DaisyResourceLookup.GetBrush("DaisyBaseContentBrush");
+                _backgroundBorder.BorderThickness = new Thickness(1);
+                _backgroundBorder.Visibility = Visibility.Visible;
+                _tintBorder.Visibility = Visibility.Collapsed;
+                _highlightBorder.Visibility = Visibility.Collapsed;
+                if (_blurredBackdropImage != null)
+                {
+                    _blurredBackdropImage.ClearValue(Image.SourceProperty);
+                    _blurredBackdropImage.Visibility = Visibility.Collapsed;
+                }
+                return;
+            }
+
+            _highlightBorder.Visibility = Visibility.Visible;
+
             // Background with glass opacity
             var baseBrush = DaisyResourceLookup.GetBrush("DaisyBase200Brush");
             _backgroundBorder.Opacity = 1;
@@ -443,7 +462,7 @@ namespace Flowery.Controls
 
         #region Backdrop Capture
 
-        private bool UsesBackdropBlur => EnableBackdropBlur && BlurMode != GlassBlurMode.Simulated;
+        private bool UsesBackdropBlur => !DaisySystemAppearance.HighContrast && EnableBackdropBlur && BlurMode != GlassBlurMode.Simulated;
 
         private void AttachCaptureRoot()
         {

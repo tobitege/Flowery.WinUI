@@ -1,5 +1,6 @@
 {
   "Kanban_Settings_Title": "إعدادات اللوحة",
+  "Kanban_Users_LoadError": "تعذر تحميل المستخدمين",
   "Kanban_Settings_Subtitle": "تحكم في مطالبات التأكيد وسلوك الحفظ التلقائي.",
   "Kanban_Settings_ConfirmColumnRemovals": "تأكيد حذف الأعمدة",
   "Kanban_Settings_ConfirmCardRemovals": "تأكيد حذف البطاقات",

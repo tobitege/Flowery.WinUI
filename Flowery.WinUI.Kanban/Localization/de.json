@@ -1,5 +1,6 @@
 {
   "Kanban_AddSection": "Spalte hinzufügen",
+  "Kanban_Users_LoadError": "Benutzer konnten nicht geladen werden",
   "Kanban_AddCard": "Karte hinzufügen",
   "Kanban_ZoomIn": "Vergrößern",
   "Kanban_ZoomOut": "Verkleinern",

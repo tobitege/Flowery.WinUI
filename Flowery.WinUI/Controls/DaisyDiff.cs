@@ -61,6 +61,13 @@ namespace Flowery.Controls
         {
             base.OnLoaded();
             BuildVisualTree();
+            if (_gripThumb != null)
+            {
+                _gripThumb.DragDelta -= OnGripDragDelta;
+                _gripThumb.DragDelta += OnGripDragDelta;
+                _gripThumb.PointerPressed -= OnGripPointerPressed;
+                _gripThumb.PointerPressed += OnGripPointerPressed;
+            }
             ApplyAll();
 
             // Subscribe to LayoutUpdated to ensure initial positioning after measure pass

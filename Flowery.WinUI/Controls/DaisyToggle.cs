@@ -17,6 +17,7 @@ namespace Flowery.Controls
         private Border? _switchArea;
         private Ellipse? _knob;
         private TranslateTransform? _knobTransform;
+        private Storyboard? _knobStoryboard;
 
         private bool _isSyncing;
         private bool _isApplyingForeground;
@@ -49,6 +50,8 @@ namespace Flowery.Controls
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            Flowery.Services.DaisySystemAppearance.Initialize(XamlRoot);
+            Flowery.Services.DaisyMotion.Changed += OnMotionChanged;
             _foregroundCallbackToken = RegisterPropertyChangedCallback(ForegroundProperty, OnForegroundChanged);
             _fontSizeCallbackToken = RegisterPropertyChangedCallback(FontSizeProperty, OnFontSizeChanged);
             EnsureForegroundOverrideInitialized();
@@ -64,6 +67,9 @@ namespace Flowery.Controls
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
+            Flowery.Services.DaisyMotion.Changed -= OnMotionChanged;
+            _knobStoryboard?.Stop();
+            _knobStoryboard = null;
             _lifecycle.HandleUnloaded();
 
             if (_foregroundCallbackToken != 0)
@@ -395,7 +401,9 @@ namespace Flowery.Controls
                 ? Math.Max(padding, _switchArea.Width - _knob.Width - padding)
                 : padding;
 
-            if (!animate)
+            _knobStoryboard?.Stop();
+            _knobStoryboard = null;
+            if (!animate || !Flowery.Services.DaisyMotion.AnimationsEnabled)
             {
                 _knobTransform.X = targetX;
                 return;
@@ -412,7 +420,13 @@ namespace Flowery.Controls
             Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(anim, _knobTransform);
             Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(anim, "X");
             storyboard.Children.Add(anim);
+            _knobStoryboard = storyboard;
             storyboard.Begin();
+        }
+
+        private void OnMotionChanged(object? sender, EventArgs args)
+        {
+            if (!Flowery.Services.DaisyMotion.AnimationsEnabled) ApplyKnobPosition(animate: false);
         }
 
         private double GetEffectivePadding()

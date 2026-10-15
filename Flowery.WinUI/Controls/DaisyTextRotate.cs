@@ -30,6 +30,8 @@ namespace Flowery.Controls
         private bool _isPausedByHover;
         private bool _isPointerOverCurrent;
         private bool _isPointerOverNext;
+        private bool _isAdvancing;
+        private Storyboard? _activeStoryboard;
 
         public DaisyTextRotate()
         {
@@ -140,7 +142,7 @@ namespace Flowery.Controls
 
         private static void OnCurrentIndexChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            if (d is DaisyTextRotate rotate)
+            if (d is DaisyTextRotate rotate && !rotate._isAdvancing)
                 rotate.RefreshPresenters();
         }
 
@@ -165,6 +167,7 @@ namespace Flowery.Controls
         protected override void OnLoaded()
         {
             base.OnLoaded();
+            DaisyMotion.Changed += OnMotionChanged;
             BuildVisualTree();
             RefreshPresenters();
             StartLoop();
@@ -173,8 +176,11 @@ namespace Flowery.Controls
         protected override void OnUnloaded()
         {
             base.OnUnloaded();
+            DaisyMotion.Changed -= OnMotionChanged;
             StopLoop();
         }
+
+        private void OnMotionChanged(object? sender, EventArgs e) => RestartLoop();
 
         private void OnPointerEntered(object sender, PointerRoutedEventArgs e)
         {
@@ -271,13 +277,17 @@ namespace Flowery.Controls
             _currentPresenter.Content = Items[idx];
             _currentPresenter.Opacity = 1;
             _nextPresenter.Opacity = 0;
+            if (_currentTransform != null)
+                _currentTransform.Y = 0;
+            if (_nextTransform != null)
+                _nextTransform.Y = 0;
         }
 
         private void StartLoop()
         {
             StopLoop();
 
-            if (IsPaused || Items.Count <= 1)
+            if (IsPaused || !IsLoaded || !DaisyMotion.AnimationsEnabled || Items.Count <= 1)
                 return;
 
             _loopCts = new CancellationTokenSource();
@@ -289,6 +299,9 @@ namespace Flowery.Controls
             _loopCts?.Cancel();
             _loopCts?.Dispose();
             _loopCts = null;
+            _activeStoryboard?.Stop();
+            _activeStoryboard = null;
+            RefreshPresenters();
         }
 
         private void RestartLoop()
@@ -372,6 +385,12 @@ namespace Flowery.Controls
 
             var nextIndex = (CurrentIndex + 1) % itemCount;
 
+            if (!DaisyMotion.AnimationsEnabled)
+            {
+                CurrentIndex = nextIndex;
+                return;
+            }
+
             // A WinUI UIElement can only have one parent.
             // Clear the next presenter before assigning new content.
             _nextPresenter.Content = null;
@@ -409,10 +428,24 @@ namespace Flowery.Controls
                 fadeOutTcs.TrySetResult(true);
             }
             fadeOutStoryboard.Completed += OnFadeOutCompleted;
+            _activeStoryboard = fadeOutStoryboard;
             fadeOutStoryboard.Begin();
 
-            await fadeOutTcs.Task;
-            fadeOutStoryboard.Stop();
+            try
+            {
+                await fadeOutTcs.Task.WaitAsync(ct);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            finally
+            {
+                fadeOutStoryboard.Completed -= OnFadeOutCompleted;
+                fadeOutStoryboard.Stop();
+                if (ReferenceEquals(_activeStoryboard, fadeOutStoryboard))
+                    _activeStoryboard = null;
+            }
 
             if (ct.IsCancellationRequested)
                 return;
@@ -456,11 +489,24 @@ namespace Flowery.Controls
                 fadeInTcs.TrySetResult(true);
             }
             fadeInStoryboard.Completed += OnFadeInCompleted;
+            _activeStoryboard = fadeInStoryboard;
             fadeInStoryboard.Begin();
 
-            await fadeInTcs.Task;
-            fadeInStoryboard.Stop();
-
+            try
+            {
+                await fadeInTcs.Task.WaitAsync(ct);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            finally
+            {
+                fadeInStoryboard.Completed -= OnFadeInCompleted;
+                fadeInStoryboard.Stop();
+                if (ReferenceEquals(_activeStoryboard, fadeInStoryboard))
+                    _activeStoryboard = null;
+            }
             if (ct.IsCancellationRequested)
                 return;
 
@@ -468,12 +514,20 @@ namespace Flowery.Controls
             _nextPresenter.Opacity = 1;
             _nextTransform.Y = 0;
 
-            // Update index
-            CurrentIndex = nextIndex;
-
             // Swap references so _currentPresenter points to the visible one
             (_currentPresenter, _nextPresenter) = (_nextPresenter, _currentPresenter);
             (_currentTransform, _nextTransform) = (_nextTransform, _currentTransform);
+            _nextPresenter.Content = null;
+            _nextPresenter.Opacity = 0;
+            _isAdvancing = true;
+            try
+            {
+                CurrentIndex = nextIndex;
+            }
+            finally
+            {
+                _isAdvancing = false;
+            }
         }
     }
 }

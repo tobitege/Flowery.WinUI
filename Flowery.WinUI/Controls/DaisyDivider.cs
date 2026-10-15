@@ -217,9 +217,20 @@ namespace Flowery.Controls
         protected override void OnLoaded()
         {
             base.OnLoaded();
+            DaisyMotion.Changed += OnMotionChanged;
             ApplyNeumorphicOptOut();
             ApplyAll();
+            StartGlowAnimation();
         }
+
+        protected override void OnUnloaded()
+        {
+            DaisyMotion.Changed -= OnMotionChanged;
+            StopGlowAnimation();
+            base.OnUnloaded();
+        }
+
+        private void OnMotionChanged(object? sender, EventArgs e) => StartGlowAnimation();
 
         protected override void OnThemeChanged(string themeName)
         {
@@ -434,6 +445,8 @@ namespace Flowery.Controls
                 _glowStoryboard.Stop();
                 _glowStoryboard = null;
             }
+            if (_glowLine != null)
+                _glowLine.Opacity = 0.2;
         }
 
         private void RebuildVisualTree()
@@ -801,7 +814,8 @@ namespace Flowery.Controls
 
         private void StartGlowAnimation()
         {
-            if (_glowLine == null) return;
+            StopGlowAnimation();
+            if (_glowLine == null || !IsLoaded || !DaisyMotion.AnimationsEnabled) return;
 
             // Use explicit keyframes to ensure smooth pulsation in all environments (avoiding potential AutoReverse bugs)
             var animation = new DoubleAnimationUsingKeyFrames

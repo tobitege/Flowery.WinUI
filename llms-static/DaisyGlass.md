@@ -18,6 +18,14 @@ The capture modes use WinUI RenderTargetBitmap and CPU SkiaSharp image processin
 Capture modes update after relevant property, size, theme, or rasterization-scale changes.
 They do not continuously sample the background.
 
+## Windows Contrast Themes
+
+In a Windows contrast theme, the panel uses an opaque system-colored surface and border.
+Blur captures, translucent tint layers, and reflection highlights are disabled.
+An earlier capture cannot replace this opaque surface while contrast mode remains active.
+The configured glass mode applies again after Windows contrast mode ends.
+See [DaisyThemeManager](DaisyThemeManager.md) for the system color pairs.
+
 ## Key Properties
 
 | Property | Description |

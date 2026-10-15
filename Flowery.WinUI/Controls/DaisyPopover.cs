@@ -33,6 +33,7 @@ namespace Flowery.Controls
         private Popup? _popup;
         private Border? _popupBorder;
         private ContentPresenter? _popupPresenter;
+        private XamlRoot? _placementRoot;
         public DaisyPopover()
         {
             DefaultStyleKey = typeof(DaisyPopover);
@@ -95,7 +96,7 @@ namespace Flowery.Controls
                 nameof(Placement),
                 typeof(DaisyPopoverPlacement),
                 typeof(DaisyPopover),
-                new PropertyMetadata(DaisyPopoverPlacement.Bottom));
+                new PropertyMetadata(DaisyPopoverPlacement.Bottom, OnPlacementChanged));
 
         /// <summary>
         /// Gets or sets the placement of the popover relative to the trigger.
@@ -111,7 +112,7 @@ namespace Flowery.Controls
                 nameof(HorizontalOffset),
                 typeof(double),
                 typeof(DaisyPopover),
-                new PropertyMetadata(0.0));
+                new PropertyMetadata(0.0, OnPlacementChanged));
 
         public double HorizontalOffset
         {
@@ -124,7 +125,7 @@ namespace Flowery.Controls
                 nameof(VerticalOffset),
                 typeof(double),
                 typeof(DaisyPopover),
-                new PropertyMetadata(8.0));
+                new PropertyMetadata(8.0, OnPlacementChanged));
 
         public double VerticalOffset
         {
@@ -195,6 +196,7 @@ namespace Flowery.Controls
             if (d is DaisyPopover popover && popover._popupPresenter != null)
             {
                 popover._popupPresenter.Content = e.NewValue;
+                popover.UpdatePopupPlacement();
             }
         }
 
@@ -204,6 +206,11 @@ namespace Flowery.Controls
             {
                 popover.UpdatePopupState();
             }
+        }
+
+        private static void OnPlacementChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            ((DaisyPopover)d).UpdatePopupPlacement();
         }
 
         private static void OnLightDismissChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -226,17 +233,27 @@ namespace Flowery.Controls
         {
             base.OnLoaded();
 
-            if (_rootGrid != null)
-            {
-                ApplyColors();
-                UpdateAutomationProperties();
-                return;
-            }
-
-            BuildVisualTree();
+            if (_rootGrid == null)
+                BuildVisualTree();
             ApplyColors();
             UpdateAutomationProperties();
+            _placementRoot = XamlRoot;
+            if (_placementRoot != null)
+                _placementRoot.Changed += OnPlacementRootChanged;
+            UpdatePopupState();
         }
+
+        protected override void OnUnloaded()
+        {
+            if (_placementRoot != null)
+                _placementRoot.Changed -= OnPlacementRootChanged;
+            _placementRoot = null;
+            if (_popup != null)
+                _popup.IsOpen = false;
+            base.OnUnloaded();
+        }
+
+        private void OnPlacementRootChanged(XamlRoot sender, XamlRootChangedEventArgs args) => UpdatePopupPlacement();
 
         protected override void OnThemeChanged(string themeName)
         {
@@ -293,7 +310,9 @@ namespace Flowery.Controls
             // Popup
             _popup = new Popup
             {
-                IsLightDismissEnabled = IsLightDismissEnabled
+                IsLightDismissEnabled = IsLightDismissEnabled,
+                PlacementTarget = _triggerContainer,
+                ShouldConstrainToRootBounds = true
             };
             _popup.Closed += OnPopupClosed;
 
@@ -335,27 +354,15 @@ namespace Flowery.Controls
             if (_popup == null || _triggerContainer == null)
                 return;
 
-            if (IsOpen)
+            if (IsOpen && IsLoaded && XamlRoot != null)
             {
-                try
-                {
-                    if (_popup.XamlRoot == null && XamlRoot != null)
-                    {
-                        _popup.XamlRoot = XamlRoot;
-                    }
-                }
-                catch
-                {
-                    // Ignore if XamlRoot is not accessible on this backend.
-                }
-            }
-
-            _popup.IsOpen = IsOpen;
-
-            if (IsOpen)
-            {
-                // Position the popup based on Placement
+                _popup.XamlRoot = XamlRoot;
                 UpdatePopupPlacement();
+                _popup.IsOpen = true;
+            }
+            else
+            {
+                _popup.IsOpen = false;
             }
         }
 
@@ -364,32 +371,22 @@ namespace Flowery.Controls
             if (_popup == null || _triggerContainer == null)
                 return;
 
-            // WinUI popups use HorizontalOffset and VerticalOffset
-            // Position relative to the trigger
-            var triggerHeight = _triggerContainer.ActualHeight;
-            var triggerWidth = _triggerContainer.ActualWidth;
-
-            switch (Placement)
+            // Native placement measures the content and chooses the available side at window edges.
+            _popup.PlacementTarget = _triggerContainer;
+            _popup.DesiredPlacement = Placement switch
             {
-                case DaisyPopoverPlacement.Top:
-                    _popup.HorizontalOffset = HorizontalOffset;
-                    _popup.VerticalOffset = -VerticalOffset - 50; // Approximate popup height
-                    break;
-
-                case DaisyPopoverPlacement.Bottom:
-                    _popup.HorizontalOffset = HorizontalOffset;
-                    _popup.VerticalOffset = triggerHeight + VerticalOffset;
-                    break;
-
-                case DaisyPopoverPlacement.Left:
-                    _popup.HorizontalOffset = -HorizontalOffset - 100; // Approximate popup width
-                    _popup.VerticalOffset = VerticalOffset;
-                    break;
-
-                case DaisyPopoverPlacement.Right:
-                    _popup.HorizontalOffset = triggerWidth + HorizontalOffset;
-                    _popup.VerticalOffset = VerticalOffset;
-                    break;
+                DaisyPopoverPlacement.Top => PopupPlacementMode.TopEdgeAlignedLeft,
+                DaisyPopoverPlacement.Left => PopupPlacementMode.LeftEdgeAlignedTop,
+                DaisyPopoverPlacement.Right => PopupPlacementMode.RightEdgeAlignedTop,
+                _ => PopupPlacementMode.BottomEdgeAlignedLeft
+            };
+            _popup.HorizontalOffset = Placement == DaisyPopoverPlacement.Left ? -HorizontalOffset : HorizontalOffset;
+            _popup.VerticalOffset = Placement == DaisyPopoverPlacement.Top ? -VerticalOffset : VerticalOffset;
+            if (_popupBorder != null && XamlRoot != null)
+            {
+                _popupBorder.MinWidth = Math.Min(100, XamlRoot.Size.Width);
+                _popupBorder.MaxWidth = XamlRoot.Size.Width;
+                _popupBorder.MaxHeight = XamlRoot.Size.Height;
             }
         }
 

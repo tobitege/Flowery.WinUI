@@ -14,6 +14,18 @@ namespace Flowery.Effects
     /// </summary>
     public static class CursorFollowBehavior
     {
+        private static readonly HashSet<FrameworkElement> LoadedElements = [];
+
+        static CursorFollowBehavior() => Flowery.Services.DaisyMotion.Changed += OnMotionChanged;
+
+        private static void OnMotionChanged(object? sender, EventArgs args)
+        {
+            foreach (var element in LoadedElements.ToArray())
+            {
+                Cleanup(element);
+                Setup(element);
+            }
+        }
         public static readonly DependencyProperty IsEnabledProperty =
             DependencyProperty.RegisterAttached(
                 "IsEnabled",
@@ -166,6 +178,7 @@ namespace Flowery.Effects
             {
                 element.Loaded -= OnLoaded;
                 element.Unloaded -= OnUnloaded;
+                LoadedElements.Remove(element);
                 Cleanup(element);
             }
         }
@@ -188,14 +201,19 @@ namespace Flowery.Effects
         private static void OnUnloaded(object sender, RoutedEventArgs e)
         {
             if (sender is FrameworkElement fe)
+            {
+                LoadedElements.Remove(fe);
                 Cleanup(fe);
+            }
         }
 
         private static void Setup(FrameworkElement element)
         {
-            if (!GetIsEnabled(element))
+            if (!GetIsEnabled(element) || !element.IsLoaded)
                 return;
 
+            LoadedElements.Add(element);
+            if (!Flowery.Services.DaisyMotion.AnimationsEnabled) return;
             if (element.GetValue(TimerProperty) is DispatcherTimer)
                 return;
 

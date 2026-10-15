@@ -98,6 +98,10 @@ def strip_html_comments_outside_code(content: str) -> str:
 class MarkdownToHtml:
     """Simple markdown to HTML converter."""
 
+    def __init__(self, guide_files: list[str] | None = None):
+        self.guide_files = set(guide_files or [])
+        self.control_files: set[str] = set()
+
     def convert(self, markdown: str, depth: int = 1) -> str:
         """Convert markdown to HTML.
         
@@ -137,7 +141,12 @@ class MarkdownToHtml:
             url = m.group(2)
             # Convert .md to .html for local links (not http/https)
             if not url.startswith(('http://', 'https://')) and url.endswith('.md'):
-                url = url[:-3] + '.html'
+                if Path(url).name in self.guide_files:
+                    url = path_prefix + Path(url).stem + '.html'
+                elif Path(url).name in self.control_files:
+                    url = path_prefix + 'controls/' + Path(url).stem + '.html'
+                else:
+                    url = url[:-3] + '.html'
                 return f'<a href="{url}">{text}</a>'
             # External links open in new tab
             if url.startswith(('http://', 'https://')):
@@ -308,7 +317,7 @@ class SiteGenerator:
     )
 
     # Standalone guide files (not control docs) to include in the sidebar
-    GUIDE_FILES = ['MigrationExample.md', 'DesignTokens.md', 'Effects.md', 'SizingAndScaling.md', 'UnifiedIconApi.md', 'LocalizeExtensionBase.md', 'styling-resources.md']
+    GUIDE_FILES = ['MigrationExample.md', 'DesignTokens.md', 'Effects.md', 'SizingAndScaling.md', 'UnifiedIconApi.md', 'LocalizeExtensionBase.md', 'styling-resources.md', 'FlowKanban.md']
 
     # Helper/internal classes shown in a separate 'Helpers' section
     HELPER_CONTROL_NAMES = {
@@ -320,6 +329,7 @@ class SiteGenerator:
         'HslColor',                # Color utility struct
         'FloweryAnimationHelpers', # Animation enums, controllers, and attached properties
         'FloweryCarouselGL',       # Native WinUI shader hosts and diagnostics
+        'FloweryDialogBase',       # Base class for custom dialogs
         'FloweryResponsive',       # Responsive layout helper
         'FloweryComponentSidebar', # Pre-built documentation/admin sidebar
         'FloweryScaleManager',     # Opt-in automatic font scaling
@@ -333,7 +343,7 @@ class SiteGenerator:
         self.docs_dir = docs_dir
         self.output_dir = output_dir
         self.curated_dir = curated_dir  # llms-static/ for curated-only mode
-        self.converter = MarkdownToHtml()
+        self.converter = MarkdownToHtml(self.GUIDE_FILES)
         self.controls: list[dict] = []
         self.categories: list[dict] = []
         self.use_curated_only = curated_dir is not None
@@ -412,6 +422,7 @@ class SiteGenerator:
 
         # Sort all controls alphabetically by name
         self.controls.sort(key=lambda c: c['name'])
+        self.converter.control_files = {ctrl['file'].name for ctrl in self.controls}
         print(f"      Found {len(self.controls)} controls")
 
         # Collect categories (always from llms/categories/)
@@ -777,6 +788,13 @@ class SiteGenerator:
                 except Exception:
                     pass
                 lines.append(f"| [{name}](controls/{name}.html){badge} | {desc} |")
+
+        existing_guides = [g for g in self.GUIDE_FILES if (self.curated_dir / g).exists()]
+        if existing_guides:
+            lines.extend(["", "## Guides", ""])
+            for guide in existing_guides:
+                name = Path(guide).stem
+                lines.append(f"- [{name}]({name}.html)")
 
         lines.append("")
         lines.append("## Common Patterns")

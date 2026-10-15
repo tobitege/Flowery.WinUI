@@ -157,7 +157,7 @@ namespace Flowery.Controls
                 nameof(Remaining),
                 typeof(TimeSpan),
                 typeof(DaisyCountdown),
-                new PropertyMetadata(TimeSpan.Zero));
+                new PropertyMetadata(TimeSpan.Zero, OnDisplayChanged));
 
         /// <summary>
         /// Gets the remaining time in Countdown mode (read-only externally).
@@ -173,7 +173,7 @@ namespace Flowery.Controls
                 nameof(Elapsed),
                 typeof(TimeSpan),
                 typeof(DaisyCountdown),
-                new PropertyMetadata(TimeSpan.Zero));
+                new PropertyMetadata(TimeSpan.Zero, OnDisplayChanged));
 
         /// <summary>
         /// Gets the elapsed time in Stopwatch mode (read-only externally).
@@ -719,6 +719,21 @@ namespace Flowery.Controls
         {
             if (_valueTextBlock == null)
                 return;
+
+            if (Mode != CountdownMode.Display && ClockUnit == CountdownClockUnit.None)
+            {
+                var time = Mode == CountdownMode.Countdown ? Remaining : Elapsed;
+                var totalSeconds = Math.Max(0, Mode == CountdownMode.Countdown
+                    ? Math.Ceiling(time.TotalSeconds)
+                    : Math.Floor(time.TotalSeconds));
+                var hours = (long)(totalSeconds / 3600);
+                var minutes = (int)(totalSeconds / 60) % 60;
+                var seconds = (int)(totalSeconds % 60);
+                _valueTextBlock.Text = hours > 0
+                    ? $"{hours:00}:{minutes:00}:{seconds:00}"
+                    : $"{minutes:00}:{seconds:00}";
+                return;
+            }
 
             // For digit cell mode (used by DaisyClock), just show Value
             var format = Digits switch

@@ -137,6 +137,7 @@ namespace Flowery.Controls
         protected override void OnLoaded()
         {
             base.OnLoaded();
+            Flowery.Services.DaisyMotion.Changed += OnMotionChanged;
 
             if (_rootGrid != null)
             {
@@ -152,6 +153,31 @@ namespace Flowery.Controls
         {
             base.OnThemeChanged(themeName);
             ApplyAll();
+        }
+
+        protected override void OnUnloaded()
+        {
+            Flowery.Services.DaisyMotion.Changed -= OnMotionChanged;
+            StopAnimation();
+            base.OnUnloaded();
+        }
+
+        private void OnMotionChanged(object? sender, EventArgs e) => StopAnimation();
+
+        private void StopAnimation()
+        {
+            _cts?.Cancel();
+            _cts?.Dispose();
+            _cts = null;
+            RefreshText();
+            if (_prevText != null)
+                _prevText.Opacity = 0;
+            if (_currentText != null)
+                _currentText.Opacity = 1;
+            if (_prevTransform != null)
+                _prevTransform.Y = 0;
+            if (_currentTransform != null)
+                _currentTransform.Y = 0;
         }
 
         protected override void OnGlobalSizeChanged(DaisySize size)
@@ -233,6 +259,13 @@ namespace Flowery.Controls
 
             if (oldValue == newValue)
                 return;
+
+            if (!IsLoaded || !Flowery.Services.DaisyMotion.AnimationsEnabled)
+            {
+                _lastValue = newValue;
+                StopAnimation();
+                return;
+            }
 
             // Cancel any existing animation
             _cts?.Cancel();

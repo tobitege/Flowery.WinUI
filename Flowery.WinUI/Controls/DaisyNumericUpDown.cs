@@ -1010,12 +1010,30 @@ namespace Flowery.Controls
             _suffixTextBlock.Visibility = string.IsNullOrWhiteSpace(Suffix) ? Visibility.Collapsed : Visibility.Visible;
 
             if (_increaseButton != null)
+            {
                 _increaseButton.Visibility = ShowButtons ? Visibility.Visible : Visibility.Collapsed;
+                _increaseButton.IsEnabled = !IsReadOnly;
+            }
             if (_decreaseButton != null)
+            {
                 _decreaseButton.Visibility = ShowButtons ? Visibility.Visible : Visibility.Collapsed;
+                _decreaseButton.IsEnabled = !IsReadOnly;
+            }
 
             if (_textBox != null)
+            {
                 _textBox.IsReadOnly = IsReadOnly;
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_textBox,
+                    Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(this));
+            }
+            if (_increaseButton != null)
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_increaseButton,
+                    FloweryLocalization.GetStringInternal("NumericInput_Increase", "Increase value"));
+            if (_decreaseButton != null)
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_decreaseButton,
+                    FloweryLocalization.GetStringInternal("NumericInput_Decrease", "Decrease value"));
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_clearButton,
+                FloweryLocalization.GetStringInternal("Common_Clear", "Clear"));
         }
 
         #endregion
@@ -1328,6 +1346,8 @@ namespace Flowery.Controls
 
         private void Increase()
         {
+            if (IsReadOnly) return;
+
             if (NumberBase == DaisyNumberBase.IPAddress)
             {
                 IncrementIPOctet(1);
@@ -1352,6 +1372,8 @@ namespace Flowery.Controls
 
         private void Decrease()
         {
+            if (IsReadOnly) return;
+
             if (NumberBase == DaisyNumberBase.IPAddress)
             {
                 IncrementIPOctet(-1);
@@ -1380,6 +1402,8 @@ namespace Flowery.Controls
 
         private void OnClearClick(object sender, RoutedEventArgs e)
         {
+            if (IsReadOnly) return;
+
             _isUpdatingValue = true;
             try
             {

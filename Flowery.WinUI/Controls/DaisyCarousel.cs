@@ -578,6 +578,7 @@ namespace Flowery.Controls
         protected override void OnLoaded()
         {
             base.OnLoaded();
+            DaisyMotion.Changed += OnMotionChanged;
 
             if (_rootGrid != null)
             {
@@ -595,6 +596,19 @@ namespace Flowery.Controls
         protected override void OnUnloaded()
         {
             base.OnUnloaded();
+            DaisyMotion.Changed -= OnMotionChanged;
+            StopVisualEffects();
+        }
+
+        private void OnMotionChanged(object? sender, EventArgs e)
+        {
+            StopVisualEffects();
+            UpdateSelectedItem();
+            UpdateAutoAdvanceTimer();
+        }
+
+        private void StopVisualEffects()
+        {
             StopAutoAdvanceTimer();
             if (_currentSlideWrapper is not null)
                 FlowerySlideTransitionHelpers.StopTransition(_currentSlideWrapper);
@@ -872,7 +886,7 @@ namespace Flowery.Controls
         {
             _slideshowController.WrapAround = WrapAround;
             _slideshowController.Previous();
-            _slideshowController.Restart();
+            UpdateAutoAdvanceTimer();
         }
 
         /// <summary>
@@ -882,7 +896,7 @@ namespace Flowery.Controls
         {
             _slideshowController.WrapAround = WrapAround;
             _slideshowController.Next();
-            _slideshowController.Restart();
+            UpdateAutoAdvanceTimer();
         }
 
         private void UpdateSelectedItem()
@@ -914,7 +928,7 @@ namespace Flowery.Controls
             {
                 transition = FlowerySlideTransition.Random;
             }
-            var hasTransition = oldIndex != -1 && transition != FlowerySlideTransition.None && _currentSlideWrapper != null;
+            var hasTransition = DaisyMotion.AnimationsEnabled && oldIndex != -1 && transition != FlowerySlideTransition.None && _currentSlideWrapper != null;
 
             // Stop any effect on the currently visible item before switching
             // Preserve transform if we're transitioning, so the old slide doesn't snap back
@@ -1133,6 +1147,11 @@ namespace Flowery.Controls
         private void UpdateAutoAdvanceTimer()
         {
             if (_slideshowController == null) return;
+            if (!IsLoaded || !DaisyMotion.AnimationsEnabled)
+            {
+                StopAutoAdvanceTimer();
+                return;
+            }
             _slideshowController.Mode = Mode;
             _slideshowController.Interval = GetAutoAdvanceInterval();
             _slideshowController.Start();
@@ -1170,6 +1189,7 @@ namespace Flowery.Controls
                 return;
 
             ApplyColors();
+            UpdateButtonVisibility();
         }
 
         private void ApplyColors()
@@ -1203,6 +1223,11 @@ namespace Flowery.Controls
         private void ApplySlideEffect()
         {
             StopSlideEffect();
+            if (!DaisyMotion.AnimationsEnabled)
+            {
+                _lastAppliedEffect = FlowerySlideEffect.None;
+                return;
+            }
 
             // Determine which effect to use
             var effectToApply = SlideEffect;
@@ -1259,6 +1284,8 @@ namespace Flowery.Controls
 
         private void ApplyTextFillEffect()
         {
+            if (!DaisyMotion.AnimationsEnabled)
+                return;
             if (_currentSlideWrapper?.Child is UIElement currentItem)
             {
                 FloweryTextFillEffects.TryStartEffect(currentItem);

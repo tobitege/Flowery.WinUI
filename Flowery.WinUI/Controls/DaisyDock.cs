@@ -186,6 +186,7 @@ namespace Flowery.Controls
         protected override void OnLoaded()
         {
             base.OnLoaded();
+            Flowery.Services.DaisyMotion.Changed += OnMotionChanged;
 
             if (_rootGrid != null)
             {
@@ -195,6 +196,18 @@ namespace Flowery.Controls
 
             BuildVisualTree();
             ApplyAll();
+        }
+
+        protected override void OnUnloaded()
+        {
+            Flowery.Services.DaisyMotion.Changed -= OnMotionChanged;
+            StopSelectionStoryboard();
+            base.OnUnloaded();
+        }
+
+        private void OnMotionChanged(object? sender, EventArgs args)
+        {
+            if (!Flowery.Services.DaisyMotion.AnimationsEnabled) UpdateSelectionIndicator(animate: false);
         }
 
         protected override void OnThemeChanged(string themeName)
@@ -622,7 +635,7 @@ namespace Flowery.Controls
             _selectionIndicator.Background = DaisyResourceLookup.GetBrush("DaisyPrimaryBrush");
             _selectionIndicator.CornerRadius = container.CornerRadius;
 
-            var shouldAnimate = animate && _selectionIndicator.Opacity > 0;
+            var shouldAnimate = animate && Flowery.Services.DaisyMotion.AnimationsEnabled && _selectionIndicator.Opacity > 0;
             if (!shouldAnimate)
             {
                 StopSelectionStoryboard();

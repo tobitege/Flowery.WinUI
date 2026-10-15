@@ -1,8 +1,31 @@
-# Flowery.WinUI
+<!-- markdownlint-disable MD033 -->
+<div align="center">
 
-Flowery.WinUI is a Windows-only WinUI 3 control library for the Windows App SDK.
-It continues the original control implementation and Git history.
-The active projects use the native Windows App SDK.
+![Flowery.WinUI banner](banner.png)
+
+# 🌼 Flowery.WinUI
+
+**DaisyUI-inspired controls, themes, and native Composition effects for WinUI 3.**
+
+[![WinUI 3](https://img.shields.io/badge/WinUI-3-0078D4?style=flat-square&logo=windows&logoColor=white)](https://learn.microsoft.com/en-us/windows/apps/winui/winui3/) [![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) [![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?style=flat-square&logo=windows&logoColor=white)](#requirements) [![MIT license](https://img.shields.io/github/license/tobitege/Flowery.WinUI?style=flat-square)](LICENSE)
+
+[![Windows CI](https://img.shields.io/github/actions/workflow/status/tobitege/Flowery.WinUI/ci.yml?branch=main&style=flat-square&label=Windows%20CI&logo=githubactions&logoColor=white)](https://github.com/tobitege/Flowery.WinUI/actions/workflows/ci.yml) [![CodeQL](https://img.shields.io/github/actions/workflow/status/tobitege/Flowery.WinUI/codeql-advanced.yml?branch=main&style=flat-square&label=CodeQL)](https://github.com/tobitege/Flowery.WinUI/actions/workflows/codeql-advanced.yml) [![Documentation](https://img.shields.io/github/actions/workflow/status/tobitege/Flowery.WinUI/generate-docs.yml?branch=main&style=flat-square&label=Documentation)](https://github.com/tobitege/Flowery.WinUI/actions/workflows/generate-docs.yml)
+
+**NuGet packages**
+
+[![Flowery.WinUI: unpublished](https://img.shields.io/badge/Core-unpublished-004880?style=flat-square&logo=nuget&logoColor=white)](Flowery.WinUI/Flowery.WinUI.csproj) [![Flowery.WinUI.Kanban: unpublished](https://img.shields.io/badge/Kanban-unpublished-004880?style=flat-square&logo=nuget&logoColor=white)](Flowery.WinUI.Kanban/Flowery.WinUI.Kanban.csproj) [![Flowery.WinUI.Win2D: unpublished](https://img.shields.io/badge/Win2D-unpublished-004880?style=flat-square&logo=nuget&logoColor=white)](Flowery.WinUI.Win2D/Flowery.WinUI.Win2D.csproj) [![Flowery.Integrations.WinUI: unpublished](https://img.shields.io/badge/Integrations-unpublished-004880?style=flat-square&logo=nuget&logoColor=white)](Flowery.Integrations.WinUI/Flowery.Integrations.WinUI.csproj)
+
+[![GitHub stars](https://img.shields.io/github/stars/tobitege/Flowery.WinUI?style=flat-square&logo=github)](https://github.com/tobitege/Flowery.WinUI/stargazers) [![GitHub forks](https://img.shields.io/github/forks/tobitege/Flowery.WinUI?style=flat-square&logo=github)](https://github.com/tobitege/Flowery.WinUI/forks) [![Open issues](https://img.shields.io/github/issues/tobitege/Flowery.WinUI?style=flat-square)](https://github.com/tobitege/Flowery.WinUI/issues) [![Last commit](https://img.shields.io/github/last-commit/tobitege/Flowery.WinUI/main?style=flat-square)](https://github.com/tobitege/Flowery.WinUI/commits/main) [![Repository size](https://img.shields.io/github/repo-size/tobitege/Flowery.WinUI?style=flat-square)](https://github.com/tobitege/Flowery.WinUI)
+
+**[Documentation](https://tobitege.github.io/Flowery.WinUI/) · [Control reference](llms-static/README.md) · [Gallery](#build-and-run) · [Changelog](CHANGELOG.md)**
+
+**12 languages** · Native Windows controls · Runtime themes · Kanban · Win2D
+
+</div>
+
+Flowery.WinUI is a native WinUI 3 control library for the Windows App SDK.
+Build themed Windows applications with Flowery controls and optional Kanban, Win2D, and authentication packages.
+The NuGet packages are not published yet; use project references or [build local packages](scripts/README.md#create-nuget-packages).
 
 ## Features
 

@@ -582,6 +582,7 @@ namespace Flowery.Controls
         private void ApplyAll()
         {
             BuildVisualTree();
+            UpdateHeaderText();
 
             var resources = Application.Current?.Resources;
             if (resources != null)
@@ -801,6 +802,8 @@ namespace Flowery.Controls
         {
             var date = SelectedDate ?? DateTime.Today;
             HeaderText = date.ToString("MMMM yyyy", Locale);
+            if (_headerTextBlock != null)
+                _headerTextBlock.Text = HeaderText;
             UpdateAutomationProperties();
         }
 
@@ -947,23 +950,35 @@ namespace Flowery.Controls
         private void OnPreviousMonthClick()
         {
             var current = SelectedDate ?? DateTime.Today;
-            var newDate = current.AddMonths(-1);
-
-            if (newDate >= FirstDate)
-                SelectedDate = newDate;
-            else
-                SelectedDate = FirstDate;
+            SelectAvailableDate(current.AddMonths(-1), -1);
         }
 
         private void OnNextMonthClick()
         {
             var current = SelectedDate ?? DateTime.Today;
-            var newDate = current.AddMonths(1);
+            SelectAvailableDate(current.AddMonths(1), 1);
+        }
 
-            if (newDate <= LastDate)
-                SelectedDate = newDate;
-            else
-                SelectedDate = LastDate;
+        private void SelectAvailableDate(DateTime date, int direction)
+        {
+            date = date.Date;
+            if (date < FirstDate.Date)
+                date = FirstDate.Date;
+            else if (date > LastDate.Date)
+                date = LastDate.Date;
+
+            while (date >= FirstDate.Date && date <= LastDate.Date)
+            {
+                if (!IsDateDisabled(date))
+                {
+                    SelectedDate = date;
+                    return;
+                }
+                if ((direction < 0 && date == FirstDate.Date) ||
+                    (direction > 0 && date == LastDate.Date))
+                    return;
+                date = date.AddDays(direction);
+            }
         }
 
         /// <summary>
@@ -971,8 +986,8 @@ namespace Flowery.Controls
         /// </summary>
         public void GoToDate(DateTime date)
         {
-            if (date >= FirstDate && date <= LastDate)
-                SelectedDate = date;
+            if (date.Date >= FirstDate.Date && date.Date <= LastDate.Date && !IsDateDisabled(date.Date))
+                SelectedDate = date.Date;
         }
 
         /// <summary>
@@ -1024,7 +1039,8 @@ namespace Flowery.Controls
                     break;
                 case VirtualKey.Enter:
                 case VirtualKey.Space:
-                    if (SelectedDate.HasValue)
+                    if (SelectedDate.HasValue && SelectedDate.Value.Date >= FirstDate.Date &&
+                        SelectedDate.Value.Date <= LastDate.Date && !IsDateDisabled(SelectedDate.Value.Date))
                         DateConfirmed?.Invoke(this, SelectedDate.Value);
                     e.Handled = true;
                     break;

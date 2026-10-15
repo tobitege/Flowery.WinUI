@@ -49,6 +49,7 @@ namespace Flowery.Controls
         private Storyboard? _floatingLabelStoryboard;
         private long _paddingChangedToken;
         private long _verticalContentAlignmentChangedToken;
+        private long _automationNameChangedToken;
         private CancellationTokenSource? _floatingPlaceholderCts;
         private Brush? _baseInputBackground;
         private Brush? _baseInputBorderBrush;
@@ -63,6 +64,15 @@ namespace Flowery.Controls
         protected override void OnLoaded()
         {
             base.OnLoaded();
+            Flowery.Services.DaisyMotion.Changed += OnMotionChanged;
+
+            _isLoaded = true;
+            if (_paddingChangedToken == 0)
+                _paddingChangedToken = RegisterPropertyChangedCallback(Control.PaddingProperty, OnPaddingChanged);
+            if (_verticalContentAlignmentChangedToken == 0)
+                _verticalContentAlignmentChangedToken = RegisterPropertyChangedCallback(Control.VerticalContentAlignmentProperty, OnVerticalContentAlignmentChanged);
+            if (_automationNameChangedToken == 0)
+                _automationNameChangedToken = RegisterPropertyChangedCallback(Microsoft.UI.Xaml.Automation.AutomationProperties.NameProperty, OnAutomationNameChanged);
 
             if (_rootGrid != null)
             {
@@ -70,11 +80,8 @@ namespace Flowery.Controls
                 return;
             }
 
-            _isLoaded = true;
             BuildVisualTree();
             ApplyAll();
-            _paddingChangedToken = RegisterPropertyChangedCallback(Control.PaddingProperty, OnPaddingChanged);
-            _verticalContentAlignmentChangedToken = RegisterPropertyChangedCallback(Control.VerticalContentAlignmentProperty, OnVerticalContentAlignmentChanged);
             if (_pendingFocusRequest)
             {
                 AttachPendingFocusHandler();
@@ -84,6 +91,8 @@ namespace Flowery.Controls
 
         protected override void OnUnloaded()
         {
+            Flowery.Services.DaisyMotion.Changed -= OnMotionChanged;
+            _floatingLabelStoryboard?.Stop();
             base.OnUnloaded();
             _isLoaded = false;
             CancelFloatingPlaceholderDelay();
@@ -101,6 +110,11 @@ namespace Flowery.Controls
             }
 
             _pendingFocusRequest = false;
+            if (_automationNameChangedToken != 0)
+            {
+                UnregisterPropertyChangedCallback(Microsoft.UI.Xaml.Automation.AutomationProperties.NameProperty, _automationNameChangedToken);
+                _automationNameChangedToken = 0;
+            }
             DetachPendingFocusHandler();
         }
 
@@ -576,7 +590,7 @@ namespace Flowery.Controls
                 }
             }
 
-            if (!animate)
+            if (!animate || !Flowery.Services.DaisyMotion.AnimationsEnabled)
             {
                 _floatingLabelStoryboard?.Stop();
                 _floatingLabelTransform.ScaleX = targetScale;
@@ -649,6 +663,11 @@ namespace Flowery.Controls
 
             _floatingLabelStoryboard = sb;
             sb.Begin();
+        }
+
+        private void OnMotionChanged(object? sender, EventArgs args)
+        {
+            if (!Flowery.Services.DaisyMotion.AnimationsEnabled) UpdateFloatingLabelState();
         }
 
         private void UpdateFocusBorder()
@@ -1518,6 +1537,24 @@ namespace Flowery.Controls
 
                 _passwordBox.Margin = new Thickness(leftMargin, 0, rightMargin, 0);
             }
+            UpdateInputAccessibility();
+        }
+
+        private void OnAutomationNameChanged(DependencyObject sender, DependencyProperty property) => UpdateInputAccessibility();
+
+        private void UpdateInputAccessibility()
+        {
+            if (_passwordBox == null) return;
+            var name = Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(this);
+            if (string.IsNullOrWhiteSpace(name))
+                _passwordBox.ClearValue(Microsoft.UI.Xaml.Automation.AutomationProperties.NameProperty);
+            else
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_passwordBox, name);
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetLabeledBy(_passwordBox,
+                LabelPosition == DaisyLabelPosition.Floating ? _floatingLabelText : _labelText);
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetIsRequiredForForm(_passwordBox, IsRequired);
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(_passwordBox, string.Join(" ",
+                new[] { HintText, HelperText }.Where(value => !string.IsNullOrWhiteSpace(value))));
         }
 
         private static Geometry? ResolveIconGeometry(string? iconData, object? icon)
@@ -1600,6 +1637,10 @@ namespace Flowery.Controls
             const string eyeSlashPath = "M11.83 9L15 12.17V12a3 3 0 00-3-3h-.17zm-4.3.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm-3.46-3.46L2 8.39l2.45 2.45C4.16 11.23 4.06 11.61 4 12c1.73 4.39 6 7.5 11 7.5 1.52 0 2.97-.3 4.31-.82l3.47 3.47 1.41-1.41L4.07 6.34zM12 4.5c3.6 0 6.88 1.86 9.17 4.67l-1.48 1.48C18.3 8.85 15.35 7.5 12 7.5c-.88 0-1.73.1-2.55.28l-1.44-1.44C9.13 5.17 10.53 4.5 12 4.5z";
 
             _revealIconPath.Data = Flowery.Helpers.FloweryPathHelpers.ParseGeometry(isVisible ? eyeSlashPath : eyePath);
+            if (_revealButton != null)
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_revealButton, isVisible
+                    ? FloweryLocalization.GetStringInternal("Input_HidePassword", "Hide password")
+                    : FloweryLocalization.GetStringInternal("Input_ShowPassword", "Show password"));
         }
 
         protected override void OnApplyTemplate()
