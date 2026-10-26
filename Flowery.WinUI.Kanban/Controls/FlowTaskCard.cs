@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Specialized;
 using System.Globalization;
 using System.Windows.Input;
@@ -22,8 +22,6 @@ namespace Flowery.WinUI.Kanban.Controls
     /// </summary>
     public partial class FlowTaskCard : DaisyBaseContentControl
     {
-        private const int TitleLongPressMilliseconds = 500;
-        private const double TitleLongPressMoveThreshold = 8;
         private FlowKanban? _parentKanban;
         private DaisyButton? _closeButton;
         private TextBlock? _titleTextBlock;
@@ -35,10 +33,6 @@ namespace Flowery.WinUI.Kanban.Controls
         private bool _isPointerOver;
         private bool _isKeyboardFocusVisible;
         private bool _isLocalizationSubscribed;
-        private Microsoft.UI.Dispatching.DispatcherQueueTimer? _titleLongPressTimer;
-        private bool _isTitlePressTracking;
-        private uint _titlePressPointerId;
-        private Point _titlePressStartPoint;
         private static readonly Brush TransparentBorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
 
         public FlowTaskCard()
@@ -51,6 +45,10 @@ namespace Flowery.WinUI.Kanban.Controls
             LostFocus += OnCardLostFocus;
             KeyDown += OnCardKeyDown;
             PointerPressed += OnCardPointerPressed;
+            PointerMoved += OnCardPointerMoved;
+            PointerReleased += OnCardPointerReleased;
+            PointerCanceled += OnCardPointerCanceled;
+            PointerCaptureLost += OnCardPointerCanceled;
             RegisterPropertyChangedCallback(IsEnabledProperty, OnIsEnabledChanged);
             UpdateSelectionBadgePlacement();
         }
@@ -135,6 +133,7 @@ namespace Flowery.WinUI.Kanban.Controls
             }
 
             DetachTitleTextBlock();
+            EndTouchPress();
 
             if (_trackedTask != null)
             {
@@ -799,6 +798,9 @@ namespace Flowery.WinUI.Kanban.Controls
 
         private void OnPointerExited(object sender, PointerRoutedEventArgs e)
         {
+            // A finger that leaves the card is lifted elsewhere: the press neither taps nor holds.
+            if (_tapPointerId == e.Pointer.PointerId)
+                EndTouchPress();
             _isPointerOver = false;
             UpdateCloseButtonVisibility();
         }
@@ -817,16 +819,9 @@ namespace Flowery.WinUI.Kanban.Controls
 
         private void OnDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
         {
-            if (IsMobileSelectionMode())
-            {
-                var task = CloseCommandParameter as FlowTask ?? Task ?? _trackedTask;
-                if (task != null)
-                {
-                    task.IsSelected = !task.IsSelected;
-                    e.Handled = true;
-                }
+            // With touch or pen a tap edits the card (FlowTaskCard.Touch.cs).
+            if (e.PointerDeviceType != Microsoft.UI.Input.PointerDeviceType.Mouse)
                 return;
-            }
 
             if (TryExecuteEdit())
                 e.Handled = true;
@@ -854,8 +849,11 @@ namespace Flowery.WinUI.Kanban.Controls
 
         private void OnCardPointerPressed(object sender, PointerRoutedEventArgs e)
         {
-            if (IsMobileSelectionMode())
+            if (e.Pointer.PointerDeviceType != Microsoft.UI.Input.PointerDeviceType.Mouse)
+            {
+                BeginTouchPress(e);
                 return;
+            }
 
             var task = CloseCommandParameter as FlowTask ?? Task ?? _trackedTask;
             if (task == null)
@@ -1373,11 +1371,6 @@ namespace Flowery.WinUI.Kanban.Controls
 
             _titleTextBlock.SizeChanged += OnTitleSizeChanged;
             _titleTextBlock.Loaded += OnTitleLoaded;
-            _titleTextBlock.PointerPressed += OnTitlePointerPressed;
-            _titleTextBlock.PointerMoved += OnTitlePointerMoved;
-            _titleTextBlock.PointerReleased += OnTitlePointerReleased;
-            _titleTextBlock.PointerCanceled += OnTitlePointerCanceled;
-            _titleTextBlock.PointerCaptureLost += OnTitlePointerCaptureLost;
             UpdateTitleToolTip();
             SyncTitleForeground();
         }
@@ -1388,15 +1381,8 @@ namespace Flowery.WinUI.Kanban.Controls
             {
                 _titleTextBlock.SizeChanged -= OnTitleSizeChanged;
                 _titleTextBlock.Loaded -= OnTitleLoaded;
-                _titleTextBlock.PointerPressed -= OnTitlePointerPressed;
-                _titleTextBlock.PointerMoved -= OnTitlePointerMoved;
-                _titleTextBlock.PointerReleased -= OnTitlePointerReleased;
-                _titleTextBlock.PointerCanceled -= OnTitlePointerCanceled;
-                _titleTextBlock.PointerCaptureLost -= OnTitlePointerCaptureLost;
                 _titleTextBlock = null;
             }
-
-            CancelTitleLongPress();
         }
 
         private void OnTitleSizeChanged(object sender, SizeChangedEventArgs e)
@@ -1431,95 +1417,6 @@ namespace Flowery.WinUI.Kanban.Controls
             var isTrimmed = IsTitleTrimmed(title, _titleTextBlock, availableWidth);
 
             ToolTipService.SetToolTip(_titleTextBlock, isTrimmed ? title : null);
-        }
-
-        private void OnTitlePointerPressed(object sender, PointerRoutedEventArgs e)
-        {
-            if (!IsMobileSelectionMode())
-                return;
-
-            if (e.Pointer.PointerDeviceType != Microsoft.UI.Input.PointerDeviceType.Touch)
-                return;
-
-            if (sender is not UIElement element)
-                return;
-
-            _titlePressPointerId = e.Pointer.PointerId;
-            _titlePressStartPoint = e.GetCurrentPoint(element).Position;
-            _isTitlePressTracking = true;
-            StartTitleLongPressTimer();
-        }
-
-        private void OnTitlePointerMoved(object sender, PointerRoutedEventArgs e)
-        {
-            if (!_isTitlePressTracking || e.Pointer.PointerId != _titlePressPointerId)
-                return;
-
-            if (sender is not UIElement element)
-                return;
-
-            var current = e.GetCurrentPoint(element).Position;
-            var dx = current.X - _titlePressStartPoint.X;
-            var dy = current.Y - _titlePressStartPoint.Y;
-            if ((dx * dx) + (dy * dy) > (TitleLongPressMoveThreshold * TitleLongPressMoveThreshold))
-            {
-                CancelTitleLongPress();
-            }
-        }
-
-        private void OnTitlePointerReleased(object sender, PointerRoutedEventArgs e)
-        {
-            if (e.Pointer.PointerId != _titlePressPointerId)
-                return;
-
-            CancelTitleLongPress();
-        }
-
-        private void OnTitlePointerCanceled(object sender, PointerRoutedEventArgs e)
-        {
-            CancelTitleLongPress();
-        }
-
-        private void OnTitlePointerCaptureLost(object sender, PointerRoutedEventArgs e)
-        {
-            CancelTitleLongPress();
-        }
-
-        private void StartTitleLongPressTimer()
-        {
-            if (DispatcherQueue == null)
-                return;
-
-            if (_titleLongPressTimer == null)
-            {
-                _titleLongPressTimer = DispatcherQueue.CreateTimer();
-            }
-            _titleLongPressTimer.Stop();
-            _titleLongPressTimer.Interval = TimeSpan.FromMilliseconds(TitleLongPressMilliseconds);
-            _titleLongPressTimer.Tick -= OnTitleLongPressTimerTick;
-            _titleLongPressTimer.Tick += OnTitleLongPressTimerTick;
-            _titleLongPressTimer.Start();
-        }
-
-        private void OnTitleLongPressTimerTick(Microsoft.UI.Dispatching.DispatcherQueueTimer sender, object args)
-        {
-            sender.Stop();
-
-            if (!_isTitlePressTracking)
-                return;
-
-            _isTitlePressTracking = false;
-            if (TryExecuteEdit())
-            {
-                Focus(FocusState.Programmatic);
-            }
-        }
-
-        private void CancelTitleLongPress()
-        {
-            _isTitlePressTracking = false;
-            _titlePressPointerId = 0;
-            _titleLongPressTimer?.Stop();
         }
 
         private void SyncTitleForeground()
@@ -1730,11 +1627,6 @@ namespace Flowery.WinUI.Kanban.Controls
             var first = parts[0][0];
             var last = parts[^1][0];
             return string.Concat(first, last).ToUpper(CultureInfo.CurrentUICulture);
-        }
-
-        private static bool IsMobileSelectionMode()
-        {
-            return OperatingSystem.IsAndroid() || OperatingSystem.IsIOS();
         }
     }
 }

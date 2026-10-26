@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Flowery.Controls;
 using Flowery.Controls.Scheduler.Contracts;
 using Flowery.Controls.Scheduler.Models;
@@ -497,7 +497,7 @@ public sealed partial class Given_DaisyScheduler
         }
     }
 
-    private sealed class SchedulerScope
+    private sealed partial class SchedulerScope
     {
         private SchedulerScope(SchedulerView view)
         {

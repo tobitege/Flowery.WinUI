@@ -1,11 +1,13 @@
-using Flowery.Controls;
+﻿using Flowery.Controls;
 using Flowery.Controls.Scheduler.Contracts;
 using Flowery.Controls.Scheduler.Models;
 using Flowery.Theming;
 using Flowery.WinUI.Gallery.Localization;
+using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
 using Windows.UI;
 
 namespace Flowery.WinUI.Gallery.Examples;
@@ -24,6 +26,7 @@ public sealed partial class SchedulerExamples : ScrollableExamplePage
     private AppointmentModel? _editing;
     private bool _isNew;
     private int _editingResourceIndex;
+    private string _helpKey = "Help";
 
     public SchedulerExamples()
     {
@@ -51,6 +54,8 @@ public sealed partial class SchedulerExamples : ScrollableExamplePage
         DemoScheduler.ToolbarButtonClicked += OnToolbarAction;
         DemoScheduler.SelectionChanged += OnSelectionChanged;
         DemoScheduler.ExternalAppointmentDropped += OnExternalDrop;
+        // Handled too: the scheduler marks its presses handled.
+        DemoScheduler.AddHandler(PointerPressedEvent, new PointerEventHandler(OnSchedulerPointerPressed), true);
         DemoScheduler.RegisterPropertyChangedCallback(DaisyScheduler.CurrentViewProperty, OnSchedulerPropertyChanged);
         foreach (var property in new[]
                  {
@@ -221,7 +226,17 @@ public sealed partial class SchedulerExamples : ScrollableExamplePage
 
     private void OnSelectionChanged(object? sender, IReadOnlyList<AppointmentModel> selected)
     {
-        StatusText.Text = selected.Count == 0 ? Text("Help") : string.Join(", ", selected.Select(static appointment => appointment.Subject));
+        StatusText.Text = selected.Count == 0 ? Text(_helpKey) : string.Join(", ", selected.Select(static appointment => appointment.Subject));
+    }
+
+    // The help names the gestures of the pointer used last: touch and pen, or mouse and keyboard.
+    private void OnSchedulerPointerPressed(object? sender, PointerRoutedEventArgs e)
+    {
+        var key = e.Pointer.PointerDeviceType == PointerDeviceType.Mouse ? "Help" : "TouchHelp";
+        if (key == _helpKey)
+            return;
+        _helpKey = key;
+        OnSelectionChanged(this, DemoScheduler.SelectedAppointments);
     }
 
     private void OnCreate(object? sender, AppointmentCreateArgs e)

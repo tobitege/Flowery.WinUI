@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.10.0] - 2026-10-25
+## [1.10.0] - 2026-10-26
 
 ### Added
 
@@ -14,14 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `DaisyScheduler.ShowWeekends` (on by default) shows or hides Saturday and Sunday in the Week, Month and Planner views; the settings flyout has a check box for it.
 - Unlike Flowery.NET, chips and bars never trim their start time: status glyphs and tiles show only when they fit beside it, and the subject takes the rest. A Planner or Timeline hour is as wide as a one-hour bar with its full start time (for the current size, font, culture and clock format), every hour has a header label, and hours widen to fill the visible width; `DaisySchedulerTimelineMinimumHourWidth` (default 0) can raise the minimum.
 - Unlike Flowery.NET, Month and Agenda chips and Planner and Timeline bars show their subject in the secondary font size so it fits the bar height in Segoe UI, timed blocks use compact subject and time lines, and the Day and Week time column widens to its longest time label. Bind `SelectedDate`, `SelectedAppointment` and `CollapsedResourceGroupIds` with `Mode=TwoWay`, because WinUI has no per-property default binding mode.
+- `DaisyScheduler` on touch or pen, as in Flowery.NET and the apps of the platforms: a tap on an appointment asks to edit it, and holding it selects it; the finger then moves it, or resizes it from an edge up to 12 DIP wide, at most a quarter of the appointment each. While appointments are selected, a tap adds one to the selection or takes it out. Taps are decided on release and count only if the finger did not move, so any swipe without a hold only scrolls, also over a free slot or day, where a tap selects it and a double tap asks to create an appointment; a tap that stops a scrolling view opens nothing. The mouse keeps click, Ctrl-click and double click.
 - The scheduler uses the Flowery themes, design tokens (overridable in host resources), all five size tiers and all twelve languages. `ExternalDropHandler.SetData` and `TryGetItem` carry an `ISchedulerDroppable` through a `DataPackage` in the same process.
 - The library output and NuGet package include the Xtreme.Components copyright and MIT license (`licenses/Xtreme.Components.txt`).
-- Gallery: a Scheduler page under Custom Controls with sample appointments, resource grouping, an appointment editor with overlap confirmation and color palette, a context menu, read-only mode, and resource-kind, date/time format and clock selectors.
+- Gallery: a Scheduler page under Custom Controls with sample appointments, resource grouping, an appointment editor with overlap confirmation and color palette, a context menu, read-only mode, and resource-kind, date/time format and clock selectors. Its help below the scheduler names the touch gestures after a touch or pen press and the mouse and keyboard ones after a click, in all twelve languages.
 - Docs: `llms-static/DaisyScheduler.md`, and the scheduler in the custom-control list of the generated site and in the README.
 
 ### Changed
 
 - `DaisyButton` applies style properties set before it loads (`Variant`, `Size`, `ButtonStyle`, `Shape`, `ContentPadding`) once, at its first measure, instead of once per property. On Loaded it skips the size and theme pass while the applied size and theme are still current. Creating and loading many buttons takes a fraction of the time.
+- `FlowKanban` on touch or pen, as in `DaisyScheduler`: a tap opens a card's editor and holding a card selects it, and the finger then drags it; while cards are selected, a tap adds a card to the selection or takes it out. Taps are decided on release and count only if the finger did not move, so a swipe over a card only scrolls. Before, a touch or pen press selected a card like a click, and a double tap edited it. The touch model is chosen by pointer type; the old one for Android and iOS (double tap toggles, long press on the title edits) never ran on Windows and is gone.
+- `FlowKanban`: a tap or click on a free place of the board (not on a card, a button, an input, a combo box such as the column choice of the compact layout, a scroll bar, or a column header, where a tap shows the header buttons on touch) clears the card selection, also one the board was loaded with.
 - `DaisyResourceLookup.TryGetResource` no longer searches the merged dictionaries again after a miss. WinUI's `TryGetValue` already searches nested merged and theme dictionaries, so the result is the same, and lookups of optional keys that do not exist, which every Daisy control makes, are much faster.
 
 ## [1.9.0] - 2026-10-24

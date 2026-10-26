@@ -83,6 +83,11 @@ Click an appointment to select it.
 Use Ctrl-click (or Windows-key-click) to select multiple appointments.
 Double-click an appointment to request an edit.
 Drag a selected appointment edge to change its duration.
+On touch or pen, as in the apps of the platforms, a tap on an appointment asks to edit it, and holding it selects it; the finger then moves it, or resizes it from an edge.
+On touch or pen, while appointments are selected, a tap adds one to the selection or takes it out.
+On touch or pen, any swipe without a hold scrolls the view; a tap on a free slot or day selects it, and a double tap asks to create an appointment there.
+On touch or pen, the resize edges are up to 12 DIP wide, at most a quarter of the appointment each (5 DIP with a mouse).
+A tap that stops a scrolling view opens nothing.
 Press Delete to request removal of the selection.
 Press Escape to cancel a drag or clear the selection.
 

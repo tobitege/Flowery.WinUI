@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Reflection;
 using Flowery.Controls;
 using Flowery.Controls.Scheduler.Models;
@@ -286,6 +286,23 @@ public sealed partial class Given_DaisyScheduler
         await scope.LayoutAsync();
         Assert.IsTrue(CanvasWidth() > narrow);
         Assert.IsTrue(CanvasWidth() + 1 >= scope.BodyScroll().ViewportWidth, $"{CanvasWidth()} for {scope.BodyScroll().ViewportWidth}");
+    }
+
+    [TestMethod]
+    public async Task When_FilledHoursMultiplyBackAboveTheView_TheTimelineDoesNotScrollSideways()
+    {
+        var scope = await SchedulerScope.CreateAsync(SchedulerView.Timeline);
+        // The hours fill a viewport of 2882, and 2882 / 1440 * 1440 is 2882.0000000000005.
+        for (var pass = 0; pass < 3 && scope.BodyScroll().ViewportWidth != 2882; pass++)
+        {
+            scope.Host.Width += 2882 - scope.BodyScroll().ViewportWidth;
+            await scope.LayoutAsync();
+        }
+        var scroll = scope.BodyScroll();
+        var lane = (Canvas)scope.Frame(scope.Appointment).Parent;
+        Assert.AreEqual(2882, scroll.ViewportWidth);
+        Assert.AreEqual(scroll.ViewportWidth, scroll.ExtentWidth, $"extent {scroll.ExtentWidth:R}");
+        Assert.AreEqual(2882, lane.Width, $"lane {lane.Width:R}");
     }
 
     [TestMethod]

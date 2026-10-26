@@ -535,6 +535,7 @@
   "Scheduler_Cancel": "İptal",
   "Scheduler_Unassigned": "Atanmamış",
   "Scheduler_Help": "Seçmek için tıklayın · Çoklu seçim için Ctrl ile tıklayın · Düzenlemek veya oluşturmak için çift tıklayın · Silmek için Delete · Menü için sağ tıklayın",
+  "Scheduler_TouchHelp": "Açmak için dokunun · Seçmek için basılı tutun, sonra taşımak için sürükleyin veya süreyi değiştirmek için kenarı sürükleyin · Seçim varken eklemek veya çıkarmak için dokunun · Oluşturmak için boş bir zamana çift dokunun · Sil düğmesi seçimi siler",
   "Scheduler_InvalidInput": "Bir konu ve geçerli başlangıç/bitiş zamanları girin. Bitiş başlangıçtan sonra olmalıdır.",
   "Scheduler_Edit": "Düzenle",
   "Scheduler_Duplicate": "Çoğalt",

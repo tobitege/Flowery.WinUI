@@ -499,6 +499,14 @@ The board uses WinUI 3 focus APIs, keyboard events, and UI Automation peers.
 - Cards and "Add Card" are focusable so screen readers can announce content in context.
 - Enter opens the focused card editor. Space toggles the focused card in the task selection.
 
+### Touch and Pen
+
+As in `DaisyScheduler` and the apps of the platforms, a tap opens a card's editor, and holding a card selects it; while cards are selected, a tap adds a card to the selection or takes it out.
+Taps are decided on release and only those that did not move count, so swipes over a card scroll the board and never open or select it.
+After the hold, the finger drags the card as a mouse does (`CanDrag`).
+A tap or click on a free place of the board (not on a card or a control) clears the selection; a swipe or a mouse drag there does not.
+The mouse keeps click, Ctrl-click, Shift-click and double click.
+
 ### Arrow-Key Navigation (Board Surface)
 
 - **Column header focus**: Left/Right moves to adjacent column header. Down enters the first visible card, or the add-card control if empty.
