@@ -34,8 +34,8 @@ namespace Flowery.WinUI.RuntimeTests
             await SettleAsync();
         }
 
-        /// <summary>Holds the finger on the point until <paramref name="held"/> reports the hold, then moves it by
-        /// <paramref name="offset"/> if given and lifts it.</summary>
+        /// <summary>Holds the finger on the point until <paramref name="held"/> reports the hold, then drags it by
+        /// <paramref name="offset"/> if given, rests it there, and lifts it.</summary>
         public static async Task HoldAsync(UIElement element, Point point, Func<bool> held, Point? offset = null)
         {
             var contact = Down(element, point);
@@ -53,14 +53,14 @@ namespace Flowery.WinUI.RuntimeTests
             }
 
             if (offset is { } by)
-                await MoveAsync(element, by, 10, contact);
+                await MoveAsync(element, by, 20, contact, rest: true);
             else
                 Inject(ref contact, PointerFlagUp);
             await SettleAsync();
         }
 
         // The finger moves on the screen from where it touched: the element may scroll along or leave the tree.
-        private static async Task MoveAsync(UIElement element, Point offset, int steps, PointerTouchInfo contact)
+        private static async Task MoveAsync(UIElement element, Point offset, int steps, PointerTouchInfo contact, bool rest = false)
         {
             var origin = contact.PointerInfo.PixelLocation;
             var scale = element.XamlRoot?.RasterizationScale ?? 1;
@@ -72,6 +72,13 @@ namespace Flowery.WinUI.RuntimeTests
                     X = origin.X + (int)Math.Round(offset.X * scale * step / steps),
                     Y = origin.Y + (int)Math.Round(offset.Y * scale * step / steps)
                 });
+                Inject(ref contact, PointerFlagInRange | PointerFlagInContact | PointerFlagUpdate);
+            }
+
+            // A drag needs time at the target before the release drops there.
+            for (var frame = 0; rest && frame < 20; frame++)
+            {
+                await FrameAsync();
                 Inject(ref contact, PointerFlagInRange | PointerFlagInContact | PointerFlagUpdate);
             }
 
