@@ -139,7 +139,14 @@ namespace Flowery.WinUI.Kanban.Controls
         public IBoardStore BoardStore
         {
             get => _boardStore;
-            set => _boardStore = value ?? throw new ArgumentNullException(nameof(value));
+            set
+            {
+                ArgumentNullException.ThrowIfNull(value);
+                if (ReferenceEquals(_boardStore, value))
+                    return;
+                FlushAutoSave();
+                _boardStore = value;
+            }
         }
         internal bool IsLaneGroupingEnabled => Board.GroupBy == FlowKanbanGroupBy.Lane && Board.Lanes.Count > 0;
 
@@ -218,6 +225,8 @@ namespace Flowery.WinUI.Kanban.Controls
         {
             if (d is FlowKanban kanban)
             {
+                if (e.OldValue is FlowKanbanData replaced)
+                    kanban.FlushAutoSave(replaced);
                 kanban.AttachBoardTracking(e.NewValue as FlowKanbanData);
                 _ = ObserveAssigneeRefreshAsync(kanban.RefreshAssigneesAsync());
             }
@@ -1560,6 +1569,8 @@ namespace Flowery.WinUI.Kanban.Controls
             if (string.IsNullOrWhiteSpace(boardId))
                 return false;
 
+            // Before the read, so reopening the open board loads its waiting edit too.
+            FlushAutoSave();
             if (!BoardStore.TryLoadBoard(boardId, out var data, out var error))
             {
                 if (error != null)
@@ -1661,6 +1672,32 @@ namespace Flowery.WinUI.Kanban.Controls
         private void StopAutoSaveTimer()
         {
             _autoSaveTimer?.Stop();
+        }
+
+        // Saves an edit that still waits for its auto-save now, on the board it was made on and into the store it was
+        // meant for: a board that leaves the tree, is replaced or changes its store loses no edit, and the timer does not
+        // fire later into whatever board, store or storage is current then.
+        private void FlushAutoSave(FlowKanbanData? replacedBoard = null)
+        {
+            if (_autoSaveTimer is not { IsRunning: true } timer)
+                return;
+
+            timer.Stop();
+            if (replacedBoard == null)
+            {
+                ExecuteSave();
+                return;
+            }
+
+            // The replaced board is no longer open, so it does not become the last board.
+            try
+            {
+                SaveBoardStateCore(replacedBoard, updateLastBoardId: false);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to save Kanban: {ex.Message}");
+            }
         }
 
         private void OnAutoSaveTimerTick(DispatcherQueueTimer sender, object args)

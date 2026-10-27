@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.1] - 2026-10-27
+
+### Fixed
+
+- Kanban, as in Flowery.NET: a tap on a card decides whether cards are selected through the board it finds at the tap. The card looked its board up in its `Loaded` handler, which WinUI raises after the card is in the tree, so a touch on a card realized just then, such as while a long column scrolls, opened its editor while other cards were selected.
+- Kanban, as in Flowery.NET: an edit that still waits for its auto-save is saved at once when the board unloads, also when its window closes, and before the home view clears the last board ID. The same happens before a board loads, so reopening the open board shows the edit, and before `Board` or `BoardStore` changes: the edit is saved on the board it was made on and into the store it was meant for, and a replaced board does not become the last board. Deleting the open board drops its waiting edit instead of saving the board back. Before, the timer kept running and later saved whatever board was open then into the store and state storage current then, and set the last board ID again.
+
 ## [1.11.0] - 2026-10-27
 
 ### Added

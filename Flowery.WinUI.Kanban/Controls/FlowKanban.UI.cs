@@ -785,6 +785,8 @@ namespace Flowery.WinUI.Kanban.Controls
 
         private void OnKanbanUnloaded(object sender, RoutedEventArgs e)
         {
+            // Before the home view clears the last board ID below, which a later save would set again.
+            FlushAutoSave();
             if (CurrentView == FlowKanbanView.Home)
             {
                 ClearLastBoardId();

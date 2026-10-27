@@ -121,9 +121,11 @@ namespace Flowery.WinUI.Kanban.Controls
                 task.IsSelected = !task.IsSelected;
         }
 
-        // Only cards the board shows count: a selected card the search hides would make a tap toggle unseen.
+        // Only cards the board shows count: a selected card the search hides would make a tap toggle unseen. The board is
+        // looked up at the tap: WinUI raises Loaded after a card is in the tree, so a card realized just now, such as while
+        // a long column scrolls, can be tapped before its Loaded handler ran.
         private bool IsSelectionActive() =>
-            _parentKanban?.Board.Columns.Any(static column => column.Tasks.Any(static task => task.IsSelected && task.IsSearchMatch))
+            FindParentKanban()?.Board.Columns.Any(static column => column.Tasks.Any(static task => task.IsSelected && task.IsSearchMatch))
             ?? CardTask?.IsSelected == true;
 
         private bool IsTap(Point position) =>

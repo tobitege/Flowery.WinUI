@@ -23,7 +23,7 @@ namespace Flowery.WinUI.Kanban.Controls
     public partial class FlowTaskCard : DaisyBaseContentControl
     {
         private FlowKanban? _parentKanban;
-        // The board the card found when it loaded; taps decide by its selection.
+        // The board the card found when it loaded; null until its Loaded handler ran.
         internal FlowKanban? LoadedBoard => _parentKanban;
         private DaisyButton? _closeButton;
         private TextBlock? _titleTextBlock;

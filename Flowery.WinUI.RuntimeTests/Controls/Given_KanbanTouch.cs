@@ -63,6 +63,31 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         }
 
         [TestMethod]
+        public async Task When_ACardIsTappedBeforeItsLoadedHandlerRan_ItJoinsTheSelection()
+        {
+            var selected = new FlowTask { Title = "Selected" };
+            var kanban = await CreateBoardAsync(new[] { selected });
+            Assert.IsTrue(CardOf(kanban, selected).HoldTask());
+            await RuntimeTestHelpers.CompleteLayoutAsync(kanban);
+            var edits = new List<FlowTask>();
+
+            // The layout realizes the new card, and WinUI raises its Loaded later. A touch can reach the card in between,
+            // such as on a card that a long column realizes while it scrolls.
+            var task = new FlowTask { Title = "Task" };
+            kanban.Board.Columns[0].Tasks.Insert(0, task);
+            kanban.UpdateLayout();
+            var card = CardOf(kanban, task);
+            Assert.IsNull(card.LoadedBoard, "the card already ran its Loaded handler");
+            card.EditCommand = new EditCounter(edits);
+
+            Assert.IsTrue(card.TapTask());
+
+            Assert.IsTrue(task.IsSelected);
+            Assert.IsTrue(selected.IsSelected);
+            Assert.IsEmpty(edits);
+        }
+
+        [TestMethod]
         public async Task When_ARealFingerTapsHoldsAndSwipes_WinUIDeliversTheTouchModel()
         {
             var tasks = new[] { new FlowTask { Title = "A" }, new FlowTask { Title = "B" } };
@@ -145,8 +170,8 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             for (var pass = 0; pass < 50 && !Realized(); pass++)
                 await RuntimeTestHelpers.CompleteLayoutAsync(kanban);
             Assert.IsTrue(Realized(), "realized cards");
-            // A card finds its board in its Loaded handler, which WinUI can raise after the card is in the tree;
-            // until then a tap cannot see the board's selection.
+            // WinUI can raise a card's Loaded after the card is in the tree. A tap looks the board up itself, but the other
+            // work of the Loaded handler has not run yet, so a test taps a card only once it found its board there.
             await RuntimeTestHelpers.WaitUntilAsync(
                 () => tasks.All(task => ReferenceEquals(CardOf(kanban, task).LoadedBoard, kanban)), "the cards know their board");
             return kanban;

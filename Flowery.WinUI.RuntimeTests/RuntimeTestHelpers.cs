@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using Flowery.Services;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -72,6 +73,49 @@ namespace Flowery.WinUI.RuntimeTests
             };
             element.Loaded += handler;
             return tcs.Task;
+        }
+
+        /// <summary>Removes <paramref name="element"/> from the host panel and completes after its Unloaded event.</summary>
+        public static async Task DetachFromHostAsync(FrameworkElement element)
+        {
+            var hostPanel = GetHostPanel();
+            if (!hostPanel.Children.Contains(element))
+                return;
+
+            var unloaded = WaitForUnloadedAsync(element);
+            hostPanel.Children.Remove(element);
+            await unloaded.WaitAsync(LayoutTimeout);
+        }
+
+        /// <summary>Completes after the next Unloaded event of <paramref name="element"/>.</summary>
+        public static Task WaitForUnloadedAsync(FrameworkElement element)
+        {
+            var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            RoutedEventHandler? handler = null;
+            handler = (_, _) =>
+            {
+                element.Unloaded -= handler;
+                tcs.TrySetResult(null);
+            };
+            element.Unloaded += handler;
+            return tcs.Task;
+        }
+
+        /// <summary>Runs <paramref name="body"/> with an empty state storage of its own and restores the runner's
+        /// storage afterwards. Detach the elements the body showed inside it, so their Unloaded handlers do not write
+        /// into the runner's storage.</summary>
+        public static async Task WithStateStorageAsync(Func<Task> body)
+        {
+            var previous = StateStorageProvider.Instance;
+            StateStorageProvider.Configure(new InMemoryStateStorage());
+            try
+            {
+                await body();
+            }
+            finally
+            {
+                StateStorageProvider.Configure(previous);
+            }
         }
 
         /// <summary>The longest one case of a table-driven test may run.</summary>
