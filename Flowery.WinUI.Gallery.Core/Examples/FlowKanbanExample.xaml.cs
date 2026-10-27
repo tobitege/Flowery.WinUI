@@ -91,7 +91,7 @@ namespace Flowery.WinUI.Gallery.Examples
                 ImageSource? avatar = index switch
                 {
                     0 => new BitmapImage(new Uri("ms-appx:///Assets/tile_blue.jpg")),
-                    1 => new BitmapImage(new Uri("ms-appx:///Assets/tile_purple.jpg")),
+                    1 => new BitmapImage(new Uri("ms-appx:///Assets/tile_yellow.jpg")),
                     _ => null
                 };
                 return new FlowKanbanAssignee(DemoAssigneeId(name), name, avatar, roles);

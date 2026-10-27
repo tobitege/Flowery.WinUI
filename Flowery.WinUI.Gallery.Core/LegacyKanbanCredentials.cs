@@ -25,7 +25,8 @@ namespace Flowery.WinUI.Gallery
         ];
 
         /// <summary>
-        /// Removes the entries once. A marker in the state storage keeps later starts from querying the vault again.
+        /// Removes the entries once. A marker in the state storage keeps later starts from querying the vault again;
+        /// it is only written when every entry is gone, so a vault that failed silently is tried again next start.
         /// </summary>
         public static void RemoveOnce(ISecureStorage secureStorage, IStateStorage stateStorage)
         {
@@ -36,6 +37,9 @@ namespace Flowery.WinUI.Gallery
 
             foreach (var (resource, key) in Entries)
                 secureStorage.RemoveValue(resource, key);
+
+            if (Entries.Any(entry => secureStorage.GetValue(entry.Resource, entry.Key) is not null))
+                return;
 
             stateStorage.SaveLines(RemovedStateKey, (string[])["1"]);
         }

@@ -609,6 +609,79 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             Assert.AreEqual("new", vault.GetValue("Flowery.GitHub", "AccessToken"));
         }
 
+        [TestMethod]
+        public void When_TheVaultFailsToRemoveACredential_TheNextStartTriesAgain()
+        {
+            var vault = new DictionarySecureStorage { FailRemovals = true };
+            vault.SetValue("Flowery.GitHub", "AccessToken", "secret");
+            var state = new InMemoryStateStorage();
+
+            LegacyKanbanCredentials.RemoveOnce(vault, state);
+            Assert.AreEqual("secret", vault.GetValue("Flowery.GitHub", "AccessToken"));
+
+            vault.FailRemovals = false;
+            LegacyKanbanCredentials.RemoveOnce(vault, state);
+            Assert.IsNull(vault.GetValue("Flowery.GitHub", "AccessToken"),
+                "A start after a silent vault failure skipped the removal.");
+        }
+
+        [TestMethod]
+        public async Task When_NamesNeedCultureOrder_TheFilterAndTheEditorListPeopleAlike()
+        {
+            var kanban = CreateKanban(new FlowTask { Title = "Unassigned" });
+            kanban.AssigneeAdapter = new FlowKanbanAssigneeAdapter(new[]
+            {
+                new FlowKanbanAssignee("zoe", "Zoe"),
+                new FlowKanbanAssignee("aerger", "Ärger"),
+                new FlowKanbanAssignee("adam", "adam")
+            });
+
+            await kanban.RefreshAssigneesAsync();
+
+            var editorOrder = kanban.GetAssigneeOptions().Select(option => option.Id).ToArray();
+            var filterOrder = kanban.AssigneeFilterOptions.Select(option => option.Id).ToArray();
+            CollectionAssert.AreEqual(editorOrder, filterOrder);
+            Assert.AreEqual("zoe", filterOrder[^1], "A name with an umlaut was sorted after Z.");
+        }
+
+        // The roles are the avatar's tooltip in the card template; a card without roles has no empty tooltip.
+        [TestMethod]
+        public async Task When_ACardShowsAnAssigneeWithRoles_TheAvatarCarriesThemAsTooltip()
+        {
+            var task = new FlowTask { Title = "Assigned", Assignee = "Sam", AssigneeId = "sam" };
+            var kanban = CreateKanban(task);
+            kanban.AssigneeAdapter = new FlowKanbanAssigneeAdapter(new[]
+            {
+                new FlowKanbanAssignee("sam", "Sam", roles: new[] { "Administrator", "Reviewer" })
+            });
+            await kanban.RefreshAssigneesAsync();
+            var card = new FlowTaskCard { Task = task };
+            RuntimeTestHelpers.AttachToHost(card);
+            await RuntimeTestHelpers.EnsureLoadedAsync(card);
+
+            var avatar = Descendants<Flowery.Controls.DaisyAvatar>(card)
+                .Single(element => element.Name == "PART_AssigneeAvatar");
+            Assert.AreEqual("Administrator, Reviewer", ToolTipService.GetToolTip(avatar));
+            Assert.IsTrue(avatar.IsPlaceholder, "The initials stay visible while there is no avatar image.");
+
+            task.AssigneeRoles = Array.Empty<string>();
+            Assert.IsNull(ToolTipService.GetToolTip(avatar), "A card without roles kept a tooltip.");
+        }
+
+        private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
+        {
+            var count = VisualTreeHelper.GetChildrenCount(root);
+            for (var i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is T match)
+                    yield return match;
+
+                foreach (var descendant in Descendants<T>(child))
+                    yield return descendant;
+            }
+        }
+
         private static FlowKanban CreateKanban(FlowTask task)
         {
             return new FlowKanban
@@ -625,11 +698,18 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         {
             private readonly Dictionary<(string, string), string> _values = new();
 
+            // Like PasswordVaultSecureStorage, a failed removal is swallowed.
+            public bool FailRemovals { get; set; }
+
             public void SetValue(string resource, string key, string value) => _values[(resource, key)] = value;
 
             public string? GetValue(string resource, string key) => _values.GetValueOrDefault((resource, key));
 
-            public void RemoveValue(string resource, string key) => _values.Remove((resource, key));
+            public void RemoveValue(string resource, string key)
+            {
+                if (!FailRemovals)
+                    _values.Remove((resource, key));
+            }
         }
 
         // Counts the adapter calls, so a test can prove that board changes do not reload the list.

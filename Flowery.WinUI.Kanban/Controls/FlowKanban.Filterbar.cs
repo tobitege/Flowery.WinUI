@@ -1002,8 +1002,9 @@ namespace Flowery.WinUI.Kanban.Controls
                 options.Add(new FlowTaskAssigneeOption(id, displayName + unresolvedSuffix, isResolved: false));
             }
 
+            // Same order as GetAssigneeOptions, so the filter and the task editor list people alike.
             options.Sort((left, right) =>
-                string.Compare(left.DisplayName, right.DisplayName, StringComparison.OrdinalIgnoreCase));
+                string.Compare(left.DisplayName, right.DisplayName, StringComparison.CurrentCultureIgnoreCase));
             return options;
         }
 
