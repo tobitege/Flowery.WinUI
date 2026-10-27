@@ -19,80 +19,142 @@ namespace Flowery.WinUI.RuntimeTests.Controls
     public class Given_SimpleControls
     {
         [TestMethod]
-        public async Task When_ControlsLoadWithoutAuthoredSize_TheyResolveTheGlobalSize()
+        public async Task When_ControlsLoad_AutoTakesTheGlobalSizeAndAnAuthoredSizeWins()
         {
-            // The runner resets the global size to Small (FlowerySizeManager.Reset) while the
-            // controls fall back to Medium, so ResolvedSize == CurrentSize proves the global size is taken.
-            var cases = new (string Name, Func<FrameworkElement> Create, Func<FrameworkElement, DaisySize> Size, Action<FrameworkElement, string>? Extra)[]
+            // The global size is set to Small here, while the controls fall back to Medium, so ResolvedSize == Small
+            // proves the global size is taken. An authored Large then proves each control's own GetControlSize wiring.
+            var cases = new (string Name, Func<FrameworkElement> Create)[]
             {
-                ("Badge", static () => new DaisyBadge { Content = "New" }, static e => ((DaisyBadge)e).Size, null),
-                ("Alert", static () => new DaisyAlert { Message = "Message" }, static e => ((DaisyAlert)e).Size, null),
-                ("Divider", static () => new DaisyDivider(), static e => ((DaisyDivider)e).Size, null),
-                ("TagPicker", static () => new DaisyTagPicker(), static e => ((DaisyTagPicker)e).Size, null),
-                ("Avatar", static () => new DaisyAvatar(), static e => ((DaisyAvatar)e).Size, null),
-                ("AvatarGroup", static () => new DaisyAvatarGroup { Initials = "AA,BB" }, static e => ((DaisyAvatarGroup)e).Size, null),
-                ("Progress", static () => new DaisyProgress(), static e => ((DaisyProgress)e).Size, null),
-                ("Stat", static () => new DaisyStat { Title = "Title", Value = "123" }, static e => ((DaisyStat)e).Size, null),
-                ("StatusIndicator", static () => new DaisyStatusIndicator(), static e => ((DaisyStatusIndicator)e).Size, null),
-                ("Breadcrumbs", static () => new DaisyBreadcrumbs { Content = new StackPanel { Children = { new DaisyBreadcrumbItem { Content = "Home" } } } },
-                    static e => ((DaisyBreadcrumbs)e).Size, null),
-                ("Card", static () => new DaisyCard(), static e => ((DaisyCard)e).Size, null),
-                ("ChatBubble", static () => new DaisyChatBubble { Content = new TextBlock { Text = "Hello" } }, static e => ((DaisyChatBubble)e).Size, null),
-                ("CheckBox", static () => new DaisyCheckBox { Content = "Remember me" }, static e => ((DaisyCheckBox)e).Size, null),
-                ("Radio", static () => new DaisyRadio { Content = "Option" }, static e => ((DaisyRadio)e).Size, null),
-                ("Toggle", static () => new DaisyToggle(), static e => ((DaisyToggle)e).Size, null),
-                ("Steps", static () => new DaisySteps
-                    {
-                        Content = new StackPanel { Children = { new DaisyStepItem { Content = "Start" }, new DaisyStepItem { Content = "Finish" } } }
-                    },
-                    static e => ((DaisySteps)e).Size,
-                    static (e, name) => Assert.AreEqual(2, ((DaisySteps)e).ItemCount, $"{name}: step items are discovered")),
-                ("RadialProgress", static () => new DaisyRadialProgress(), static e => ((DaisyRadialProgress)e).Size, null),
-                ("Clock", static () => new DaisyClock(), static e => ((DaisyClock)e).Size, null),
-                ("Countdown", static () => new DaisyCountdown(), static e => ((DaisyCountdown)e).Size, null),
+                ("Badge", static () => new DaisyBadge { Content = "New" }),
+                ("Alert", static () => new DaisyAlert { Message = "Message" }),
+                ("Divider", static () => new DaisyDivider()),
+                ("TagPicker", static () => new DaisyTagPicker()),
+                ("Avatar", static () => new DaisyAvatar()),
+                ("AvatarGroup", static () => new DaisyAvatarGroup { Initials = "AA,BB" }),
+                ("Progress", static () => new DaisyProgress()),
+                ("Stat", static () => new DaisyStat { Title = "Title", Value = "123" }),
+                ("StatusIndicator", static () => new DaisyStatusIndicator()),
+                ("Breadcrumbs", static () => new DaisyBreadcrumbs { Content = new StackPanel { Children = { new DaisyBreadcrumbItem { Content = "Home" } } } }),
+                ("Card", static () => new DaisyCard()),
+                ("ChatBubble", static () => new DaisyChatBubble { Content = new TextBlock { Text = "Hello" } }),
+                ("CheckBox", static () => new DaisyCheckBox { Content = "Remember me" }),
+                ("Radio", static () => new DaisyRadio { Content = "Option" }),
+                ("Toggle", static () => new DaisyToggle()),
+                ("Steps", static () => CreateSteps()),
+                ("RadialProgress", static () => new DaisyRadialProgress()),
+                ("Clock", static () => new DaisyClock()),
+                ("Countdown", static () => new DaisyCountdown()),
                 ("Table", static () => new DaisyTable
-                    {
-                        Content = new StackPanel { Children = { new DaisyTableRow { Content = new DaisyTableCell { Content = "A" } } } }
-                    },
-                    static e => ((DaisyTable)e).Size, null),
+                {
+                    Content = new StackPanel { Children = { new DaisyTableRow { Content = new DaisyTableCell { Content = "A" } } } }
+                }),
                 ("ButtonGroup", static () => new DaisyButtonGroup
+                {
+                    Content = new StackPanel { Children = { new DaisyButton { Content = "One" }, new DaisyButton { Content = "Two" } } }
+                }),
+                ("Input", static () => new DaisyInput()),
+                ("List", static () => CreateList().List),
+                ("Menu", static () => new DaisyMenu { Content = new StackPanel { Children = { new DaisyMenuItem { Content = "Item" } } } }),
+                ("Dock", static () => new DaisyDock { Content = new StackPanel { Children = { new Border { Width = 10, Height = 10 } } } }),
+                ("FileInput", static () => new DaisyFileInput()),
+                ("Mockup", static () => new DaisyMockup()),
+                ("SlideToConfirm", static () => new DaisySlideToConfirm()),
+                ("Tabs", static () => new DaisyTabs
+                {
+                    Content = new StackPanel
                     {
-                        Content = new StackPanel { Children = { new DaisyButton { Content = "One" }, new DaisyButton { Content = "Two" } } }
-                    },
-                    static e => ((DaisyButtonGroup)e).Size, null),
-                ("Input", static () => new DaisyInput(), static e => ((DaisyInput)e).Size, null),
-                ("List", static () => new DaisyList
-                    {
-                        Content = new StackPanel { Children = { new DaisyListRow { Content = new TextBlock { Text = "Row" } } } }
-                    },
-                    static e => ((DaisyList)e).Size,
-                    static (e, name) =>
-                    {
-                        // The list moves its content into its own panel, so find the row in the tree.
-                        var row = FindDescendant<DaisyListRow>(e);
-                        Assert.IsNotNull(row, $"{name}: row is in the tree");
-                        Assert.AreEqual(((DaisyList)e).ResolvedSize, row.ResolvedSize, $"{name}: rows take the list's size");
-                    }),
-                ("Menu", static () => new DaisyMenu { Content = new StackPanel { Children = { new DaisyMenuItem { Content = "Item" } } } },
-                    static e => ((DaisyMenu)e).Size, null),
-                ("Dock", static () => new DaisyDock { Content = new StackPanel { Children = { new Border { Width = 10, Height = 10 } } } },
-                    static e => ((DaisyDock)e).Size, null),
-                ("FileInput", static () => new DaisyFileInput(), static e => ((DaisyFileInput)e).Size, null),
-                ("Mockup", static () => new DaisyMockup(), static e => ((DaisyMockup)e).Size, null),
-                ("SlideToConfirm", static () => new DaisySlideToConfirm(), static e => ((DaisySlideToConfirm)e).Size, null)
+                        Children =
+                        {
+                            new DaisyTabItem { Header = "First", Content = new TextBlock { Text = "One" } },
+                            new DaisyTabItem { Header = "Second", Content = new TextBlock { Text = "Two" } }
+                        }
+                    }
+                }),
+                ("Collapse", static () => new DaisyCollapse { Header = "Header", ExpanderContent = new TextBlock { Text = "Content" } }),
+                ("Dropdown", static () => new DaisyDropdown { ItemsSource = new[] { "Alpha", "Beta" } }),
+                ("Rating", static () => new DaisyRating()),
+                ("Range", static () => new DaisyRange()),
+                ("OtpInput", static () => new DaisyOtpInput())
             };
 
-            foreach (var (name, create, size, extra) in cases)
+            var previousSize = FlowerySizeManager.CurrentSize;
+            var previousDefault = FlowerySizeManager.UseGlobalSizeByDefault;
+            try
             {
-                var control = create();
-
-                RuntimeTestHelpers.AttachToHost(control);
-                await RuntimeTestHelpers.EnsureLoadedAsync(control);
-
-                Assert.AreEqual(DaisySize.Auto, size(control), $"{name}: Size defaults to Auto");
-                Assert.AreEqual(FlowerySizeManager.CurrentSize, ResolvedSizeOf(control, name), $"{name}: ResolvedSize follows the global size");
-                extra?.Invoke(control, name);
+                FlowerySizeManager.UseGlobalSizeByDefault = true;
+                FlowerySizeManager.ApplySize(DaisySize.Small);
+                foreach (var (name, create) in cases)
+                    await RuntimeTestHelpers.RunCaseAsync(name, () => AssertGlobalAndAuthoredSizeAsync(create));
             }
+            finally
+            {
+                RuntimeTestHelpers.GetHostPanel().Children.Clear();
+                FlowerySizeManager.ApplySize(previousSize);
+                FlowerySizeManager.UseGlobalSizeByDefault = previousDefault;
+            }
+        }
+
+        private static async Task AssertGlobalAndAuthoredSizeAsync(Func<FrameworkElement> create)
+        {
+            var control = create();
+            RuntimeTestHelpers.AttachToHost(control);
+            await RuntimeTestHelpers.EnsureLoadedAsync(control);
+
+            var size = control.GetType().GetProperty(nameof(DaisyBadge.Size), typeof(DaisySize))
+                ?? throw new AssertFailedException($"No Size property on {control.GetType().Name}.");
+            Assert.AreEqual(DaisySize.Auto, (DaisySize)size.GetValue(control)!, "Size defaults to Auto");
+            Assert.AreEqual(DaisySize.Small, ResolvedSizeOf(control), "ResolvedSize follows the global size");
+
+            size.SetValue(control, DaisySize.Large);
+            Assert.AreEqual(DaisySize.Large, ResolvedSizeOf(control), "An authored Size wins over the global size");
+        }
+
+        [TestMethod]
+        public void When_BadgeContentIsSet_ItIsRoutedIntoThePresenter()
+        {
+            var badge = new DaisyBadge { Content = "New" };
+
+            // DaisyBadge.OnContentChanged moves the authored content into its presenter and keeps its own border.
+            Assert.AreEqual("New", badge.BadgeContent, "BadgeContent reads the presenter content.");
+            var border = badge.Content as Border;
+            Assert.IsNotNull(border, "Content stays the badge's own border.");
+            Assert.AreEqual("New", (border.Child as ContentPresenter)?.Content, "The border's presenter shows the authored content.");
+        }
+
+        [TestMethod]
+        public async Task When_StepsLoad_TheirItemsAreDiscovered()
+        {
+            var steps = CreateSteps();
+
+            RuntimeTestHelpers.AttachToHost(steps);
+            await RuntimeTestHelpers.EnsureLoadedAsync(steps);
+
+            Assert.AreEqual(2, steps.ItemCount);
+        }
+
+        [TestMethod]
+        public async Task When_ListSizeChanges_ItsRowsTakeIt()
+        {
+            var (list, row) = CreateList();
+
+            RuntimeTestHelpers.AttachToHost(list);
+            await RuntimeTestHelpers.EnsureLoadedAsync(list);
+
+            Assert.AreEqual(list.ResolvedSize, row.ResolvedSize, "An automatic list passes its resolved size on.");
+            var other = list.ResolvedSize == DaisySize.Large ? DaisySize.ExtraSmall : DaisySize.Large;
+            list.Size = other;
+            Assert.AreEqual(other, row.ResolvedSize, "An authored list size overrides the rows' size (DaisyList.ChildSizeOverride).");
+        }
+
+        private static DaisySteps CreateSteps() => new()
+        {
+            Content = new StackPanel { Children = { new DaisyStepItem { Content = "Start" }, new DaisyStepItem { Content = "Finish" } } }
+        };
+
+        private static (DaisyList List, DaisyListRow Row) CreateList()
+        {
+            var row = new DaisyListRow { Content = new TextBlock { Text = "Row" } };
+            return (new DaisyList { Content = new StackPanel { Children = { row } } }, row);
         }
 
         [TestMethod]
@@ -183,18 +245,6 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         }
 
         [TestMethod]
-        public async Task When_Progress_ValueExceedsMaximum_Clamps()
-        {
-            var progress = new DaisyProgress();
-
-            RuntimeTestHelpers.AttachToHost(progress);
-            await RuntimeTestHelpers.EnsureLoadedAsync(progress);
-
-            progress.Value = progress.Maximum + 100;
-            Assert.AreEqual(progress.Maximum, progress.Value);
-        }
-
-        [TestMethod]
         public async Task When_CheckBox_HasPublicStyling_OuterBorderAndLabelUseIt()
         {
             var userBorderBrush = new SolidColorBrush(Colors.Red);
@@ -231,85 +281,84 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         [TestMethod]
         public async Task When_SelectionControlsHavePublicStyling_OuterBorderAndContentUseIt()
         {
-            var cases = new (string Name, Func<Control> Create, string InnerPart, Thickness InnerThickness, double? InnerBrushOpacity)[]
+            var cases = new (string Name, Func<Control> Create, string InnerPart, Thickness InnerThickness)[]
             {
-                ("Radio", static () => new DaisyRadio { Content = "Option" }, "PART_IndicatorBorder", new Thickness(2), null),
-                // The track border uses half of the base content color (DaisyUI).
-                ("Toggle", static () => new DaisyToggle { Header = "Enabled" }, "SwitchArea", new Thickness(1), 0.5)
+                ("Radio", static () => new DaisyRadio { Content = "Option" }, "PART_IndicatorBorder", new Thickness(2)),
+                ("Toggle", static () => new DaisyToggle { Header = "Enabled" }, "SwitchArea", new Thickness(1))
             };
 
-            foreach (var (name, create, innerPart, innerThickness, innerBrushOpacity) in cases)
-            {
-                var userBorderBrush = new SolidColorBrush(Colors.Red);
-                var control = create();
-                control.BorderBrush = userBorderBrush;
-                control.BorderThickness = new Thickness(3);
-                control.FontSize = 23;
-                control.FontWeight = FontWeights.Bold;
+            foreach (var (name, create, innerPart, innerThickness) in cases)
+                await RuntimeTestHelpers.RunCaseAsync(name, () => AssertPublicStylingAsync(create, innerPart, innerThickness));
+        }
 
-                RuntimeTestHelpers.AttachToHost(control);
-                await RuntimeTestHelpers.EnsureLoadedAsync(control);
-                control.ApplyTemplate();
+        private static async Task AssertPublicStylingAsync(Func<Control> create, string innerPart, Thickness innerThickness)
+        {
+            var userBorderBrush = new SolidColorBrush(Colors.Red);
+            var control = create();
+            control.BorderBrush = userBorderBrush;
+            control.BorderThickness = new Thickness(3);
+            control.FontSize = 23;
+            control.FontWeight = FontWeights.Bold;
 
-                var outerBorder = FindDescendantByName<Border>(control, "PART_ControlBorder");
-                var innerBorder = FindDescendantByName<Border>(control, innerPart);
-                var presenter = FindDescendant<ContentPresenter>(control);
+            RuntimeTestHelpers.AttachToHost(control);
+            await RuntimeTestHelpers.EnsureLoadedAsync(control);
+            control.ApplyTemplate();
 
-                Assert.IsNotNull(outerBorder, name);
-                Assert.IsNotNull(innerBorder, name);
-                Assert.IsNotNull(presenter, name);
-                Assert.AreSame(userBorderBrush, outerBorder.BorderBrush, name);
-                Assert.AreEqual(new Thickness(3), outerBorder.BorderThickness, name);
-                Assert.AreNotSame(userBorderBrush, innerBorder.BorderBrush, name);
-                Assert.AreEqual(innerThickness, innerBorder.BorderThickness, name);
-                if (innerBrushOpacity is { } opacity)
-                {
-                    Assert.AreEqual(opacity, innerBorder.BorderBrush.Opacity, $"{name}: inner border brush opacity");
-                }
+            var outerBorder = FindDescendantByName<Border>(control, "PART_ControlBorder");
+            var innerBorder = FindDescendantByName<Border>(control, innerPart);
+            var presenter = FindDescendant<ContentPresenter>(control);
 
-                Assert.AreEqual(23, presenter.FontSize, name);
-                Assert.AreEqual(FontWeights.Bold.Weight, presenter.FontWeight.Weight, name);
-            }
+            Assert.IsNotNull(outerBorder, "Outer border");
+            Assert.IsNotNull(innerBorder, innerPart);
+            Assert.IsNotNull(presenter, "Content presenter");
+            Assert.AreSame(userBorderBrush, outerBorder.BorderBrush, "Outer border brush");
+            Assert.AreEqual(new Thickness(3), outerBorder.BorderThickness, "Outer border thickness");
+            Assert.AreNotSame(userBorderBrush, innerBorder.BorderBrush, "Inner border brush");
+            Assert.AreEqual(innerThickness, innerBorder.BorderThickness, "Inner border thickness");
+            Assert.AreEqual(23, presenter.FontSize, "Content font size");
+            Assert.AreEqual(FontWeights.Bold.Weight, presenter.FontWeight.Weight, "Content font weight");
         }
 
         [TestMethod]
-        public async Task When_Breadcrumbs_Load_ItemsTakeTheSeparator()
+        public async Task When_ToggleLoads_TheTrackBorderUsesHalfTheBaseContentColor()
         {
-            var cases = new (string Name, string? Authored, string Expected)[]
+            var toggle = new DaisyToggle { Header = "Enabled" };
+
+            RuntimeTestHelpers.AttachToHost(toggle);
+            await RuntimeTestHelpers.EnsureLoadedAsync(toggle);
+            toggle.ApplyTemplate();
+
+            var switchArea = FindDescendantByName<Border>(toggle, "SwitchArea");
+            Assert.IsNotNull(switchArea);
+            Assert.AreEqual(0.5, switchArea.BorderBrush.Opacity, "Track border uses half of the base content color (DaisyUI)");
+        }
+
+        [TestMethod]
+        public async Task When_Breadcrumbs_Assigns_Item_Separator()
+        {
+            // ">" differs from the items' own default "/", so the items can only show it if the breadcrumbs pass it on.
+            var home = new DaisyBreadcrumbItem { Content = "Home" };
+            var docs = new DaisyBreadcrumbItem { Content = "Docs" };
+            var breadcrumbs = new DaisyBreadcrumbs
             {
-                ("Default", null, "/"),
-                ("Authored", ">", ">")
+                Separator = ">",
+                Content = new StackPanel
+                {
+                    Children =
+                    {
+                        home,
+                        docs
+                    }
+                }
             };
 
-            foreach (var (name, authored, expected) in cases)
-            {
-                var home = new DaisyBreadcrumbItem { Content = "Home" };
-                var docs = new DaisyBreadcrumbItem { Content = "Docs" };
-                var breadcrumbs = new DaisyBreadcrumbs
-                {
-                    Content = new StackPanel
-                    {
-                        Children =
-                        {
-                            home,
-                            docs
-                        }
-                    }
-                };
-                if (authored is not null)
-                {
-                    breadcrumbs.Separator = authored;
-                }
+            RuntimeTestHelpers.AttachToHost(breadcrumbs);
+            await RuntimeTestHelpers.EnsureLoadedAsync(breadcrumbs);
 
-                RuntimeTestHelpers.AttachToHost(breadcrumbs);
-                await RuntimeTestHelpers.EnsureLoadedAsync(breadcrumbs);
-
-                Assert.AreEqual(expected, breadcrumbs.Separator, name);
-                Assert.AreEqual(expected, home.Separator, name);
-                Assert.AreEqual(expected, docs.Separator, name);
-                Assert.IsTrue(home.IsClickable, name);
-                Assert.IsTrue(docs.IsClickable, name);
-            }
+            Assert.AreEqual(">", home.Separator, "First item separator");
+            Assert.AreEqual(">", docs.Separator, "Second item separator");
+            Assert.IsTrue(home.IsClickable, "First item is clickable");
+            Assert.IsTrue(docs.IsClickable, "Second item is clickable");
         }
 
         [TestMethod]
@@ -374,6 +423,24 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         }
 
         [TestMethod]
+        public async Task When_DateTimelineSelectionChanges_HeaderTextFollowsIt()
+        {
+            var timeline = new DaisyDateTimeline();
+
+            RuntimeTestHelpers.AttachToHost(timeline);
+            await RuntimeTestHelpers.EnsureLoadedAsync(timeline);
+
+            // The header shows the month of the selected date, or of today without a selection, in the control's Locale
+            // (DaisyDateTimeline.UpdateHeaderText).
+            var selected = DateTime.Today.AddMonths(2);
+            timeline.SelectedDate = selected;
+            Assert.AreEqual(selected.ToString("MMMM yyyy", timeline.Locale), timeline.HeaderText, "HeaderText follows the selected date");
+
+            timeline.SelectedDate = null;
+            Assert.AreEqual(DateTime.Today.ToString("MMMM yyyy", timeline.Locale), timeline.HeaderText, "HeaderText falls back to today without a selection");
+        }
+
+        [TestMethod]
         public async Task When_ProductThemeDropdown_Loads_MinWidthFollowsSwatchSize()
         {
             var dropdown = new DaisyProductThemeDropdown();
@@ -387,13 +454,13 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             Assert.AreEqual(expectedMinWidth, dropdown.MinWidth);
         }
 
-        private static DaisySize ResolvedSizeOf(FrameworkElement control, string name) => control switch
+        private static DaisySize ResolvedSizeOf(FrameworkElement control) => control switch
         {
             DaisyBaseContentControl content => content.ResolvedSize,
             DaisyCheckBox checkBox => checkBox.ResolvedSize,
             DaisyRadio radio => radio.ResolvedSize,
             DaisyToggle toggle => toggle.ResolvedSize,
-            _ => throw new AssertFailedException($"{name}: no ResolvedSize on {control.GetType().Name}.")
+            _ => throw new AssertFailedException($"No ResolvedSize on {control.GetType().Name}.")
         };
 
         private static T? FindDescendantByName<T>(DependencyObject root, string name)

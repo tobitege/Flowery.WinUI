@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Flowery.WinUI.Kanban.Controls;
+using Flowery.Enums;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Flowery.WinUI.RuntimeTests.Controls
@@ -75,6 +76,57 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             Assert.IsTrue(kanban.IsSwimlaneLayoutEnabled);
             Assert.IsFalse(kanban.IsStandardLayoutEnabled);
             Assert.AreEqual(2, kanban.LaneRows.Count);
+        }
+
+        [TestMethod]
+        public async Task When_BoardSize_Changes_EventFiresOnceAndColumnAndAddCardAdoptIt()
+        {
+            var column = new FlowKanbanColumnData { Title = "Todo" };
+            var kanban = await ShowBoardAsync(column);
+            var columnControl = await RealizeColumnAsync(kanban, column);
+            await RuntimeTestHelpers.WaitUntilAsync(() => FindDescendant<FlowKanbanAddCard>(columnControl, IsShown) is not null,
+                "the column shows an add card");
+            var addCard = FindDescendant<FlowKanbanAddCard>(columnControl, IsShown)!;
+
+            // A control that loads later takes the size in its Loaded handler. Once both show the first size,
+            // both listen to the board.
+            kanban.BoardSize = DaisySize.Small;
+            await RuntimeTestHelpers.WaitUntilAsync(
+                () => columnControl.ColumnSize == DaisySize.Small && addCard.AddCardSize == DaisySize.Small,
+                "the column and the add card take the small size");
+
+            var sizes = new SizeRecorder();
+            kanban.BoardSizeChanged += sizes.OnChanged;
+            try
+            {
+                kanban.BoardSize = DaisySize.Large;
+            }
+            finally
+            {
+                kanban.BoardSizeChanged -= sizes.OnChanged;
+            }
+
+            CollectionAssert.AreEqual(new[] { DaisySize.Large }, sizes.Values);
+            // The event resizes them at once, before a later layout pass or Loaded handler could.
+            Assert.AreEqual(DaisySize.Large, columnControl.ColumnSize);
+            Assert.AreEqual(DaisySize.Large, addCard.AddCardSize);
+        }
+
+        [TestMethod]
+        public async Task When_ColumnDropIsDisabled_TheColumnAndItsTaskListRefuseDrops()
+        {
+            var column = new FlowKanbanColumnData { Title = "Todo" };
+            var kanban = await ShowBoardAsync(column);
+            var columnControl = await RealizeColumnAsync(kanban, column);
+            var tasksList = FindDescendant<Microsoft.UI.Xaml.Controls.ListView>(columnControl, IsTasksList)!;
+            // The Loaded handler of the column lets its task list accept drops.
+            await RuntimeTestHelpers.WaitUntilAsync(() => tasksList.AllowDrop, "the task list accepts drops");
+            Assert.IsTrue(columnControl.AllowDrop);
+
+            columnControl.IsDropEnabled = false;
+
+            Assert.IsFalse(columnControl.AllowDrop);
+            Assert.IsFalse(tasksList.AllowDrop);
         }
 
         [TestMethod]
@@ -316,57 +368,95 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             return default;
         }
 
+        private static async Task<FlowKanban> ShowBoardAsync(FlowKanbanColumnData column)
+        {
+            var kanban = new FlowKanban { Board = new FlowKanbanData { Columns = { column } } };
+            RuntimeTestHelpers.AttachToHost(kanban);
+            await RuntimeTestHelpers.EnsureLoadedAsync(kanban);
+            // With no saved boards, OnKanbanLoaded switches to the Home view, which hides the columns.
+            kanban.CurrentView = FlowKanbanView.Board;
+            return kanban;
+        }
+
+        private static async Task<FlowKanbanColumn> RealizeColumnAsync(FlowKanban kanban, FlowKanbanColumnData column)
+        {
+            await RuntimeTestHelpers.WaitUntilAsync(
+                () => FindColumn(kanban, column) is { IsLoaded: true } control
+                    && FindDescendant<Microsoft.UI.Xaml.Controls.ListView>(control, IsTasksList) is not null,
+                "the column and its task list are realized");
+            return FindColumn(kanban, column)!;
+        }
+
+        private static FlowKanbanColumn? FindColumn(FlowKanban kanban, FlowKanbanColumnData column) =>
+            FindDescendant<FlowKanbanColumn>(kanban, control => control.ColumnData == column);
+
+        private static bool IsTasksList(Microsoft.UI.Xaml.Controls.ListView list) => list.Name == "PART_TasksItemsControl";
+
+        private static bool IsShown(FlowKanbanAddCard card) => card.Visibility == Microsoft.UI.Xaml.Visibility.Visible;
+
+        private sealed class SizeRecorder
+        {
+            public List<DaisySize> Values { get; } = [];
+
+            public void OnChanged(object? sender, DaisySize size) => Values.Add(size);
+        }
+
         [TestMethod]
         public void When_PersistingOrMigratingABoard_ItLoadsBack()
         {
-            foreach (var (name, load) in new (string, Func<FlowKanbanData, string, FlowKanbanData?>)[]
+            foreach (var (name, load) in new (string, Func<FlowKanbanData, FlowKanbanData?>)[]
                      {
                          ("store", SaveAndLoad),
                          ("v0 json", MigrateWithoutSchemaVersion)
                      })
             {
-                var board = new FlowKanbanData
-                {
-                    Id = "board-1",
-                    Title = "Round Trip",
-                    Columns =
-                    {
-                        new FlowKanbanColumnData
-                        {
-                            Title = "Todo",
-                            Tasks = { new FlowTask { Title = "Saved Task" } }
-                        }
-                    }
-                };
-
-                var loaded = load(board, name);
-
-                Assert.IsNotNull(loaded, name);
-                Assert.AreEqual(board.Id, loaded!.Id, name);
-                Assert.AreEqual(board.Title, loaded.Title, name);
-                Assert.AreEqual(1, loaded.Columns.Count, name);
-                Assert.AreEqual("Todo", loaded.Columns[0].Title, name);
-                Assert.AreEqual(1, loaded.Columns[0].Tasks.Count, name);
+                RuntimeTestHelpers.RunCase(name, () => VerifyLoadsBack(load));
             }
         }
 
-        private static FlowKanbanData? SaveAndLoad(FlowKanbanData board, string name)
+        private static void VerifyLoadsBack(Func<FlowKanbanData, FlowKanbanData?> load)
+        {
+            var board = new FlowKanbanData
+            {
+                Id = "board-1",
+                Title = "Round Trip",
+                Columns =
+                {
+                    new FlowKanbanColumnData
+                    {
+                        Title = "Todo",
+                        Tasks = { new FlowTask { Title = "Saved Task" } }
+                    }
+                }
+            };
+
+            var loaded = load(board);
+
+            Assert.IsNotNull(loaded);
+            Assert.AreEqual(board.Id, loaded.Id);
+            Assert.AreEqual(board.Title, loaded.Title);
+            Assert.AreEqual(1, loaded.Columns.Count);
+            Assert.AreEqual("Todo", loaded.Columns[0].Title);
+            Assert.AreEqual(1, loaded.Columns[0].Tasks.Count);
+        }
+
+        private static FlowKanbanData? SaveAndLoad(FlowKanbanData board)
         {
             var store = new FlowKanbanBoardStore(new InMemoryStateStorage());
-            Assert.IsTrue(store.TrySaveBoard(board, out var saveError), name);
-            Assert.IsNull(saveError, name);
-            Assert.IsTrue(store.TryLoadBoard(board.Id, out var loaded, out var loadError), name);
-            Assert.IsNull(loadError, name);
+            Assert.IsTrue(store.TrySaveBoard(board, out var saveError));
+            Assert.IsNull(saveError);
+            Assert.IsTrue(store.TryLoadBoard(board.Id, out var loaded, out var loadError));
+            Assert.IsNull(loadError);
             return loaded;
         }
 
         // A board saved before schema versions has no schemaVersion property.
-        private static FlowKanbanData? MigrateWithoutSchemaVersion(FlowKanbanData board, string name)
+        private static FlowKanbanData? MigrateWithoutSchemaVersion(FlowKanbanData board)
         {
             var json = JsonSerializer.Serialize(board, FlowKanbanJsonContext.Default.FlowKanbanData);
             var root = JsonNode.Parse(json) as JsonObject;
-            Assert.IsNotNull(root, name);
-            root.Remove("schemaVersion");
+            Assert.IsNotNull(root);
+            Assert.IsTrue(root.Remove("schemaVersion"), "The serialized board has no schemaVersion to remove.");
             return FlowKanbanMigration.MigrateFromJson(root.ToJsonString());
         }
     }

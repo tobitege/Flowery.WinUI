@@ -37,9 +37,12 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                     "\nSecond message", diagnostics.Text.ReplaceLineEndings("\n"));
                 Assert.AreEqual(Visibility.Visible, diagnostics.Visibility);
 
+                // Restoring starts from a hidden box, so SetDiagnosticsText must reveal it again.
+                page.SetDiagnosticsText(null);
+                Assert.AreEqual(Visibility.Collapsed, diagnostics.Visibility, "A cleared box is hidden before the restore.");
                 page.SetDiagnosticsText("Restored diagnostics");
                 Assert.AreEqual("Restored diagnostics", diagnostics.Text);
-                Assert.AreEqual(Visibility.Visible, diagnostics.Visibility);
+                Assert.AreEqual(Visibility.Visible, diagnostics.Visibility, "Restored text reveals the hidden box.");
 
                 page.SetDiagnosticsText("Replacement");
                 Assert.AreEqual("Replacement", diagnostics.Text);

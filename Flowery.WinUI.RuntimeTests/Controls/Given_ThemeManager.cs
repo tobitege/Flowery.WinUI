@@ -31,11 +31,14 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             };
 
             foreach (var (name, theme, hasFactory, expectedPalette) in cases)
-            {
-                Assert.AreEqual(hasFactory, DaisyThemeManager.GetPaletteFactory(theme) != null, $"{name}: factory lookup");
-                Assert.AreEqual(expectedPalette != null, DaisyThemeManager.TryCreatePalette(theme, out var palette), $"{name}: TryCreatePalette result");
-                Assert.AreSame(expectedPalette, palette, $"{name}: palette");
-            }
+                RuntimeTestHelpers.RunCase(name, () => AssertPaletteLookup(theme, hasFactory, expectedPalette));
+        }
+
+        private static void AssertPaletteLookup(string theme, bool hasFactory, ResourceDictionary? expectedPalette)
+        {
+            Assert.AreEqual(hasFactory, DaisyThemeManager.GetPaletteFactory(theme) != null, "factory lookup");
+            Assert.AreEqual(expectedPalette != null, DaisyThemeManager.TryCreatePalette(theme, out var palette), "TryCreatePalette result");
+            Assert.AreSame(expectedPalette, palette, "palette");
         }
 
         [TestMethod]

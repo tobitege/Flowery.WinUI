@@ -44,7 +44,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         }
 
         [TestMethod]
-        public async Task When_GlTransitionHostRuns_AllShadersLinkFramesAdvanceAndReloadRecreatesRenderer()
+        public async Task When_GlTransitionHostRendersAndReloads_ItRecreatesItsRenderer()
         {
             var host = new CarouselGlTransitionHost { Width = 160, Height = 100, TransitionName = "fade", IntervalSeconds = 0, TransitionSeconds = 1 };
             try

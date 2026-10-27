@@ -7,22 +7,23 @@ namespace Flowery.WinUI.UnitTests.Controls
     public class Given_SidebarItemSearch
     {
         [TestMethod]
-        [DataRow("DaisyTagPicker", "Tag-Auswahl", true)]
-        [DataRow("DaisyTagPicker", "tag-auswahl", true)]
-        [DataRow("DaisyTagPicker", "Auswahl", true)]
-        [DataRow("DaisyTagPicker", "DaisyTagPicker", true)]
-        [DataRow("DaisyTagPicker", "TagPicker", true)]
-        [DataRow("DaisyTagPicker", "tag picker", true)]
-        [DataRow("DaisyTagPicker", "Toggle", false)]
-        [DataRow("DaisyTagPicker", "---", false)]
-        [DataRow(null, "corner radii", true)]
-        [DataRow(null, "DaisyModal", false)]
-        public void When_Searching_MatchesTranslatedAndControlNames(string? controlName, string search, bool expected)
+        [DataRow(true, "Tag-Auswahl", true)]
+        [DataRow(true, "tag-auswahl", true)]
+        [DataRow(true, "Auswahl", true)]
+        [DataRow(true, "DaisyTagPicker", true)]
+        [DataRow(true, "TagPicker", true)]
+        [DataRow(true, "tag picker", true)]
+        [DataRow(true, "Toggle", false)]
+        [DataRow(true, "---", false)]
+        [DataRow(false, "corner radii", true)]
+        [DataRow(false, "DaisyModal", false)]
+        public void When_Searching_MatchesTranslatedAndControlNames(bool itemHasControlName, string search, bool expected)
         {
-            // Without a control name only the translated name matches.
-            var item = controlName is null
-                ? new SidebarItem { Id = "modal-radii", Name = "Sidebar_ModalRadii", DisplayName = "Modal Corner Radii" }
-                : new SidebarItem { Id = "tagpicker", Name = "Sidebar_TagPicker", DisplayName = "Tag-Auswahl", ControlName = controlName };
+            // The tag picker item has the control name DaisyTagPicker; without a control name only the translated
+            // name matches.
+            var item = itemHasControlName
+                ? new SidebarItem { Id = "tagpicker", Name = "Sidebar_TagPicker", DisplayName = "Tag-Auswahl", ControlName = "DaisyTagPicker" }
+                : new SidebarItem { Id = "modal-radii", Name = "Sidebar_ModalRadii", DisplayName = "Modal Corner Radii" };
 
             Assert.AreEqual(expected, item.MatchesSearch(search), search);
         }

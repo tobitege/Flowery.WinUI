@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Runs the native WinUI runtime and unit tests through the Windows runner.
+    Runs the unit tests and the native WinUI runtime tests through the Windows runner.
 .DESCRIPTION
     Uses the normal solution output. Test state and reports use a unique directory.
 #>
@@ -74,6 +74,9 @@ try {
     if ([string]::IsNullOrWhiteSpace($TestFilter)) {
         & $unitTestsPath @runnerArguments 2>&1 | Tee-Object -FilePath $logPath
         $unitTestExitCode = $LASTEXITCODE
+    }
+    else {
+        Write-Host 'Unit tests skipped: -TestFilter selects runtime tests.'
     }
     & $runnerPath @runnerArguments 2>&1 | Tee-Object -FilePath $logPath -Append
     $testExitCode = $LASTEXITCODE

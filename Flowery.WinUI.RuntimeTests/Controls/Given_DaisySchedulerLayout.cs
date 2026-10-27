@@ -290,11 +290,34 @@ public sealed partial class Given_DaisyScheduler
         var scale = scope.Host.XamlRoot.RasterizationScale;
         var chrome = scope.Host.ActualWidth - scope.BodyScroll().ViewportWidth;
         // Filled hours divide the view width into minutes and multiply it back, which ends a fraction above the
-        // width for about one width in six; layout rounding must absorb that. At no device pixel width may the
-        // Timeline scroll sideways or leave a gap.
+        // width for some widths, depending on the scale; layout rounding must absorb that. At no device pixel width
+        // may the Timeline scroll sideways or leave a gap.
         var first = Math.Ceiling((minimum + chrome) * scale) + 1;
-        Assert.IsTrue((first + 32) / scale <= 1920, $"Hours of {minimum} at scale {scale} do not fill a 1080p width.");
-        for (var pixel = first; pixel < first + 32; pixel++)
+        Assert.IsTrue(first / scale <= 1920, $"Hours of {minimum} at scale {scale} do not fill a 1080p width.");
+        // The fill takes the width of the view host without the resource gutter, which the corner cell spans.
+        var viewHost = Descendants<Border>(scope.Scheduler).Single(border => border.Name == "PART_ViewHost");
+        double Gutter() => ((Grid)viewHost.Child).Children.OfType<FrameworkElement>()
+            .First(child => Grid.GetColumn(child) == 0 && Grid.GetRow(child) == 0).Width;
+        scope.Host.Width = first / scale;
+        await scope.LayoutAsync();
+        // Layout widths are single-precision values, so the prediction rounds the view host width the same way.
+        var hostToViewHost = scope.Host.Width - viewHost.ActualWidth;
+        var gutter = Gutter();
+        // The widths are chosen up front, so every run at this scale checks the same ones: the first sixteen
+        // device pixel widths, and the first eight up to 1920 where the filled hours end above the available width.
+        var widths = new List<double>();
+        var drifting = 0;
+        for (var pixel = first; pixel <= Math.Floor(1920 * scale) && (widths.Count < 16 || drifting < 8); pixel++)
+        {
+            var available = (double)(float)(pixel / scale - hostToViewHost) - gutter;
+            var drifts = available / 1440 * 1440 > available;
+            if (widths.Count >= 16 && !drifts) continue;
+            widths.Add(pixel);
+            if (drifts) drifting++;
+        }
+        Assert.IsTrue(drifting > 0, $"No width from {first / scale:R} to 1920 at scale {scale} makes the filled hours end above the available width.");
+        var drifted = 0;
+        foreach (var pixel in widths)
         {
             scope.Host.Width = pixel / scale;
             await scope.LayoutAsync();
@@ -302,7 +325,10 @@ public sealed partial class Given_DaisyScheduler
             var label = $"Host {scope.Host.Width:R} at scale {scale}";
             Assert.AreEqual(0, scroll.ScrollableWidth, $"{label}: extent {scroll.ExtentWidth:R} for {scroll.ViewportWidth:R}.");
             Assert.AreEqual(scroll.ViewportWidth, CanvasWidth(), 1 / scale, $"{label}: lane.");
+            var available = viewHost.ActualWidth - Gutter();
+            if (available / 1440 * 1440 > available) drifted++;
         }
+        Assert.IsTrue(drifted > 0, $"None of the {widths.Count} laid out widths made the filled hours end above the available width.");
     }
 
     [TestMethod]

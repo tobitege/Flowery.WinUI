@@ -66,20 +66,10 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         public async Task When_GlassSurfacePropertiesChangeAndControlReloads_BackdropUpdatesWithoutLosingContent()
         {
             foreach (var (name, useCard) in new[] { ("DaisyGlass", false), ("DaisyCard", true) })
-            {
-                try
-                {
-                    await VerifyPropertiesAndReloadAsync(name, useCard);
-                }
-                // Helper and timeout failures carry no case name of their own.
-                catch (Exception error) when (error is not AssertInconclusiveException && !error.Message.Contains(name, StringComparison.Ordinal))
-                {
-                    throw new AssertFailedException($"{name}: {error.Message}", error);
-                }
-            }
+                await RuntimeTestHelpers.RunCaseAsync(name, () => VerifyPropertiesAndReloadAsync(useCard));
         }
 
-        private static async Task VerifyPropertiesAndReloadAsync(string name, bool useCard)
+        private static async Task VerifyPropertiesAndReloadAsync(bool useCard)
         {
             var text = new TextBlock { Text = "Original foreground" };
             var foreground = new SolidColorBrush(Colors.Black);
@@ -99,16 +89,16 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                 var image = FindBackdropImage(control);
                 await WaitForNewSourceAsync(image, () => Refresh(control));
                 scene.UpdateLayout();
-                Assert.AreSame(foreground, control.Foreground, $"{name}: the capture must keep the foreground.");
-                Assert.IsTrue(text.IsLoaded, $"{name}: the original content must remain in the visual tree.");
+                Assert.AreSame(foreground, control.Foreground, "The capture must keep the foreground.");
+                Assert.IsTrue(text.IsLoaded, "The original content must remain in the visual tree.");
                 var solid = useCard ? FindByName<Border>(control, "PART_SolidBackground") : FindGlassBackground(control);
-                Assert.AreEqual((byte)0, ((SolidColorBrush)solid.Background).Color.A, $"{name}: captured glass must not apply tint a second time.");
+                Assert.AreEqual((byte)0, ((SolidColorBrush)solid.Background).Color.A, "Captured glass must not apply tint a second time.");
                 using (var pixels = await ReadImagePixelsAsync(image))
                 {
                     var left = pixels.GetPixel(pixels.Width / 4, pixels.Height / 2);
                     var right = pixels.GetPixel(pixels.Width * 3 / 4, pixels.Height / 2);
-                    Assert.IsTrue(left.Red > 240 && left.Green < 15, $"{name}: the loaded control captured its own template or moved the backdrop: {left}.");
-                    Assert.IsTrue(right.Green > 240 && right.Red < 15, $"{name}: the loaded control captured its own template or moved the backdrop: {right}.");
+                    Assert.IsTrue(left.Red > 240 && left.Green < 15, $"The loaded control captured its own template or moved the backdrop: {left}.");
+                    Assert.IsTrue(right.Green > 240 && right.Red < 15, $"The loaded control captured its own template or moved the backdrop: {right}.");
                 }
 
                 await WaitForNewSourceAsync(image, () =>
@@ -142,10 +132,10 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                 {
                     control.Unloaded -= onUnloaded;
                 }
-                Assert.IsNull(image.Source, $"{name}: unloading must discard the old image.");
+                Assert.IsNull(image.Source, "Unloading must discard the old image.");
                 await WaitForNewSourceAsync(image, () => scene.Children.Add(control));
-                Assert.IsTrue(text.IsLoaded, $"{name}: the content must load again with the control.");
-                Assert.AreSame(foreground, control.Foreground, $"{name}: the reload must keep the foreground.");
+                Assert.IsTrue(text.IsLoaded, "The content must load again with the control.");
+                Assert.AreSame(foreground, control.Foreground, "The reload must keep the foreground.");
             }
             finally
             {

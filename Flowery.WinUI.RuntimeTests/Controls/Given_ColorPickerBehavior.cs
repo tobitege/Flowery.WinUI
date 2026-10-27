@@ -1,5 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Flowery.Controls.ColorPicker;
 using Flowery.Helpers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -13,33 +12,35 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         [TestMethod]
         public void When_ColorEditorColorIsAssigned_ComponentsAndHexFollow()
         {
-            var cases = new (string Name, bool ShowAlpha, Action<DaisyColorEditor, Color> Assign, Color Expected, string ExpectedHex, int? ExpectedEvents)[]
+            // Every assignment raises ColorChanged once: the handlers lock out the nested component updates
+            // (DaisyColorEditor.HandleColorChanged and HandleHslColorChanged).
+            var cases = new (string Name, bool ShowAlpha, Action<DaisyColorEditor, Color> Assign, Color Expected, string ExpectedHex)[]
             {
                 ("Color", true, static (editor, color) => editor.Color = color, Color.FromArgb(128, 10, 20, 30),
-                    FloweryColorHelpers.ColorToHex(Color.FromArgb(128, 10, 20, 30), includeAlpha: true), null),
-                ("HslColor", true, static (editor, color) => editor.HslColor = new HslColor(color), Color.FromArgb(128, 0, 255, 0), "#8000FF00", 1),
-                ("Alpha hidden", false, static (editor, color) => editor.Color = color, Color.FromArgb(255, 10, 20, 30), "#0A141E", null)
+                    FloweryColorHelpers.ColorToHex(Color.FromArgb(128, 10, 20, 30), includeAlpha: true)),
+                ("HslColor", true, static (editor, color) => editor.HslColor = new HslColor(color), Color.FromArgb(128, 0, 255, 0), "#8000FF00"),
+                ("Alpha hidden", false, static (editor, color) => editor.Color = color, Color.FromArgb(255, 10, 20, 30), "#0A141E")
             };
 
-            foreach (var (name, showAlpha, assign, expected, expectedHex, expectedEvents) in cases)
-            {
-                var editor = new DaisyColorEditor { ShowAlphaChannel = showAlpha };
-                var count = 0;
-                editor.ColorChanged += (_, _) => count++;
+            foreach (var (name, showAlpha, assign, expected, expectedHex) in cases)
+                RuntimeTestHelpers.RunCase(name, () => AssertAssignment(showAlpha, assign, expected, expectedHex));
+        }
 
-                assign(editor, expected);
+        private static void AssertAssignment(bool showAlpha, Action<DaisyColorEditor, Color> assign, Color expected, string expectedHex)
+        {
+            var editor = new DaisyColorEditor { ShowAlphaChannel = showAlpha };
+            var count = 0;
+            editor.ColorChanged += (_, _) => count++;
 
-                Assert.AreEqual(expected, editor.Color, name);
-                Assert.AreEqual(expected.R, editor.Red, name);
-                Assert.AreEqual(expected.G, editor.Green, name);
-                Assert.AreEqual(expected.B, editor.Blue, name);
-                Assert.AreEqual(expected.A, editor.Alpha, name);
-                Assert.AreEqual(expectedHex, editor.HexValue, name);
-                if (expectedEvents is { } events)
-                {
-                    Assert.AreEqual(events, count, $"{name}: ColorChanged count");
-                }
-            }
+            assign(editor, expected);
+
+            Assert.AreEqual(expected, editor.Color, "Color");
+            Assert.AreEqual(expected.R, editor.Red, "Red");
+            Assert.AreEqual(expected.G, editor.Green, "Green");
+            Assert.AreEqual(expected.B, editor.Blue, "Blue");
+            Assert.AreEqual(expected.A, editor.Alpha, "Alpha");
+            Assert.AreEqual(expectedHex, editor.HexValue, "HexValue");
+            Assert.AreEqual(1, count, "ColorChanged count");
         }
 
         [TestMethod]

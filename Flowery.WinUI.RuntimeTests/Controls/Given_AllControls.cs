@@ -29,33 +29,16 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             var failures = new StringBuilder();
             var failuresCount = 0;
 
-            foreach (var (label, controlTypes) in cases)
+            foreach (var (label, type) in cases.SelectMany(static group => group.ControlTypes, static (group, controlType) => (group.Label, controlType)))
             {
-                foreach (var type in controlTypes)
+                try
                 {
-                    try
-                    {
-                        hostPanel.Children.Clear();
-
-                        if (type.GetConstructor(Type.EmptyTypes) == null)
-                        {
-                            throw new InvalidOperationException("No parameterless constructor found.");
-                        }
-
-                        var instance = Activator.CreateInstance(type) as FrameworkElement;
-                        if (instance == null)
-                        {
-                            throw new InvalidOperationException("Instance is not a FrameworkElement.");
-                        }
-
-                        hostPanel.Children.Add(instance);
-                        instance.UpdateLayout();
-                    }
-                    catch (Exception ex)
-                    {
-                        failuresCount++;
-                        failures.AppendLine($"[{label}] {type.FullName}: {ex.GetType().Name} - {ex.Message}");
-                    }
+                    Construct(hostPanel, type);
+                }
+                catch (Exception ex)
+                {
+                    failuresCount++;
+                    failures.AppendLine($"[{label}] {type.FullName}: {ex.GetType().Name} - {ex.Message}");
                 }
             }
 
@@ -63,6 +46,20 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             {
                 throw new InvalidOperationException(failures.ToString());
             }
+        }
+
+        private static void Construct(Panel hostPanel, Type type)
+        {
+            hostPanel.Children.Clear();
+
+            if (type.GetConstructor(Type.EmptyTypes) is null)
+                throw new InvalidOperationException("No parameterless constructor found.");
+
+            if (Activator.CreateInstance(type) is not FrameworkElement instance)
+                throw new InvalidOperationException("Instance is not a FrameworkElement.");
+
+            hostPanel.Children.Add(instance);
+            instance.UpdateLayout();
         }
     }
 }

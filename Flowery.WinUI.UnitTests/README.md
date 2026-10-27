@@ -8,4 +8,4 @@ Plain MSTest tests for logic that needs no WinUI, such as the scheduler models a
 ./scripts/test_windows.ps1 -Configuration Debug
 ```
 
-The script runs these tests before the runtime tests; CI runs it too.
+The script runs these tests before the runtime tests, except with `-TestFilter`, which selects runtime tests; CI runs it too.

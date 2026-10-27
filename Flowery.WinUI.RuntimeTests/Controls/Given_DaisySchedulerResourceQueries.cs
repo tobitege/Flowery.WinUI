@@ -51,21 +51,24 @@ public sealed class Given_DaisySchedulerResourceQueries
         cases.Add(("Monday/FirstFourDayWeek", DayOfWeek.Monday, CalendarWeekRule.FirstFourDayWeek, 2026, 1, new DateTime(2025, 12, 29)));
         cases.Add(("Saturday/FirstFourDayWeek", DayOfWeek.Saturday, CalendarWeekRule.FirstFourDayWeek, 2026, 1, new DateTime(2026, 1, 3)));
         foreach (var (label, firstDay, rule, year, week, start) in cases)
+            RuntimeTestHelpers.RunCase(label, () => VerifyWeekOne(firstDay, rule, year, week, start));
+    }
+
+    private static void VerifyWeekOne(DayOfWeek? firstDay, CalendarWeekRule? rule, int year, int week, DateTime start)
+    {
+        var scheduler = new DaisyScheduler { SchedulerResources = new[] { new ResourceModel { Id = 1 } } };
+        if (firstDay is { } day)
+            scheduler.FirstDayOfWeek = day;
+        if (rule is { } weekRule)
+            scheduler.WeekRule = weekRule;
+        scheduler.Appointments = new[] { Booking(start, start.AddMinutes(30)) };
+        Assert.HasCount(1, scheduler.GetOccupiedResources(year, week));
+        scheduler.Appointments = new[] { Booking(start.AddDays(7), start.AddDays(8)) };
+        Assert.IsEmpty(scheduler.GetOccupiedResources(year, week));
+        if (firstDay is not null)
         {
-            var scheduler = new DaisyScheduler { SchedulerResources = new[] { new ResourceModel { Id = 1 } } };
-            if (firstDay is { } day)
-                scheduler.FirstDayOfWeek = day;
-            if (rule is { } weekRule)
-                scheduler.WeekRule = weekRule;
-            scheduler.Appointments = new[] { Booking(start, start.AddMinutes(30)) };
-            Assert.HasCount(1, scheduler.GetOccupiedResources(year, week), label);
-            scheduler.Appointments = new[] { Booking(start.AddDays(7), start.AddDays(8)) };
-            Assert.IsEmpty(scheduler.GetOccupiedResources(year, week), label);
-            if (firstDay is not null)
-            {
-                scheduler.Appointments = new[] { Booking(start.AddDays(-1), start) };
-                Assert.IsEmpty(scheduler.GetOccupiedResources(year, week), label);
-            }
+            scheduler.Appointments = new[] { Booking(start.AddDays(-1), start) };
+            Assert.IsEmpty(scheduler.GetOccupiedResources(year, week));
         }
     }
 

@@ -65,44 +65,44 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         [TestMethod]
         public async Task When_ContrastFixedThemeIsApplied_ControlsRenderTheCorrectedColor()
         {
-            var cases = new (string Name, string Theme, Func<Control> Create, Func<Control, Brush> BrushOf, string ExpectedHex, bool Opaque)[]
+            var cases = new (string Name, string Theme, Func<Control> Create, Func<Control, Brush> BrushOf, string ExpectedHex)[]
             {
                 ("Dark outline primary button", "Dark",
                     static () => new DaisyButton { Content = "Outline", Variant = DaisyButtonVariant.Primary, ButtonStyle = DaisyButtonStyle.Outline },
-                    static control => control.Foreground, "#8D8AFF", false),
+                    static control => control.Foreground, "#8D8AFF"),
                 ("Dark primary icon text", "Dark",
                     static () => new DaisyIconText { Text = "Primary", Variant = DaisyBadgeVariant.Primary },
-                    static control => control.Foreground, "#8D8AFF", false),
+                    static control => control.Foreground, "#8D8AFF"),
                 ("Business disabled primary button", "Business",
                     static () => new DaisyButton { Content = "Disabled", Variant = DaisyButtonVariant.Primary, IsEnabled = false },
-                    static control => control.Background, "#2B4055", true)
+                    static control => control.Background, "#2B4055")
             };
             var previous = DaisyThemeManager.CurrentThemeName ?? "Dark";
             try
             {
-                foreach (var (name, theme, create, brushOf, expectedHex, opaque) in cases)
-                {
-                    // Start from Light so the target theme is a real change.
-                    Assert.IsTrue(DaisyThemeManager.ApplyTheme("Light") || DaisyThemeManager.CurrentThemeName == "Light", name);
-                    Assert.IsTrue(DaisyThemeManager.ApplyTheme(theme), name);
-
-                    var control = create();
-                    RuntimeTestHelpers.AttachToHost(control);
-                    await RuntimeTestHelpers.EnsureLoadedAsync(control);
-
-                    var brush = brushOf(control) as SolidColorBrush;
-                    Assert.IsNotNull(brush, name);
-                    Assert.AreEqual(FloweryColorHelpers.ColorFromHex(expectedHex), brush.Color, name);
-                    if (opaque)
-                    {
-                        Assert.AreEqual(1.0, brush.Opacity, 0.001, $"{name}: the fill is opaque");
-                    }
-                }
+                foreach (var (name, theme, create, brushOf, expectedHex) in cases)
+                    await RuntimeTestHelpers.RunCaseAsync(name, () => AssertThemedBrushAsync(theme, create, brushOf, expectedHex));
             }
             finally
             {
                 DaisyThemeManager.ApplyTheme(previous);
             }
+        }
+
+        private static async Task AssertThemedBrushAsync(string theme, Func<Control> create, Func<Control, Brush> brushOf, string expectedHex)
+        {
+            // Start from Light so the target theme is a real change.
+            Assert.IsTrue(DaisyThemeManager.ApplyTheme("Light") || DaisyThemeManager.CurrentThemeName == "Light", "Light is applied.");
+            Assert.IsTrue(DaisyThemeManager.ApplyTheme(theme), $"{theme} is applied.");
+
+            var control = create();
+            RuntimeTestHelpers.AttachToHost(control);
+            await RuntimeTestHelpers.EnsureLoadedAsync(control);
+
+            var brush = brushOf(control) as SolidColorBrush;
+            Assert.IsNotNull(brush, "The brush is solid.");
+            Assert.AreEqual(FloweryColorHelpers.ColorFromHex(expectedHex), brush.Color, "The corrected color.");
+            Assert.AreEqual(1.0, brush.Opacity, 0.001, "The brush is opaque.");
         }
 
         [TestMethod]

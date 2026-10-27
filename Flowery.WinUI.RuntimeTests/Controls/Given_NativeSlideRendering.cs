@@ -44,15 +44,8 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                 (FlowerySlideTransition.Dissolve, true), (FlowerySlideTransition.Pixelate, true), (FlowerySlideTransition.Pixelate, false)
             })
             {
-                try
-                {
-                    await VerifyRenderedTransitionAsync(transition, hasOldSlide);
-                }
-                catch (Exception error) when (error is not AssertInconclusiveException)
-                {
-                    // The runner has no data rows, so the failure names its case.
-                    throw new AssertFailedException($"{transition}, old slide={hasOldSlide}: {error.Message}", error);
-                }
+                await RuntimeTestHelpers.RunCaseAsync($"{transition}, old slide={hasOldSlide}",
+                    () => VerifyRenderedTransitionAsync(transition, hasOldSlide));
             }
         }
 

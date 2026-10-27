@@ -145,14 +145,14 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             card.ClearValue(DaisyCard.BodyPaddingProperty);
             Assert.AreEqual(new Thickness(8), card.ResolvedBodyPadding);
             sized.Size = DaisySize.Large;
-            Assert.AreEqual(new Thickness(40), sized.ResolvedBodyPadding);
+            Assert.AreEqual(new Thickness(40), sized.ResolvedBodyPadding, "Explicit Large under global ExtraSmall.");
             sized.Variant = DaisyCardVariant.Compact;
-            Assert.AreEqual(new Thickness(20), sized.ResolvedBodyPadding);
+            Assert.AreEqual(new Thickness(20), sized.ResolvedBodyPadding, "Explicit Large, compact.");
             sized.BodyPadding = new Thickness(9);
             sized.Size = DaisySize.ExtraLarge;
-            Assert.AreEqual(new Thickness(9), sized.ResolvedBodyPadding);
+            Assert.AreEqual(new Thickness(9), sized.ResolvedBodyPadding, "Authored BodyPadding wins over explicit ExtraLarge.");
             sized.ClearValue(DaisyCard.BodyPaddingProperty);
-            Assert.AreEqual(new Thickness(24), sized.ResolvedBodyPadding);
+            Assert.AreEqual(new Thickness(24), sized.ResolvedBodyPadding, "Explicit ExtraLarge, compact, after BodyPadding is cleared.");
             Assert.IsNull(automatic.ContentPadding);
             Assert.AreEqual(DependencyProperty.UnsetValue, automatic.ReadLocalValue(Control.PaddingProperty));
         });

@@ -34,23 +34,25 @@ public sealed partial class Given_DaisyScheduler
     public async Task When_EveryViewRendersHostAppointments_SelectionWorksWithoutMovingTheFrame()
     {
         foreach (var view in ListViews)
-        {
-            var label = view.ToString();
-            var scope = await SchedulerScope.CreateAsync(view);
-            var block = scope.Frame(scope.Appointment);
-            Assert.IsTrue(block.ActualWidth > 0, label);
-            Assert.IsTrue(block.ActualHeight > 0, label);
-            var content = (FrameworkElement)((Panel)block.Child).Children[0];
-            var size = new Size(block.ActualWidth, block.ActualHeight);
-            var position = content.TransformToVisual(scope.Scheduler).TransformPoint(default);
-            await scope.ClickAsync(block);
-            Assert.AreSame(scope.Appointment, scope.Scheduler.SelectedAppointment, label);
-            Assert.HasCount(1, scope.Scheduler.SelectedAppointments, label);
-            // The selection ring lies over the frame, so selecting neither rebuilds nor moves the appointment.
-            Assert.AreSame(block, scope.Frame(scope.Appointment), label);
-            Assert.AreEqual(size, new Size(block.ActualWidth, block.ActualHeight), label);
-            Assert.AreEqual(position, content.TransformToVisual(scope.Scheduler).TransformPoint(default), label);
-        }
+            await RuntimeTestHelpers.RunCaseAsync(view.ToString(), () => VerifySelectionKeepsTheFrameAsync(view));
+    }
+
+    private static async Task VerifySelectionKeepsTheFrameAsync(SchedulerView view)
+    {
+        var scope = await SchedulerScope.CreateAsync(view);
+        var block = scope.Frame(scope.Appointment);
+        Assert.IsTrue(block.ActualWidth > 0);
+        Assert.IsTrue(block.ActualHeight > 0);
+        var content = (FrameworkElement)((Panel)block.Child).Children[0];
+        var size = new Size(block.ActualWidth, block.ActualHeight);
+        var position = content.TransformToVisual(scope.Scheduler).TransformPoint(default);
+        await scope.ClickAsync(block);
+        Assert.AreSame(scope.Appointment, scope.Scheduler.SelectedAppointment);
+        Assert.HasCount(1, scope.Scheduler.SelectedAppointments);
+        // The selection ring lies over the frame, so selecting neither rebuilds nor moves the appointment.
+        Assert.AreSame(block, scope.Frame(scope.Appointment));
+        Assert.AreEqual(size, new Size(block.ActualWidth, block.ActualHeight));
+        Assert.AreEqual(position, content.TransformToVisual(scope.Scheduler).TransformPoint(default));
     }
 
     [TestMethod]
@@ -62,28 +64,31 @@ public sealed partial class Given_DaisyScheduler
                      ("single", false, Monday.AddHours(10), 0, Monday.AddHours(10), Monday.AddHours(11)),
                      ("later daily occurrence", true, Monday.AddDays(2).AddHours(10), 2, Monday.AddHours(10), Monday.AddDays(2).AddHours(11))
                  })
+            await RuntimeTestHelpers.RunCaseAsync(label, () => VerifyDragMoveAsync(daily, end, dayOffset, newStart, newEnd));
+    }
+
+    private static async Task VerifyDragMoveAsync(bool daily, DateTime end, int dayOffset, DateTime newStart, DateTime newEnd)
+    {
+        var scope = await SchedulerScope.CreateAsync(SchedulerView.Day);
+        if (daily)
         {
-            var scope = await SchedulerScope.CreateAsync(SchedulerView.Day);
-            if (daily)
-            {
-                scope.Appointment.SpanMode = AppointmentSpanMode.Daily;
-                scope.Appointment.End = end;
-                scope.Scheduler.SelectedDate = new DateTimeOffset(Monday.AddDays(dayOffset));
-                scope.Scheduler.Appointments = new[] { scope.Appointment };
-                await scope.LayoutAsync();
-            }
-            AppointmentMoveArgs? request = null;
-            scope.Scheduler.AppointmentMoveRequested += (_, args) => request = args;
-            var block = scope.Frame(scope.Appointment);
-            var origin = scope.Point(block, block.ActualWidth / 2, block.ActualHeight / 2);
-            await scope.DragAsync(block, origin, Offset(origin, 0, 48));
-            Assert.IsNotNull(request, label);
-            Assert.AreSame(scope.Appointment, request.Appointment, label);
-            Assert.AreEqual(newStart, request.NewStart, label);
-            Assert.AreEqual(newEnd, request.NewEnd, label);
-            Assert.AreEqual(Monday.AddHours(9), scope.Appointment.Start, label);
-            Assert.AreEqual(end, scope.Appointment.End, label);
+            scope.Appointment.SpanMode = AppointmentSpanMode.Daily;
+            scope.Appointment.End = end;
+            scope.Scheduler.SelectedDate = new DateTimeOffset(Monday.AddDays(dayOffset));
+            scope.Scheduler.Appointments = new[] { scope.Appointment };
+            await scope.LayoutAsync();
         }
+        AppointmentMoveArgs? request = null;
+        scope.Scheduler.AppointmentMoveRequested += (_, args) => request = args;
+        var block = scope.Frame(scope.Appointment);
+        var origin = scope.Point(block, block.ActualWidth / 2, block.ActualHeight / 2);
+        await scope.DragAsync(block, origin, Offset(origin, 0, 48));
+        Assert.IsNotNull(request);
+        Assert.AreSame(scope.Appointment, request.Appointment);
+        Assert.AreEqual(newStart, request.NewStart);
+        Assert.AreEqual(newEnd, request.NewEnd);
+        Assert.AreEqual(Monday.AddHours(9), scope.Appointment.Start);
+        Assert.AreEqual(end, scope.Appointment.End);
     }
 
     [TestMethod]
@@ -250,48 +255,52 @@ public sealed partial class Given_DaisyScheduler
         try
         {
             foreach (var (theme, darkAppointment) in new[] { ("Coffee", false), ("Light", false), ("Dark", false), ("Corporate", false), ("Light", true) })
-            {
-                var scope = await SchedulerScope.CreateAsync(SchedulerView.Month);
-                Assert.IsTrue(DaisyThemeManager.ApplyTheme(theme));
-                if (darkAppointment)
-                    scope.Appointment.BackColor = Colors.Black;
-                scope.Appointment.Tiles.Add(new AppointmentDecoration { Text = "Alex" });
-                scope.Appointment.Tiles.Add(new AppointmentDecoration { Text = "Dark tag", BackColor = Colors.Black });
-                scope.Appointment.Tiles.Add(new AppointmentDecoration { Text = "Light tag", BackColor = Colors.White });
-                scope.Appointment.Tiles.Add(new AppointmentDecoration { Text = "Translucent tag", BackColor = Color.FromArgb(128, 255, 255, 255) });
-                scope.Appointment.Tiles.Add(new AppointmentDecoration { Text = "Explicit tag", BackColor = Colors.Black, ForeColor = Colors.Orange });
-                scope.Appointment.Adornments.Add(new AppointmentDecoration { Text = "Overlay" });
-                scope.Scheduler.ShowTiles = true;
-                scope.Scheduler.Appointments = new[] { scope.Appointment };
-                await scope.LayoutAsync();
-
-                var frame = scope.Frame(scope.Appointment);
-                var labels = Descendants<TextBlock>(frame).ToArray();
-                var context = Context(frame);
-                var backdrop = ((SolidColorBrush)context.BackBrush).Color;
-                foreach (var name in new[] { "Alex", "Dark tag", "Light tag", "Translucent tag" })
-                {
-                    var label = labels.Single(text => text.Text == name);
-                    var badge = (Border)label.Parent;
-                    var fill = ((SolidColorBrush)badge.Background).Color;
-                    var textColor = ((SolidColorBrush)label.Foreground).Color;
-                    var opacity = fill.A / 255d;
-                    var rendered = Color.FromArgb(255,
-                        (byte)Math.Round(fill.R * opacity + backdrop.R * (1 - opacity)),
-                        (byte)Math.Round(fill.G * opacity + backdrop.G * (1 - opacity)),
-                        (byte)Math.Round(fill.B * opacity + backdrop.B * (1 - opacity)));
-                    var foregroundLuminance = Luminance(textColor);
-                    var backgroundLuminance = Luminance(rendered);
-                    var ratio = (Math.Max(foregroundLuminance, backgroundLuminance) + 0.05) /
-                        (Math.Min(foregroundLuminance, backgroundLuminance) + 0.05);
-                    Assert.IsTrue(ratio >= 4.5, $"{theme} / {name}: contrast {ratio:F2}; text {textColor}, fill {fill}, appointment {backdrop}");
-                }
-                Assert.AreEqual(Colors.Orange, ((SolidColorBrush)labels.Single(text => text.Text == "Explicit tag").Foreground).Color);
-                Assert.AreEqual(((SolidColorBrush)context.Foreground).Color,
-                    ((SolidColorBrush)labels.Single(text => text.Text == "Overlay").Foreground).Color);
-            }
+                await RuntimeTestHelpers.RunCaseAsync($"{theme}, dark appointment={darkAppointment}",
+                    () => VerifyTagContrastAsync(theme, darkAppointment));
         }
         finally { DaisyThemeManager.ApplyTheme(previous ?? "Light"); }
+    }
+
+    private static async Task VerifyTagContrastAsync(string theme, bool darkAppointment)
+    {
+        var scope = await SchedulerScope.CreateAsync(SchedulerView.Month);
+        Assert.IsTrue(DaisyThemeManager.ApplyTheme(theme));
+        if (darkAppointment)
+            scope.Appointment.BackColor = Colors.Black;
+        scope.Appointment.Tiles.Add(new AppointmentDecoration { Text = "Alex" });
+        scope.Appointment.Tiles.Add(new AppointmentDecoration { Text = "Dark tag", BackColor = Colors.Black });
+        scope.Appointment.Tiles.Add(new AppointmentDecoration { Text = "Light tag", BackColor = Colors.White });
+        scope.Appointment.Tiles.Add(new AppointmentDecoration { Text = "Translucent tag", BackColor = Color.FromArgb(128, 255, 255, 255) });
+        scope.Appointment.Tiles.Add(new AppointmentDecoration { Text = "Explicit tag", BackColor = Colors.Black, ForeColor = Colors.Orange });
+        scope.Appointment.Adornments.Add(new AppointmentDecoration { Text = "Overlay" });
+        scope.Scheduler.ShowTiles = true;
+        scope.Scheduler.Appointments = new[] { scope.Appointment };
+        await scope.LayoutAsync();
+
+        var frame = scope.Frame(scope.Appointment);
+        var labels = Descendants<TextBlock>(frame).ToArray();
+        var context = Context(frame);
+        var backdrop = ((SolidColorBrush)context.BackBrush).Color;
+        foreach (var name in new[] { "Alex", "Dark tag", "Light tag", "Translucent tag" })
+        {
+            var label = labels.Single(text => text.Text == name);
+            var badge = (Border)label.Parent;
+            var fill = ((SolidColorBrush)badge.Background).Color;
+            var textColor = ((SolidColorBrush)label.Foreground).Color;
+            var opacity = fill.A / 255d;
+            var rendered = Color.FromArgb(255,
+                (byte)Math.Round(fill.R * opacity + backdrop.R * (1 - opacity)),
+                (byte)Math.Round(fill.G * opacity + backdrop.G * (1 - opacity)),
+                (byte)Math.Round(fill.B * opacity + backdrop.B * (1 - opacity)));
+            var foregroundLuminance = Luminance(textColor);
+            var backgroundLuminance = Luminance(rendered);
+            var ratio = (Math.Max(foregroundLuminance, backgroundLuminance) + 0.05) /
+                (Math.Min(foregroundLuminance, backgroundLuminance) + 0.05);
+            Assert.IsTrue(ratio >= 4.5, $"{name}: contrast {ratio:F2}; text {textColor}, fill {fill}, appointment {backdrop}");
+        }
+        Assert.AreEqual(Colors.Orange, ((SolidColorBrush)labels.Single(text => text.Text == "Explicit tag").Foreground).Color);
+        Assert.AreEqual(((SolidColorBrush)context.Foreground).Color,
+            ((SolidColorBrush)labels.Single(text => text.Text == "Overlay").Foreground).Color);
 
         static double Luminance(Color color)
         {
@@ -322,35 +331,38 @@ public sealed partial class Given_DaisyScheduler
         var previous = DaisyThemeManager.CurrentThemeName;
         try
         {
-            SchedulerScope? scope = null;
             foreach (var theme in new[] { "Corporate", "Light", "Dark", "Coffee" })
-            {
-                scope = await SchedulerScope.CreateAsync(SchedulerView.Planner);
-                Assert.IsTrue(DaisyThemeManager.ApplyTheme(theme));
-                scope.Appointment.Description = "Appointment note";
-                scope.Appointment.Memo = "Internal memo";
-                scope.Appointment.Details.Add(new AppointmentDetail("Resource", "Alex"));
-                scope.Scheduler.Appointments = new[] { scope.Appointment };
-                await scope.LayoutAsync();
-                var tooltip = (ToolTip)ToolTipService.GetToolTip(scope.Frame(scope.Appointment));
-                var content = (StackPanel)tooltip.Content;
-                var background = ((SolidColorBrush)tooltip.Background).Color;
-                var foreground = ((SolidColorBrush)tooltip.Foreground).Color;
-                Assert.AreEqual(((SolidColorBrush)DaisyResourceLookup.GetBrush("DaisyBase200Brush")).Color, background, theme);
-                Assert.AreNotEqual(background, ((SolidColorBrush)tooltip.BorderBrush).Color, theme);
-                Assert.IsTrue(tooltip.BorderThickness.Left > 0, theme);
-                Assert.AreNotEqual(background, foreground, theme);
-                foreach (var label in content.Children.OfType<TextBlock>())
-                    Assert.AreEqual(DependencyProperty.UnsetValue, label.ReadLocalValue(TextBlock.ForegroundProperty), theme + ": " + label.Text);
-            }
+                await RuntimeTestHelpers.RunCaseAsync(theme, () => VerifyTooltipPaletteAsync(theme));
 
             // A tooltip the host supplies keeps its own style.
             var hostStyle = new Style(typeof(ToolTip));
-            scope!.Scheduler.AppointmentTooltipRenderer = _ => new ToolTip { Style = hostStyle, Content = "Host" };
-            await scope.LayoutAsync();
-            Assert.AreSame(hostStyle, ((ToolTip)ToolTipService.GetToolTip(scope.Frame(scope.Appointment))).Style);
+            var hosted = await SchedulerScope.CreateAsync(SchedulerView.Planner);
+            hosted.Scheduler.AppointmentTooltipRenderer = _ => new ToolTip { Style = hostStyle, Content = "Host" };
+            await hosted.LayoutAsync();
+            Assert.AreSame(hostStyle, ((ToolTip)ToolTipService.GetToolTip(hosted.Frame(hosted.Appointment))).Style);
         }
         finally { DaisyThemeManager.ApplyTheme(previous ?? "Light"); }
+    }
+
+    private static async Task VerifyTooltipPaletteAsync(string theme)
+    {
+        var scope = await SchedulerScope.CreateAsync(SchedulerView.Planner);
+        Assert.IsTrue(DaisyThemeManager.ApplyTheme(theme));
+        scope.Appointment.Description = "Appointment note";
+        scope.Appointment.Memo = "Internal memo";
+        scope.Appointment.Details.Add(new AppointmentDetail("Resource", "Alex"));
+        scope.Scheduler.Appointments = new[] { scope.Appointment };
+        await scope.LayoutAsync();
+        var tooltip = (ToolTip)ToolTipService.GetToolTip(scope.Frame(scope.Appointment));
+        var content = (StackPanel)tooltip.Content;
+        var background = ((SolidColorBrush)tooltip.Background).Color;
+        var foreground = ((SolidColorBrush)tooltip.Foreground).Color;
+        Assert.AreEqual(((SolidColorBrush)DaisyResourceLookup.GetBrush("DaisyBase200Brush")).Color, background);
+        Assert.AreNotEqual(background, ((SolidColorBrush)tooltip.BorderBrush).Color);
+        Assert.IsTrue(tooltip.BorderThickness.Left > 0);
+        Assert.AreNotEqual(background, foreground);
+        foreach (var label in content.Children.OfType<TextBlock>())
+            Assert.AreEqual(DependencyProperty.UnsetValue, label.ReadLocalValue(TextBlock.ForegroundProperty), label.Text);
     }
 
     [TestMethod]
