@@ -12,6 +12,7 @@ using System.Windows.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Windowing;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using Flowery.Helpers;
@@ -769,6 +770,7 @@ namespace Flowery.WinUI.Kanban.Controls
         private readonly HashSet<FlowSubtask> _trackedSubtasks = new();
         private readonly HashSet<FlowKanbanLane> _trackedLaneItems = new();
         private DispatcherQueueTimer? _autoSaveTimer;
+        private AppWindow? _appWindow;
         private ManagedTimer? _doneAgingTimer;
 
         /// <summary>
@@ -1682,22 +1684,53 @@ namespace Flowery.WinUI.Kanban.Controls
             if (_autoSaveTimer is not { IsRunning: true } timer)
                 return;
 
-            timer.Stop();
-            if (replacedBoard == null)
+            if (replacedBoard is null)
             {
                 ExecuteSave();
-                return;
+            }
+            else
+            {
+                // The replaced board is no longer open, so it does not become the last board.
+                try
+                {
+                    SaveBoardStateCore(replacedBoard, updateLastBoardId: false);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Failed to save Kanban: {ex.Message}");
+                }
             }
 
-            // The replaced board is no longer open, so it does not become the last board.
-            try
-            {
-                SaveBoardStateCore(replacedBoard, updateLastBoardId: false);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Failed to save Kanban: {ex.Message}");
-            }
+            // Only after the save: a board without a valid ID gets one while it is saved, and that edit starts the timer
+            // again.
+            timer.Stop();
+        }
+
+        // WinUI unloads the board of a closed window only on a later tick, and closing the last window ends the app before
+        // that, so the waiting save also runs while the window is destroyed.
+        private void AttachAppWindow()
+        {
+            if (_appWindow is not null || XamlRoot?.ContentIslandEnvironment is not { AppWindowId.Value: not 0 } environment)
+                return;
+
+            _appWindow = AppWindow.GetFromWindowId(environment.AppWindowId);
+            if (_appWindow is not null)
+                _appWindow.Destroying += OnAppWindowDestroying;
+        }
+
+        private void DetachAppWindow()
+        {
+            if (_appWindow is null)
+                return;
+
+            _appWindow.Destroying -= OnAppWindowDestroying;
+            _appWindow = null;
+        }
+
+        private void OnAppWindowDestroying(AppWindow sender, object args)
+        {
+            FlushAutoSave();
+            DetachAppWindow();
         }
 
         private void OnAutoSaveTimerTick(DispatcherQueueTimer sender, object args)

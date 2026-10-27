@@ -1,10 +1,8 @@
-﻿using System.Collections.Generic;
-using System.Linq;
+﻿using System.Linq;
 using System.Threading.Tasks;
 using Flowery.WinUI.Kanban.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Flowery.WinUI.RuntimeTests.Controls
@@ -48,8 +46,11 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                             }
 
                             var tile = await TileAsync(kanban, saved.Id);
-                            var menuButton = (DaisyButton)tile.FindName("PART_BoardMenuButton");
-                            var items = ((MenuFlyout)menuButton.Flyout).Items.OfType<DaisyMenuFlyoutItem>().ToList();
+                            var menuButton = tile.FindName("PART_BoardMenuButton") as DaisyButton;
+                            Assert.IsNotNull(menuButton, "the tile has no menu button");
+                            var flyout = menuButton.Flyout as MenuFlyout;
+                            Assert.IsNotNull(flyout, "the menu button has no menu");
+                            var items = flyout.Items.OfType<DaisyMenuFlyoutItem>().ToList();
                             CollectionAssert.AreEqual(MenuKeys, items.Select(static item => item.LocalizationKey).ToList());
                             foreach (var item in items)
                             {
@@ -59,7 +60,8 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                             }
 
                             // Above the title row, away from the menu button.
-                            var surface = (FrameworkElement)tile.FindName("PART_BoardOpenSurface");
+                            var surface = tile.FindName("PART_BoardOpenSurface") as FrameworkElement;
+                            Assert.IsNotNull(surface, "the tile has no open surface");
                             var before = kanban.Board;
                             await TouchInjection.TapAsync(surface, new Windows.Foundation.Point(surface.ActualWidth / 2, 40));
                             await RuntimeTestHelpers.WaitUntilAsync(
@@ -84,7 +86,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             for (var pass = 0; pass < 50; pass++)
             {
                 await RuntimeTestHelpers.CompleteLayoutAsync(kanban);
-                var tile = Descendants<FrameworkElement>(kanban).FirstOrDefault(element =>
+                var tile = RuntimeTestHelpers.Descendants<FrameworkElement>(kanban).FirstOrDefault(element =>
                     element.DataContext is FlowBoardMetadata board && board.Id == boardId
                     && element.FindName("PART_BoardOpenSurface") is FrameworkElement { ActualWidth: > 0 });
                 var position = tile?.TransformToVisual(kanban).TransformPoint(default);
@@ -96,18 +98,6 @@ namespace Flowery.WinUI.RuntimeTests.Controls
 
             Assert.Fail("The home view does not show the board tile in place.");
             return null!;
-        }
-
-        private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
-        {
-            for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
-            {
-                var child = VisualTreeHelper.GetChild(root, index);
-                if (child is T match)
-                    yield return match;
-                foreach (var descendant in Descendants<T>(child))
-                    yield return descendant;
-            }
         }
     }
 }

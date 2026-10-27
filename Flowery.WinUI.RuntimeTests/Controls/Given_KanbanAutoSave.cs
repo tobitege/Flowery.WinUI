@@ -16,16 +16,23 @@ namespace Flowery.WinUI.RuntimeTests.Controls
     [TestClass]
     public class Given_KanbanAutoSave
     {
-        private static readonly TimeSpan UnloadTimeout = TimeSpan.FromSeconds(10);
+        // A board whose ID is no GUID gets one when it is saved, which is an edit of its own; it must not start the
+        // auto-save again after the pending one was saved.
+        private const string ReadableBoardId = "board-1";
 
         [TestMethod]
         public async Task When_BoardUnloadsWithAPendingAutoSave_TheEditIsSavedAtOnce()
         {
-            foreach (var onHomeView in new[] { false, true })
+            foreach (var (name, onHomeView, boardId) in new (string, bool, string?)[]
+                     {
+                         ("board view", false, null),
+                         ("home view", true, null),
+                         ("home view, board ID without GUID", true, ReadableBoardId)
+                     })
             {
-                await RuntimeTestHelpers.RunCaseAsync(onHomeView ? "home view" : "board view", () => RuntimeTestHelpers.WithStateStorageAsync(async () =>
+                await RuntimeTestHelpers.RunCaseAsync(name, () => RuntimeTestHelpers.WithStateStorageAsync(async () =>
                 {
-                    var edited = CreateBoard();
+                    var edited = CreateBoard(id: boardId);
                     var store = new CountingBoardStore();
                     var kanban = await ShowAsync(edited, store);
                     try
@@ -37,6 +44,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                             kanban.CurrentView = FlowKanbanView.Home;
                         Assert.IsTrue(timer?.IsRunning, "the edit did not start an auto-save");
                         Assert.IsEmpty(store.SavedBoards);
+                        Assert.AreEqual(boardId ?? edited.Id, edited.Id, "the board got its ID before the flush");
 
                         await RuntimeTestHelpers.DetachFromHostAsync(kanban);
 
@@ -66,7 +74,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                 try
                 {
                     window.Activate();
-                    await RuntimeTestHelpers.EnsureLoadedAsync(kanban).WaitAsync(UnloadTimeout);
+                    await RuntimeTestHelpers.EnsureLoadedAsync(kanban).WaitAsync(RuntimeTestHelpers.LayoutTimeout);
                     OpenBoardView(kanban, store);
 
                     edited.Title = "Edited";
@@ -76,10 +84,11 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                     var unloaded = RuntimeTestHelpers.WaitForUnloadedAsync(kanban);
                     window.Close();
                     closed = true;
-                    await unloaded.WaitAsync(UnloadTimeout);
 
-                    CollectionAssert.AreEqual(new[] { edited }, store.SavedBoards);
+                    // Closing the last window ends the app, so the edit is saved while Close runs, not on a later tick.
+                    CollectionAssert.AreEqual(new[] { edited }, store.SavedBoards, "the edit was not saved while the window closed");
                     Assert.IsFalse(timer!.IsRunning);
+                    await unloaded.WaitAsync(RuntimeTestHelpers.LayoutTimeout);
                 }
                 finally
                 {
@@ -92,11 +101,16 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         [TestMethod]
         public async Task When_BoardOrStoreChangesWithAPendingAutoSave_TheEditGoesToItsBoardAndStore()
         {
-            foreach (var replaceStore in new[] { false, true })
+            foreach (var (name, replaceStore, boardId) in new (string, bool, string?)[]
+                     {
+                         ("board", false, null),
+                         ("board with an ID without GUID", false, ReadableBoardId),
+                         ("store", true, null)
+                     })
             {
-                await RuntimeTestHelpers.RunCaseAsync(replaceStore ? "store" : "board", () => RuntimeTestHelpers.WithStateStorageAsync(async () =>
+                await RuntimeTestHelpers.RunCaseAsync(name, () => RuntimeTestHelpers.WithStateStorageAsync(async () =>
                 {
-                    var edited = CreateBoard();
+                    var edited = CreateBoard(id: boardId);
                     var store = new CountingBoardStore();
                     var kanban = await ShowAsync(edited, store);
                     try
@@ -105,6 +119,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                         edited.Title = "Edited";
                         var timer = AutoSaveTimer(kanban);
                         Assert.IsTrue(timer?.IsRunning, "the edit did not start an auto-save");
+                        Assert.AreEqual(boardId ?? edited.Id, edited.Id, "the board got its ID before the flush");
 
                         var otherStore = new CountingBoardStore();
                         if (replaceStore)
@@ -193,8 +208,13 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             }
         }
 
-        private static FlowKanbanData CreateBoard(string title = "Board") =>
-            new() { Title = title, Columns = { new FlowKanbanColumnData { Title = "Todo", Tasks = { new FlowTask { Title = "Task" } } } } };
+        private static FlowKanbanData CreateBoard(string title = "Board", string? id = null)
+        {
+            var board = new FlowKanbanData { Title = title, Columns = { new FlowKanbanColumnData { Title = "Todo", Tasks = { new FlowTask { Title = "Task" } } } } };
+            if (id is not null)
+                board.Id = id;
+            return board;
+        }
 
         private static async Task<FlowKanban> ShowAsync(FlowKanbanData board, IBoardStore store)
         {

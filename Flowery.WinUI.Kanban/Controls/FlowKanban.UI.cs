@@ -758,6 +758,7 @@ namespace Flowery.WinUI.Kanban.Controls
         private void OnKanbanLoaded(object sender, RoutedEventArgs e)
         {
             DaisyResourceLookup.EnsureTokens();
+            AttachAppWindow();
             AttachAssigneeAdapter(AssigneeAdapter);
             _ = ObserveAssigneeRefreshAsync(RefreshAssigneesAsync());
             TryLoadSettings(forceReload: false, out _);
@@ -787,6 +788,7 @@ namespace Flowery.WinUI.Kanban.Controls
         {
             // Before the home view clears the last board ID below, which a later save would set again.
             FlushAutoSave();
+            DetachAppWindow();
             if (CurrentView == FlowKanbanView.Home)
             {
                 ClearLastBoardId();

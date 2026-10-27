@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Flowery.Services;
@@ -73,6 +74,20 @@ namespace Flowery.WinUI.RuntimeTests
             };
             element.Loaded += handler;
             return tcs.Task;
+        }
+
+        /// <summary>Every element of type <typeparamref name="T"/> below <paramref name="root"/> in the visual tree, in
+        /// depth-first order.</summary>
+        public static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
+        {
+            for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+            {
+                var child = VisualTreeHelper.GetChild(root, index);
+                if (child is T match)
+                    yield return match;
+                foreach (var descendant in Descendants<T>(child))
+                    yield return descendant;
+            }
         }
 
         /// <summary>Removes <paramref name="element"/> from the host panel and completes after its Unloaded event.</summary>
