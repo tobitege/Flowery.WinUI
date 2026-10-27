@@ -17,6 +17,9 @@
     <PackageReference Include="Combinatorial.MSTest" />
     <PackageReference Include="Microsoft.Testing.Extensions.HangDump" />
     <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
+    <!-- The referenced WinUI library brings the resource index build, which otherwise looks for an installed
+         Windows SDK that the CI runners lack (APPX3217). The WinUI projects get this package in Directory.Build.targets. -->
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
