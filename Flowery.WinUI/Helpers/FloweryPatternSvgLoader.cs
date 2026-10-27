@@ -1,5 +1,4 @@
-using System;
-using System.Collections.Generic;
+﻿using System;
 using Flowery.Controls;
 using Flowery.Theming;
 using Microsoft.UI.Xaml;
@@ -53,18 +52,11 @@ namespace Flowery.Helpers
 
         private static bool IsDarkTheme()
         {
-            // Check if we're using a dark theme via DaisyThemeManager
+            // The current theme as drawn: a base override can make it the other kind.
             var themeName = DaisyThemeManager.CurrentThemeName;
-            if (!string.IsNullOrEmpty(themeName))
+            if (!string.IsNullOrEmpty(themeName) && DaisyThemeManager.GetThemeInfo(themeName) != null)
             {
-                // Known dark themes
-                var darkThemes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    "Dark", "Dracula", "Night", "Sunset", "Coffee", "Forest",
-                    "Synthwave", "Halloween", "Aqua", "Luxury", "Business",
-                    "Night Owl", "Dim"
-                };
-                return darkThemes.Contains(themeName);
+                return DaisyThemeManager.IsCurrentThemeDark;
             }
 
             // Fallback: check system theme

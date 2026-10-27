@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Microsoft.UI.Xaml;
 
 namespace Flowery.Controls
@@ -77,8 +77,10 @@ namespace Flowery.Controls
 
         private void ToggleTheme()
         {
+            // The theme as defined decides: under a base override the current theme may look the other way round, and the
+            // swap must still reach the other theme.
             var currentTheme = DaisyThemeManager.CurrentThemeName;
-            var isDark = currentTheme != null && DaisyThemeManager.IsDarkTheme(currentTheme);
+            var isDark = currentTheme != null && DaisyThemeManager.GetThemeInfo(currentTheme)?.IsDark == true;
 
             if (isDark)
             {

@@ -97,6 +97,7 @@ The centralized static class for theme management.
 
 ```csharp
 using Flowery.Controls;
+using Flowery.Helpers;
 
 // Apply a theme
 DaisyThemeManager.ApplyTheme("Synthwave");
@@ -114,6 +115,11 @@ DaisyThemeManager.ThemeChanged += (sender, themeName) =>
 
 // Check if dark
 bool isDark = DaisyThemeManager.IsDarkTheme("Dracula");
+
+// Give any theme another base color at run time; light or dark follows from it
+DaisyThemeManager.BaseOverride = FloweryColorHelpers.ColorFromHex("#0B1B5E");
+bool drawnDark = DaisyThemeManager.IsCurrentThemeDark;   // true for the navy base
+DaisyThemeManager.BaseOverride = null;                    // the base of the theme again
 ```
 
 ### Key Members
@@ -124,7 +130,10 @@ bool isDark = DaisyThemeManager.IsDarkTheme("Dracula");
 | `CurrentThemeName` | Currently applied theme name |
 | `AvailableThemes` | Read-only list of all theme info |
 | `ThemeChanged` | Event fired after theme changes |
-| `IsDarkTheme(string)` | Returns whether a theme is dark |
+| `IsDarkTheme(string)` | Returns whether a theme is dark; for the current theme a `BaseOverride` decides |
+| `IsCurrentThemeDark` | Whether the current theme is drawn dark |
+| `BaseOverride` | A base color that replaces `Base100` of every theme; the other base colors, the base text and the text colors of the accents follow with their contrast ([details](llms-static/DaisyThemeManager.md#base-color)) |
+| `FindContrastGaps()` | Lists the color pairs of the theme as drawn below the WCAG contrast |
 
 ---
 

@@ -1,11 +1,14 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Flowery.Controls;
+using Flowery.Controls.ColorPicker;
+using Flowery.Helpers;
 using Flowery.Localization;
 using Flowery.Services;
 using Flowery.Theming;
+using Flowery.WinUI.Gallery.Localization;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -21,6 +24,9 @@ namespace Flowery.WinUI.Gallery
         private DaisySizeDropdown? _sizeSelector;
         private DaisySelect? _neumorphicSelector;
         private SidebarItem? _neumorphicLabelItem;
+        private DaisyButton? _baseColorButton;
+        private TextBlock? _baseColorText;
+        private DaisyButton? _resetBaseColorButton;
         private readonly List<TextBlock> _selectorLabels = [];
         private bool _updatingLanguage;
 
@@ -60,6 +66,8 @@ namespace Flowery.WinUI.Gallery
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             FloweryLocalization.CultureChanged += OnLocalizationCultureChanged;
+            DaisyThemeManager.BaseOverrideChanged += OnBaseOverrideChanged;
+            UpdateBaseColorSelector();
 
             _updatingLanguage = true;
             try
@@ -80,6 +88,7 @@ namespace Flowery.WinUI.Gallery
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
             FloweryLocalization.CultureChanged -= OnLocalizationCultureChanged;
+            DaisyThemeManager.BaseOverrideChanged -= OnBaseOverrideChanged;
         }
 
         private void OnLocalizationCultureChanged(object? sender, string cultureName)
@@ -93,6 +102,7 @@ namespace Flowery.WinUI.Gallery
                 UpdateLanguageSelector();
                 UpdateCategoryDisplayNames();
                 UpdateNeumorphicLabel();
+                UpdateBaseColorSelector();
                 RequestRebuildCategories(preserveScrollOffset: true, suppressSelectionEvents: true, "OnLocalizationCultureChanged");
             }
             finally
@@ -304,6 +314,11 @@ namespace Flowery.WinUI.Gallery
                 return BuildSizeSelector(item, parentPanel);
             }
 
+            if (item is GalleryBaseColorSelectorItem)
+            {
+                return BuildBaseColorSelector(item, parentPanel);
+            }
+
             return null;
         }
 
@@ -328,6 +343,20 @@ namespace Flowery.WinUI.Gallery
             }
 
             _neumorphicLabelItem = null;
+
+            if (_baseColorButton != null)
+            {
+                _baseColorButton.Click -= OnPickBaseColorClick;
+                _baseColorButton = null;
+            }
+
+            if (_resetBaseColorButton != null)
+            {
+                _resetBaseColorButton.Click -= OnResetBaseColorClick;
+                _resetBaseColorButton = null;
+            }
+
+            _baseColorText = null;
         }
 
         protected override void ApplySizeToControls()
@@ -359,6 +388,15 @@ namespace Flowery.WinUI.Gallery
             {
                 _neumorphicSelector.Size = selectorSize;
                 _neumorphicSelector.Margin = metrics.SelectorControlMargin;
+            }
+
+            foreach (var button in new[] { _baseColorButton, _resetBaseColorButton })
+            {
+                if (button != null)
+                {
+                    button.Size = selectorSize;
+                    button.Height = DaisyResourceLookup.GetDefaultHeight(selectorSize);
+                }
             }
 
             if (_selectorLabels.Count > 0)
@@ -396,6 +434,16 @@ namespace Flowery.WinUI.Gallery
             if (_neumorphicSelector != null)
             {
                 _neumorphicSelector.FontSize = fontSize;
+            }
+
+            if (_baseColorText != null)
+            {
+                _baseColorText.FontSize = fontSize;
+            }
+
+            if (_resetBaseColorButton != null)
+            {
+                _resetBaseColorButton.FontSize = fontSize;
             }
 
             if (_selectorLabels.Count > 0)
@@ -578,6 +626,118 @@ namespace Flowery.WinUI.Gallery
             return panel;
         }
 
+        // A color button that shows the base in use and picks a new one for DaisyThemeManager.BaseOverride, and a button
+        // that gives the base of the theme back.
+        private StackPanel BuildBaseColorSelector(SidebarItem item, Panel parentPanel)
+        {
+            var metrics = GetSidebarMetrics();
+            var selectorSize = GetSelectorSize(ResolvedSize);
+            var selectorHeight = DaisyResourceLookup.GetDefaultHeight(selectorSize);
+            var resources = Application.Current?.Resources;
+
+            // The stable palette brushes follow every theme and base change.
+            var swatch = new Border
+            {
+                Width = 14,
+                Height = 14,
+                CornerRadius = new CornerRadius(4),
+                BorderThickness = new Thickness(1),
+                BorderBrush = GetBrush(resources, "DaisyBase300Brush", new SolidColorBrush(Colors.Gray)),
+                Background = GetBrush(resources, "DaisyBase100Brush", new SolidColorBrush(Colors.White)),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var text = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
+            var pick = new DaisyButton
+            {
+                Name = "SidebarBaseColorButton",
+                Size = selectorSize,
+                Height = selectorHeight,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { swatch, text } }
+            };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(pick, item.DisplayName);
+            var reset = new DaisyButton
+            {
+                Name = "SidebarBaseColorResetButton",
+                Size = selectorSize,
+                Height = selectorHeight,
+                Variant = DaisyButtonVariant.Ghost,
+                Margin = new Thickness(4, 0, 0, 0)
+            };
+            FlowerySizeManager.SetIgnoreGlobalSize(pick, true);
+            FlowerySizeManager.SetIgnoreGlobalSize(reset, true);
+            pick.Click += OnPickBaseColorClick;
+            reset.Click += OnResetBaseColorClick;
+            _baseColorButton = pick;
+            _baseColorText = text;
+            _resetBaseColorButton = reset;
+            UpdateBaseColorSelector();
+
+            var row = new Grid
+            {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                ColumnDefinitions =
+                {
+                    new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) },
+                    new ColumnDefinition { Width = GridLength.Auto }
+                }
+            };
+            Grid.SetColumn(reset, 1);
+            row.Children.Add(pick);
+            row.Children.Add(reset);
+
+            var panel = CreateSelectorGroup(item, row, metrics);
+            panel.Margin = metrics.SelectorPanelMargin;
+            parentPanel.Children.Add(panel);
+            return panel;
+        }
+
+        // "Theme" while the theme keeps its base, else the color of the override, such as #0B1B5E.
+        internal static string BaseColorText(Color? baseOverride) =>
+            baseOverride is { } color
+                ? FloweryColorHelpers.ColorToHex(color, includeAlpha: false)
+                : GalleryLocalization.GetString("Sidebar_Theme");
+
+        private void UpdateBaseColorSelector()
+        {
+            if (_baseColorText != null)
+            {
+                _baseColorText.Text = BaseColorText(DaisyThemeManager.BaseOverride);
+            }
+
+            if (_resetBaseColorButton != null)
+            {
+                var resetText = GalleryLocalization.GetString("Sidebar_BaseColorReset");
+                _resetBaseColorButton.Content = resetText;
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_resetBaseColorButton, resetText);
+                _resetBaseColorButton.IsEnabled = DaisyThemeManager.BaseOverride != null;
+            }
+        }
+
+        private void OnBaseOverrideChanged(object? sender, EventArgs e) => UpdateBaseColorSelector();
+
+        private async void OnPickBaseColorClick(object sender, RoutedEventArgs e)
+        {
+            if (XamlRoot is not { } root)
+                return;
+
+            var start = DaisyThemeManager.BaseOverride
+                ?? (DaisyResourceLookup.TryGetResource(Application.Current?.Resources, "DaisyBase100Color", out var value) && value is Color theme
+                    ? theme
+                    : Colors.SteelBlue);
+            // The base is always opaque, so the picker offers no alpha.
+            if (await DaisyColorPickerDialog.ShowAsync(root, start, showAlphaChannel: false, customColors: null) is { } color)
+            {
+                DaisyThemeManager.BaseOverride = color;
+            }
+        }
+
+        private void OnResetBaseColorClick(object sender, RoutedEventArgs e)
+        {
+            DaisyThemeManager.BaseOverride = null;
+        }
+
         private void OnNeumorphicSelectorSelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
             if (sender is DaisySelect selector && selector.SelectedItem is DaisyNeumorphicMode mode)
@@ -625,6 +785,14 @@ namespace Flowery.WinUI.Gallery
     }
 
     public class GallerySizeSelectorItem : SidebarItem
+    {
+    }
+
+    /// <summary>
+    /// The base color selector: a color picked for <see cref="DaisyThemeManager.BaseOverride"/>, or the base of the
+    /// theme.
+    /// </summary>
+    public class GalleryBaseColorSelectorItem : SidebarItem
     {
     }
 
