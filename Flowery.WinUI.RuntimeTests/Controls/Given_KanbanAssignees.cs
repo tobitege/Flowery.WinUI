@@ -502,6 +502,65 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                 board.Columns.Single().Tasks.Select(task => task.AssigneeId).ToArray());
         }
 
+        // Positive control for the next test: while a refresh runs, the host token reaches the adapter call.
+        [TestMethod]
+        public async Task When_TheHostTokenIsCancelledDuringARefresh_TheAdapterCallIsCancelled()
+        {
+            var pending = new TaskCompletionSource<IReadOnlyList<FlowKanbanAssignee>>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            var received = CancellationToken.None;
+            var kanban = CreateKanban(new FlowTask { Title = "Assigned", AssigneeId = "sam" });
+            kanban.AssigneeAdapter = new FlowKanbanAssigneeAdapter(token =>
+            {
+                received = token;
+                return pending.Task.WaitAsync(token);
+            });
+            using var host = new CancellationTokenSource();
+
+            var refresh = kanban.RefreshAssigneesAsync(host.Token);
+            host.Cancel();
+
+            var cancelled = false;
+            try
+            {
+                await refresh;
+            }
+            catch (OperationCanceledException)
+            {
+                cancelled = true;
+            }
+
+            Assert.IsTrue(cancelled, "The refresh did not report the cancelled host token.");
+            Assert.IsTrue(received.IsCancellationRequested, "The host token did not reach the adapter call.");
+        }
+
+        // A linked token source registers a callback on the host token until it is disposed. If a finished
+        // refresh left it registered, cancelling the host token later would still cancel the token the adapter
+        // received, and every refresh would add one more registration to a long-lived host token.
+        [TestMethod]
+        public async Task When_ARefreshWithAHostTokenHasFinished_TheHostTokenNoLongerReachesTheAdapterToken()
+        {
+            var received = new List<CancellationToken>();
+            var kanban = CreateKanban(new FlowTask { Title = "Assigned", AssigneeId = "sam" });
+            kanban.AssigneeAdapter = new FlowKanbanAssigneeAdapter(token =>
+            {
+                received.Add(token);
+                return Task.FromResult<IReadOnlyList<FlowKanbanAssignee>>(
+                    new[] { new FlowKanbanAssignee("sam", "Sam") });
+            });
+            using var host = new CancellationTokenSource();
+
+            for (var i = 0; i < 3; i++)
+                await kanban.RefreshAssigneesAsync(host.Token);
+            host.Cancel();
+
+            Assert.AreEqual(3, received.Count);
+            Assert.IsTrue(received.All(token => token.CanBeCanceled), "The adapter did not get a linked token.");
+            Assert.IsFalse(
+                received.Any(token => token.IsCancellationRequested),
+                "A finished refresh left its linked token source registered on the host token.");
+        }
+
         private static FlowKanban CreateKanban(FlowTask task)
         {
             return new FlowKanban
