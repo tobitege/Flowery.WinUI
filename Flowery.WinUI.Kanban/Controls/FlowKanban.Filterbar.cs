@@ -953,9 +953,9 @@ namespace Flowery.WinUI.Kanban.Controls
             }
         }
 
-        private void UpdateAssigneeFilterOptions(IReadOnlyList<FlowTaskAssigneeOption> resolvedOptions)
+        private void UpdateAssigneeFilterOptions()
         {
-            var options = BuildAssigneeFilterOptions(resolvedOptions);
+            var options = BuildAssigneeFilterOptions();
             var items = AssigneeFilterOptions;
             var wasSyncing = _isSyncingAssigneeFilter;
             _isSyncingAssigneeFilter = true;
@@ -974,44 +974,32 @@ namespace Flowery.WinUI.Kanban.Controls
             SyncSelectedAssigneeFromCriteria();
         }
 
-        private List<FlowTaskAssigneeOption> BuildAssigneeFilterOptions(
-            IEnumerable<FlowTaskAssigneeOption> resolvedOptions)
+        // The adapter's assignees, then the IDs that only saved tasks carry, so a saved filter keeps working.
+        private List<FlowTaskAssigneeOption> BuildAssigneeFilterOptions()
         {
             var options = new List<FlowTaskAssigneeOption>();
             var seenIds = new HashSet<string>(StringComparer.Ordinal);
 
-            foreach (var option in resolvedOptions ?? Array.Empty<FlowTaskAssigneeOption>())
+            foreach (var assignee in _assignees)
             {
-                if (option?.Id is not { } id || string.IsNullOrWhiteSpace(id))
-                    continue;
-
-                if (!seenIds.Add(id))
-                    continue;
-
-                var displayName = string.IsNullOrWhiteSpace(option.DisplayName)
-                    ? id
-                    : option.DisplayName.Trim();
-                options.Add(new FlowTaskAssigneeOption(id, displayName));
+                if (seenIds.Add(assignee.Id))
+                    options.Add(new FlowTaskAssigneeOption(assignee.Id, assignee.DisplayName));
             }
 
-            // Assignees that the adapter no longer knows stay selectable, so a saved filter keeps working.
-            var unresolvedLabel = FloweryLocalization.GetStringInternal("Kanban_Users_Unresolved", "Unavailable");
-            foreach (var column in Board?.Columns ?? [])
+            // Only an adapter can fail to know an ID. Without one, nothing is unavailable: the names stay plain.
+            var unresolvedSuffix = AssigneeAdapter is null
+                ? string.Empty
+                : $" ({FloweryLocalization.GetStringInternal("Kanban_Users_Unresolved", "Unavailable")})";
+            foreach (var task in EnumerateBoardTasks())
             {
-                foreach (var task in column.Tasks)
-                {
-                    var id = task.AssigneeId;
-                    if (string.IsNullOrWhiteSpace(id) || !seenIds.Add(id))
-                        continue;
+                var id = task.AssigneeId;
+                if (string.IsNullOrWhiteSpace(id) || !seenIds.Add(id))
+                    continue;
 
-                    var displayName = string.IsNullOrWhiteSpace(task.Assignee)
-                        ? id
-                        : task.Assignee.Trim();
-                    options.Add(new FlowTaskAssigneeOption(
-                        id,
-                        $"{displayName} ({unresolvedLabel})",
-                        isResolved: false));
-                }
+                var displayName = string.IsNullOrWhiteSpace(task.Assignee)
+                    ? id
+                    : task.Assignee.Trim();
+                options.Add(new FlowTaskAssigneeOption(id, displayName + unresolvedSuffix, isResolved: false));
             }
 
             options.Sort((left, right) =>

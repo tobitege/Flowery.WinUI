@@ -1217,7 +1217,6 @@ namespace Flowery.WinUI.Kanban.Controls
                 _suppressAutoSave = false;
             }
 
-            _ = ObserveAssigneeRefreshAsync(RefreshAssigneesAsync());
             TrySaveBoard(out _);
             RefreshBoards();
             CurrentView = FlowKanbanView.Board;
@@ -1571,7 +1570,6 @@ namespace Flowery.WinUI.Kanban.Controls
             }
 
             UpdateLastBoardId(data.Id);
-            _ = ObserveAssigneeRefreshAsync(RefreshAssigneesAsync());
             return true;
         }
 
@@ -2004,6 +2002,7 @@ namespace Flowery.WinUI.Kanban.Controls
             if (e.Action == NotifyCollectionChangedAction.Reset)
             {
                 RebuildTracking();
+                ApplyKnownAssignees(EnumerateBoardTasks());
                 RequestAutoSave();
                 return;
             }
@@ -2014,6 +2013,8 @@ namespace Flowery.WinUI.Kanban.Controls
                 {
                     UntrackColumn(column);
                 }
+
+                ScheduleAssigneeFilterRebuild();
             }
 
             if (e.NewItems != null)
@@ -2022,6 +2023,8 @@ namespace Flowery.WinUI.Kanban.Controls
                 {
                     TrackColumn(column);
                 }
+
+                ApplyKnownAssignees(e.NewItems.Cast<FlowKanbanColumnData>().SelectMany(column => column.Tasks));
             }
 
             UpdateLaneRows();
@@ -2036,7 +2039,7 @@ namespace Flowery.WinUI.Kanban.Controls
             if (e.Action == NotifyCollectionChangedAction.Reset)
             {
                 RebuildTracking();
-                _ = ObserveAssigneeRefreshAsync(RefreshAssigneesAsync());
+                ApplyKnownAssignees(EnumerateBoardTasks());
                 RequestAutoSave();
                 ApplySearchFilter();
                 return;
@@ -2048,6 +2051,9 @@ namespace Flowery.WinUI.Kanban.Controls
                 {
                     UntrackTask(task);
                 }
+
+                // A removed task can take the last use of an unresolved ID with it.
+                ScheduleAssigneeFilterRebuild();
             }
 
             if (e.NewItems != null)
@@ -2057,11 +2063,12 @@ namespace Flowery.WinUI.Kanban.Controls
                     TrackTask(task);
                     ApplySearchFilterToTask(task);
                 }
+
+                ApplyKnownAssignees(e.NewItems.Cast<FlowTask>());
             }
 
             UpdateLaneRows();
             UpdateSelectionMetrics();
-            _ = ObserveAssigneeRefreshAsync(RefreshAssigneesAsync());
             RequestAutoSave();
         }
 
@@ -2121,6 +2128,14 @@ namespace Flowery.WinUI.Kanban.Controls
                 || string.Equals(e.PropertyName, nameof(FlowTask.AssigneeRoles), StringComparison.Ordinal))
                 return;
 
+            if (_isApplyingAssigneeMetadata)
+            {
+                // A name from the assignee adapter is display data, not an edit: no CardEdited, no auto-save.
+                if (sender is FlowTask syncedTask && IsSearchRelevantProperty(e.PropertyName))
+                    ApplySearchFilterToTask(syncedTask);
+                return;
+            }
+
             if (sender is FlowTask task)
             {
                 var isSearchRelevant = IsSearchRelevantProperty(e.PropertyName)
@@ -2141,10 +2156,11 @@ namespace Flowery.WinUI.Kanban.Controls
                 UpdateLaneRows();
             }
 
-            if (string.Equals(e.PropertyName, nameof(FlowTask.AssigneeId), StringComparison.Ordinal))
+            if (string.Equals(e.PropertyName, nameof(FlowTask.AssigneeId), StringComparison.Ordinal)
+                && sender is FlowTask reassignedTask)
             {
                 // A reassigned task needs the new assignee's name, avatar and roles.
-                _ = ObserveAssigneeRefreshAsync(RefreshAssigneesAsync());
+                ApplyKnownAssignees(new[] { reassignedTask });
             }
 
             if (string.Equals(e.PropertyName, nameof(FlowTask.IsSelected), StringComparison.Ordinal))

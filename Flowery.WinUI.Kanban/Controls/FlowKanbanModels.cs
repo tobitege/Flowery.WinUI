@@ -46,7 +46,7 @@ namespace Flowery.WinUI.Kanban.Controls
         // Assignment & Categorization
         private string? _assignee;
         private string? _assigneeId;
-        private Microsoft.UI.Xaml.Media.ImageSource? _assigneeAvatarSource;
+        private ImageSource? _assigneeAvatarSource;
         private IReadOnlyList<string> _assigneeRoles = Array.Empty<string>();
         private string? _tags;
         private string? _laneId;
@@ -223,7 +223,7 @@ namespace Flowery.WinUI.Kanban.Controls
 
         /// <summary>Transient avatar supplied by the assignee adapter.</summary>
         [JsonIgnore]
-        public Microsoft.UI.Xaml.Media.ImageSource? AssigneeAvatarSource
+        public ImageSource? AssigneeAvatarSource
         {
             get => _assigneeAvatarSource;
             internal set => SetProperty(ref _assigneeAvatarSource, value);

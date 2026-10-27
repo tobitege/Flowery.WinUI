@@ -261,6 +261,22 @@ namespace Flowery.WinUI.Kanban.Controls
         }
         #endregion
 
+        #region IsAssigneeAvatarPlaceholder
+        public static readonly DependencyProperty IsAssigneeAvatarPlaceholderProperty =
+            DependencyProperty.Register(
+                nameof(IsAssigneeAvatarPlaceholder),
+                typeof(bool),
+                typeof(FlowTaskCard),
+                new PropertyMetadata(true));
+
+        /// <summary>True while the assignee has no avatar image, so the avatar shows the initials.</summary>
+        public bool IsAssigneeAvatarPlaceholder
+        {
+            get => (bool)GetValue(IsAssigneeAvatarPlaceholderProperty);
+            set => SetValue(IsAssigneeAvatarPlaceholderProperty, value);
+        }
+        #endregion
+
         #region AssigneeRolesText
         public static readonly DependencyProperty AssigneeRolesTextProperty =
             DependencyProperty.Register(
@@ -1188,6 +1204,7 @@ namespace Flowery.WinUI.Kanban.Controls
                 HasAssigneeRoles = AssigneeRolesText.Length > 0;
             }
 
+            IsAssigneeAvatarPlaceholder = !HasAssigneeAvatar;
             UpdateAssigneeRolesToolTip();
             UpdateFooterVisibility();
         }

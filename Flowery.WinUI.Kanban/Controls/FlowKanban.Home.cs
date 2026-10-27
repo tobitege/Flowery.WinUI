@@ -556,7 +556,6 @@ namespace Flowery.WinUI.Kanban.Controls
             }
 
             UpdateLastBoardId(data.Id);
-            _ = ObserveAssigneeRefreshAsync(RefreshAssigneesAsync());
         }
 
         private async void ExecuteCreateBoard()
@@ -795,7 +794,7 @@ namespace Flowery.WinUI.Kanban.Controls
             CurrentView = FlowKanbanView.Board;
         }
 
-        private static FlowKanbanData BuildDefaultBoard(bool includeDemoTasks)
+        internal static FlowKanbanData BuildDefaultBoard(bool includeDemoTasks)
         {
             var board = new FlowKanbanData();
             if (includeDemoTasks)
@@ -1011,6 +1010,8 @@ namespace Flowery.WinUI.Kanban.Controls
                         Description = description,
                         Tags = $"{primaryTag}, {secondaryTag}",
                         Assignee = assignee,
+                        // Demo IDs a host adapter can resolve, as in Flowery.NET: "demo-sam" for Sam.
+                        AssigneeId = $"demo-{assignee.ToLowerInvariant()}",
                         Priority = priority,
                         Palette = palette,
                         ProgressPercent = progress

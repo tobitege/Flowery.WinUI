@@ -15,5 +15,6 @@
     <ProjectReference Include="..\Flowery.WinUI\Flowery.WinUI.csproj" />
     <ProjectReference Include="..\Flowery.WinUI.Kanban\Flowery.WinUI.Kanban.csproj" />
     <EmbeddedResource Include="Localization\*.json" LogicalName="$(AssemblyName).Localization.%(Filename)%(Extension)" />
+    <InternalsVisibleTo Include="Flowery.WinUI.RuntimeTests" />
   </ItemGroup>
 </Project>

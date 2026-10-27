@@ -1,6 +1,7 @@
 ﻿using Flowery.Controls;
 using Flowery.Enums;
 using Flowery.WinUI.Kanban.Controls;
+using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace Flowery.WinUI.Gallery.Examples
 {
@@ -39,18 +40,18 @@ namespace Flowery.WinUI.Gallery.Examples
                 System.Diagnostics.Debug.WriteLine(
                     $"Kanban assignee {args.Operation} failed: {args.Exception.Message}");
             };
+            DemoKanban.RegisterPropertyChangedCallback(FlowKanban.BoardProperty, OnDemoBoardChanged);
 
             DemoKanban.EditCardCommand = new RelayCommand<FlowTask>(async task =>
             {
                 if (task == null || XamlRoot == null)
                     return;
 
-                var assignees = await GetAssigneeOptionsAsync(_assigneeAdapter);
                 await FlowTaskEditorDialog.ShowAsyncWithAssignees(
                     task,
                     XamlRoot,
                     DemoKanban.Board.Tags,
-                    assignees,
+                    DemoKanban.GetAssigneeOptions(),
                     DemoKanban.AutoExpandCardDetails);
             });
 
@@ -68,8 +69,15 @@ namespace Flowery.WinUI.Gallery.Examples
             }
         }
 
+        private static void OnDemoBoardChanged(DependencyObject sender, DependencyProperty property)
+        {
+            if (sender is FlowKanban { Board: { } board })
+                MigrateLegacyDemoAssigneeIds(board);
+        }
+
         // The demo supplies its assignees directly. A real host app loads them from its own user store.
-        private static IReadOnlyList<FlowKanbanAssignee> CreateAssignees()
+        // Sam and Dario have avatar images; the others show their initials.
+        internal static IReadOnlyList<FlowKanbanAssignee> CreateAssignees()
         {
             string[] names = ["Sam", "Dario", "Max", "Demis", "Adam", "Lucy", "Anita", "Sue", "Eric", "Forrest"];
             return names.Select((name, index) =>
@@ -80,11 +88,28 @@ namespace Flowery.WinUI.Gallery.Examples
                     1 => ["Product owner"],
                     _ => ["Contributor"]
                 };
-                return new FlowKanbanAssignee(
-                    $"demo-{name.ToLowerInvariant()}",
-                    name,
-                    roles: roles);
+                ImageSource? avatar = index switch
+                {
+                    0 => new BitmapImage(new Uri("ms-appx:///Assets/tile_blue.jpg")),
+                    1 => new BitmapImage(new Uri("ms-appx:///Assets/tile_purple.jpg")),
+                    _ => null
+                };
+                return new FlowKanbanAssignee(DemoAssigneeId(name), name, avatar, roles);
             }).ToArray();
+        }
+
+        private static string DemoAssigneeId(string name) => $"demo-{name.ToLowerInvariant()}";
+
+        // Gallery boards saved before 1.11 carry the IDs of the removed local user provider ("local:demo-sam").
+        // The host owns its IDs, so the Gallery maps them to its current ones once.
+        internal static void MigrateLegacyDemoAssigneeIds(FlowKanbanData board)
+        {
+            const string legacyPrefix = "local:demo-";
+            foreach (var task in board.Columns.SelectMany(column => column.Tasks))
+            {
+                if (task.AssigneeId is { } id && id.StartsWith(legacyPrefix, StringComparison.Ordinal))
+                    task.AssigneeId = id["local:".Length..];
+            }
         }
 
         private static void EnsureKanbanResourcesLoaded()
@@ -146,7 +171,8 @@ namespace Flowery.WinUI.Gallery.Examples
             return false;
         }
 
-        private static FlowKanbanData CreateSampleKanbanBoard()
+        // Assigned tasks show the adapter's avatar (Sam, Dario) or initials, and the roles as the avatar's tooltip.
+        internal static FlowKanbanData CreateSampleKanbanBoard()
         {
             return new FlowKanbanData
             {
@@ -162,6 +188,8 @@ namespace Flowery.WinUI.Gallery.Examples
                                 Title = "Make content sections more interactive",
                                 Description = "Add extra visual elements to remove big walls of text\n\nhigh priority",
                                 Palette = DaisyColor.Primary,
+                                Assignee = "Sam",
+                                AssigneeId = DemoAssigneeId("Sam"),
                                 Subtasks =
                                 {
                                     new FlowSubtask { Title = "Add cards explaining Kanban concept", IsCompleted = true },
@@ -173,19 +201,25 @@ namespace Flowery.WinUI.Gallery.Examples
                             {
                                 Title = "Some other todo",
                                 Description = "Additional task details here",
-                                Palette = DaisyColor.Default
+                                Palette = DaisyColor.Default,
+                                Assignee = "Dario",
+                                AssigneeId = DemoAssigneeId("Dario")
                             },
                             new FlowTask
                             {
                                 Title = "Another todo",
                                 Description = "Important pending item",
-                                Palette = DaisyColor.Secondary
+                                Palette = DaisyColor.Secondary,
+                                Assignee = "Lucy",
+                                AssigneeId = DemoAssigneeId("Lucy")
                             },
                             new FlowTask
                             {
                                 Title = "One more",
                                 Description = "Final todo item",
-                                Palette = DaisyColor.Default
+                                Palette = DaisyColor.Default,
+                                Assignee = "Eric",
+                                AssigneeId = DemoAssigneeId("Eric")
                             }
                         ]
                     },
@@ -198,7 +232,9 @@ namespace Flowery.WinUI.Gallery.Examples
                             {
                                 Title = "Make content sections more interactive",
                                 Description = "Subtask: 1/3 complete",
-                                Palette = DaisyColor.Error
+                                Palette = DaisyColor.Error,
+                                Assignee = "Max",
+                                AssigneeId = DemoAssigneeId("Max")
                             }
                         ]
                     },
@@ -212,6 +248,8 @@ namespace Flowery.WinUI.Gallery.Examples
                                 Title = "Buy more coffee",
                                 Description = "Completed: 1/3",
                                 Palette = DaisyColor.Default,
+                                Assignee = "Sam",
+                                AssigneeId = DemoAssigneeId("Sam"),
                                 Subtasks =
                                 [
                                     new FlowSubtask { Title = "Order beans online", IsCompleted = true },
@@ -223,22 +261,14 @@ namespace Flowery.WinUI.Gallery.Examples
                             {
                                 Title = "Published repo",
                                 Description = "Successfully published",
-                                Palette = DaisyColor.Success
+                                Palette = DaisyColor.Success,
+                                Assignee = "Anita",
+                                AssigneeId = DemoAssigneeId("Anita")
                             }
                         ]
                     }
                 ]
             };
-        }
-
-        private static async Task<IReadOnlyList<FlowTaskAssigneeOption>> GetAssigneeOptionsAsync(
-            IFlowKanbanAssigneeAdapter adapter)
-        {
-            var assignees = await adapter.GetAssigneesAsync();
-            return assignees
-                .Select(assignee => new FlowTaskAssigneeOption(assignee.Id, assignee.DisplayName))
-                .OrderBy(option => option.DisplayName, StringComparer.OrdinalIgnoreCase)
-                .ToArray();
         }
     }
 }

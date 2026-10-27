@@ -82,6 +82,7 @@ The Kanban system spans multiple files for modularity:
 | `LaneRows` | `ObservableCollection<FlowKanbanLaneRowView>` | Lane row view models used by the swimlane grid template. |
 | `AssigneeAdapter` | `IFlowKanbanAssigneeAdapter?` | Supplies assignee IDs, names, avatars and roles. `null` leaves the saved assignments as they are. |
 | `AssigneeFilterOptions` | `ObservableCollection<FlowTaskAssigneeOption>` | The assignees of the filter bar: the adapter's list plus unresolved IDs from saved tasks. |
+| `GetAssigneeOptions()` | `IReadOnlyList<FlowTaskAssigneeOption>` | The adapter's assignees sorted by name, as the choices for the task editor. |
 
 ## User API: Assignees Without External Account Integration
 
@@ -114,7 +115,8 @@ An ID cannot be empty.
 If a list contains the same ID more than once, the adapter uses the first entry.
 
 When an old task contains an unknown ID, the board keeps that ID and its last known name.
-The filter bar lists such an assignee as unavailable, so a saved filter keeps working.
+The filter bar still lists such an assignee, so a saved filter keeps working.
+With an adapter set, the entry is marked "(Unavailable)"; without an adapter, nothing can be resolved and the names stay plain.
 The task receives a new name, avatar and role list after the host app resolves the ID.
 
 ### Use a Direct Assignee List
@@ -164,7 +166,7 @@ Task<FlowKanbanAssignee?> FindAssigneeAsync(
     CancellationToken cancellationToken);
 ```
 
-`LoadAssigneesAsync` returns the choices for the task editor and the assignee filter.
+`LoadAssigneesAsync` returns the assignees of the board. The board uses them for the assignee filter, and `GetAssigneeOptions()` hands them to the task editor (see below).
 `FindAssigneeAsync` finds one ID that already exists in saved task data.
 If the host app does not know the ID, it returns `null`.
 
@@ -193,8 +195,23 @@ await kanban.RefreshAssigneesAsync(cancellationToken);
 
 ### Task Editor
 
-The task editor takes its assignee choices from the host as well.
-Pass `FlowTaskAssigneeOption` items (ID and display name) to `FlowTaskEditorDialog.ShowAsyncWithAssignees`, for example built from `adapter.GetAssigneesAsync()`.
+The host opens the task editor through `EditCardCommand`.
+`GetAssigneeOptions()` returns the adapter's assignees, sorted by name, ready for `FlowTaskEditorDialog.ShowAsyncWithAssignees`:
+
+```csharp
+kanban.EditCardCommand = new RelayCommand<FlowTask>(async task =>
+{
+    if (task is null || kanban.XamlRoot is null)
+        return;
+
+    await FlowTaskEditorDialog.ShowAsyncWithAssignees(
+        task,
+        kanban.XamlRoot,
+        kanban.Board.Tags,
+        kanban.GetAssigneeOptions(),
+        kanban.AutoExpandCardDetails);
+});
+```
 
 ### Avatars and Roles
 
@@ -207,10 +224,11 @@ The role list is not saved because the host app remains the source of that data.
 
 ### Changes, Delays and Errors
 
-When the control opens, the board reloads assignees.
-When the adapter reports a change, the board reloads them again, also from another thread.
+The board reloads the assignees when the control opens, when `Board` or `AssigneeAdapter` changes, and when the adapter raises `AssigneesChanged`, also from another thread.
+Added, moved and reassigned tasks do not reload the list: they take the last loaded assignees, and an ID the adapter has not been asked about is resolved once through `ResolveAssigneeAsync`.
 A newer reload replaces an older unfinished reload.
 An unfinished reload cannot change the board after the control is unloaded.
+Names that the adapter updates are display data: they raise no `CardEdited` and start no auto-save.
 
 Callback errors do not rewrite the assignee IDs or names in task data.
 The `AssigneeAdapterFailed` event reports the operation and the original error.

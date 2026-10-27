@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
+using Flowery.WinUI.Gallery.Examples;
 using Flowery.WinUI.Kanban.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -102,9 +104,14 @@ namespace Flowery.WinUI.RuntimeTests.Controls
 
             var card = new FlowTaskCard { Task = task };
             Assert.IsTrue(card.HasAssigneeAvatar);
+            Assert.IsFalse(card.IsAssigneeAvatarPlaceholder);
             Assert.AreSame(avatar, card.AssigneeAvatarSource);
             Assert.IsTrue(card.HasAssigneeRoles);
             Assert.AreEqual("Administrator, Reviewer", card.AssigneeRolesText);
+
+            var initialsCard = new FlowTaskCard { Task = new FlowTask { Title = "Initials", Assignee = "Bo Lee" } };
+            Assert.IsTrue(initialsCard.HasAssignee);
+            Assert.IsTrue(initialsCard.IsAssigneeAvatarPlaceholder);
 
             var json = JsonSerializer.Serialize(task, FlowKanbanJsonContext.Default.FlowTask);
             Assert.IsFalse(json.Contains(nameof(FlowTask.AssigneeAvatarSource), StringComparison.Ordinal));
@@ -294,6 +301,207 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             }
         }
 
+        [TestMethod]
+        public async Task When_TasksMoveOrJoin_TheAdapterListIsNotReloaded()
+        {
+            var adapter = new CountingAdapter(new[]
+            {
+                new FlowKanbanAssignee("sam", "Sam", roles: new[] { "Administrator" }),
+                new FlowKanbanAssignee("dario", "Dario", roles: new[] { "Product owner" })
+            });
+            var moved = new FlowTask { Title = "Moved", AssigneeId = "sam" };
+            var todo = new FlowKanbanColumnData { Title = "Todo", Tasks = { moved } };
+            var done = new FlowKanbanColumnData { Title = "Done" };
+            var kanban = new FlowKanban
+            {
+                AutoSaveAfterEdits = false,
+                Board = new FlowKanbanData { Columns = { todo, done } }
+            };
+            kanban.AssigneeAdapter = adapter;
+            RuntimeTestHelpers.AttachToHost(kanban);
+            await RuntimeTestHelpers.EnsureLoadedAsync(kanban);
+            await kanban.RefreshAssigneesAsync();
+            var loads = adapter.LoadCount;
+
+            todo.Tasks.Remove(moved);
+            done.Tasks.Add(moved);
+            var joined = new FlowTask { Title = "Joined", AssigneeId = "dario" };
+            done.Tasks.Add(joined);
+
+            Assert.AreEqual(loads, adapter.LoadCount, "A move or a new task reloaded the adapter's list.");
+            Assert.AreEqual(0, adapter.ResolveCounts.Count, "Known IDs were resolved again.");
+            CollectionAssert.AreEqual(new[] { "Administrator" }, moved.AssigneeRoles.ToArray());
+            Assert.AreEqual("Dario", joined.Assignee);
+            CollectionAssert.AreEqual(new[] { "Product owner" }, joined.AssigneeRoles.ToArray());
+        }
+
+        [TestMethod]
+        public async Task When_ATaskWithAnUnknownIdJoins_OnlyThatIdIsResolvedOnce()
+        {
+            var adapter = new CountingAdapter(
+                new[] { new FlowKanbanAssignee("sam", "Sam") },
+                new[] { new FlowKanbanAssignee("ext-1", "External", roles: new[] { "Guest" }) });
+            var todo = new FlowKanbanColumnData { Title = "Todo" };
+            var done = new FlowKanbanColumnData { Title = "Done" };
+            var kanban = new FlowKanban
+            {
+                AutoSaveAfterEdits = false,
+                Board = new FlowKanbanData { Columns = { todo, done } }
+            };
+            kanban.AssigneeAdapter = adapter;
+            RuntimeTestHelpers.AttachToHost(kanban);
+            await RuntimeTestHelpers.EnsureLoadedAsync(kanban);
+            await kanban.RefreshAssigneesAsync();
+            var loads = adapter.LoadCount;
+
+            var external = new FlowTask { Title = "External", AssigneeId = "ext-1" };
+            var ghost = new FlowTask { Title = "Ghost", Assignee = "Gone", AssigneeId = "ghost" };
+            todo.Tasks.Add(external);
+            todo.Tasks.Add(ghost);
+            await RuntimeTestHelpers.WaitUntilAsync(
+                () => external.AssigneeRoles.Contains("Guest") && adapter.ResolveCount("ghost") == 1,
+                "the two new IDs are resolved");
+
+            todo.Tasks.Remove(external);
+            done.Tasks.Add(external);
+            todo.Tasks.Remove(ghost);
+            done.Tasks.Add(ghost);
+            await RuntimeTestHelpers.WaitUntilAsync(
+                () => kanban.AssigneeFilterOptions.Any(option => option.Id == "ghost"),
+                "the filter is rebuilt after the moves");
+
+            Assert.AreEqual(loads, adapter.LoadCount);
+            Assert.AreEqual(1, adapter.ResolveCount("ext-1"), "A resolved ID was resolved again after a move.");
+            Assert.AreEqual(1, adapter.ResolveCount("ghost"), "An unknown ID was asked for again after a move.");
+            Assert.IsTrue(kanban.GetAssigneeOptions().Any(option => option.Id == "ext-1"));
+        }
+
+        [TestMethod]
+        public async Task When_TheAdapterRenamesAnAssignee_NoCardEditedIsRaised()
+        {
+            var task = new FlowTask { Title = "Assigned", Assignee = "Old Name", AssigneeId = "sam" };
+            var kanban = CreateKanban(task);
+            kanban.AssigneeAdapter = new FlowKanbanAssigneeAdapter(new[] { new FlowKanbanAssignee("sam", "Sam") });
+            var edits = 0;
+            kanban.CardEdited += (_, _) => edits++;
+
+            await kanban.RefreshAssigneesAsync();
+
+            Assert.AreEqual("Sam", task.Assignee);
+            Assert.AreEqual(0, edits, "A name from the adapter was reported as a card edit.");
+
+            // A real edit is still reported, so the handler did not just stop listening.
+            task.Title = "Renamed by the user";
+            Assert.AreEqual(1, edits);
+        }
+
+        [TestMethod]
+        public async Task When_NoAdapterIsSet_UnresolvedAssigneesAreNotMarkedUnavailable()
+        {
+            var task = new FlowTask { Title = "Assigned", Assignee = "External User", AssigneeId = "x-1" };
+            var kanban = CreateKanban(task);
+
+            await kanban.RefreshAssigneesAsync();
+            var plain = kanban.AssigneeFilterOptions.Single();
+            Assert.AreEqual("External User", plain.DisplayName);
+            Assert.IsFalse(plain.IsResolved);
+
+            kanban.AssigneeAdapter = new FlowKanbanAssigneeAdapter();
+            await kanban.RefreshAssigneesAsync();
+            var marked = kanban.AssigneeFilterOptions.Single();
+            Assert.AreNotEqual("External User", marked.DisplayName);
+            StringAssert.StartsWith(marked.DisplayName, "External User (");
+        }
+
+        [TestMethod]
+        public async Task When_GetAssigneeOptionsIsCalled_ItReturnsTheAdaptersAssigneesSortedWithoutUnresolvedIds()
+        {
+            var task = new FlowTask { Title = "Assigned", Assignee = "Former", AssigneeId = "former" };
+            var kanban = CreateKanban(task);
+            kanban.AssigneeAdapter = new FlowKanbanAssigneeAdapter(new[]
+            {
+                new FlowKanbanAssignee("zoe", "Zoe"),
+                new FlowKanbanAssignee("adam", "adam")
+            });
+
+            await kanban.RefreshAssigneesAsync();
+
+            var options = kanban.GetAssigneeOptions();
+            CollectionAssert.AreEqual(new[] { "adam", "zoe" }, options.Select(option => option.Id).ToArray());
+            Assert.IsTrue(options.All(option => option.IsResolved));
+            Assert.IsTrue(kanban.AssigneeFilterOptions.Any(option => option.Id == "former"),
+                "The filter keeps the unresolved ID that the editor choices leave out.");
+        }
+
+        [TestMethod]
+        public void When_ABoardIsLoaded_AssigneeIdsAreKeptExactlyOrDropped()
+        {
+            var longestId = new string('x', 200);
+            var ids = new[] { " spaced id ", longestId, longestId + "x", "bad\u0007id", "plain" };
+            var column = new FlowKanbanColumnData { Title = "Todo" };
+            foreach (var id in ids)
+                column.Tasks.Add(new FlowTask { Title = "Task", AssigneeId = id });
+            var json = JsonSerializer.Serialize(
+                new FlowKanbanData { Columns = { column } },
+                FlowKanbanJsonContext.Default.FlowKanbanData);
+
+            Assert.IsTrue(FlowKanbanBoardSanitizer.TryLoadFromJson(json, out var loaded));
+
+            var loadedIds = loaded!.Columns.Single().Tasks.Select(task => task.AssigneeId).ToArray();
+            CollectionAssert.AreEqual(new string?[] { " spaced id ", longestId, null, null, "plain" }, loadedIds);
+        }
+
+        [TestMethod]
+        public void When_TheDemoBoardIsBuilt_EveryAssignedTaskCarriesADemoId()
+        {
+            var board = FlowKanban.BuildDefaultBoard(includeDemoTasks: true);
+            var assigned = board.Columns.SelectMany(column => column.Tasks)
+                .Where(task => !string.IsNullOrWhiteSpace(task.Assignee))
+                .ToArray();
+
+            Assert.IsTrue(assigned.Length > 0);
+            foreach (var task in assigned)
+                Assert.AreEqual($"demo-{task.Assignee!.ToLowerInvariant()}", task.AssigneeId, task.Title);
+        }
+
+        [TestMethod]
+        public void When_TheGalleryBuildsItsSampleBoard_EveryTaskHasAnAssigneeTheAdapterKnows()
+        {
+            var assignees = FlowKanbanExample.CreateAssignees().ToDictionary(assignee => assignee.Id);
+            var tasks = FlowKanbanExample.CreateSampleKanbanBoard().Columns.SelectMany(column => column.Tasks).ToArray();
+
+            Assert.IsTrue(tasks.All(task => task.AssigneeId is { } id && assignees.ContainsKey(id)));
+            Assert.IsNotNull(assignees["demo-sam"].AvatarSource);
+            Assert.IsTrue(assignees.Values.All(assignee => assignee.Roles.Count > 0));
+        }
+
+        [TestMethod]
+        public void When_TheGalleryLoadsABoardFromBefore111_LegacyDemoIdsAreMapped()
+        {
+            var board = new FlowKanbanData
+            {
+                Columns =
+                {
+                    new FlowKanbanColumnData
+                    {
+                        Title = "Todo",
+                        Tasks =
+                        {
+                            new FlowTask { Title = "Legacy demo", AssigneeId = "local:demo-sam" },
+                            new FlowTask { Title = "Legacy machine user", AssigneeId = "local:3f2a" },
+                            new FlowTask { Title = "Current", AssigneeId = "demo-max" }
+                        }
+                    }
+                }
+            };
+
+            FlowKanbanExample.MigrateLegacyDemoAssigneeIds(board);
+
+            CollectionAssert.AreEqual(
+                new[] { "demo-sam", "local:3f2a", "demo-max" },
+                board.Columns.Single().Tasks.Select(task => task.AssigneeId).ToArray());
+        }
+
         private static FlowKanban CreateKanban(FlowTask task)
         {
             return new FlowKanban
@@ -304,6 +512,42 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                     Columns = { new FlowKanbanColumnData { Title = "Todo", Tasks = { task } } }
                 }
             };
+        }
+
+        // Counts the adapter calls, so a test can prove that board changes do not reload the list.
+        private sealed class CountingAdapter : IFlowKanbanAssigneeAdapter
+        {
+            private readonly Dictionary<string, FlowKanbanAssignee> _listed;
+            private readonly Dictionary<string, FlowKanbanAssignee> _resolvable;
+
+            public CountingAdapter(
+                IEnumerable<FlowKanbanAssignee> listed,
+                IEnumerable<FlowKanbanAssignee>? resolvable = null)
+            {
+                _listed = listed.ToDictionary(assignee => assignee.Id, StringComparer.Ordinal);
+                _resolvable = (resolvable ?? Array.Empty<FlowKanbanAssignee>())
+                    .ToDictionary(assignee => assignee.Id, StringComparer.Ordinal);
+            }
+
+            public int LoadCount { get; private set; }
+
+            public Dictionary<string, int> ResolveCounts { get; } = new(StringComparer.Ordinal);
+
+            public event EventHandler? AssigneesChanged { add { } remove { } }
+
+            public int ResolveCount(string assigneeId) => ResolveCounts.GetValueOrDefault(assigneeId);
+
+            public Task<IReadOnlyList<FlowKanbanAssignee>> GetAssigneesAsync(CancellationToken cancellationToken = default)
+            {
+                LoadCount++;
+                return Task.FromResult<IReadOnlyList<FlowKanbanAssignee>>(_listed.Values.ToArray());
+            }
+
+            public Task<FlowKanbanAssignee?> ResolveAssigneeAsync(string assigneeId, CancellationToken cancellationToken = default)
+            {
+                ResolveCounts[assigneeId] = ResolveCount(assigneeId) + 1;
+                return Task.FromResult(_listed.GetValueOrDefault(assigneeId) ?? _resolvable.GetValueOrDefault(assigneeId));
+            }
         }
     }
 }

@@ -20,7 +20,6 @@
     <!-- Kanban -->
     <kanbanConverters:KanbanTasksHostMarginConverter x:Key="KanbanTasksHostMarginConverter" />
     <kanbanConverters:KanbanTasksListViewPaddingConverter x:Key="KanbanTasksListViewPaddingConverter" />
-    <kanbanConverters:KanbanInverseBooleanConverter x:Key="KanbanInverseBooleanConverter" />
 
     <Style x:Key="KanbanTasksListViewItemContainerStyle" TargetType="ListViewItem">
         <!-- Remove WinUI default left/right content insets (notably 16,0,12,0) so cards can be flush. -->
@@ -257,7 +256,7 @@
                                                       Grid.RowSpan="2"
                                                       Grid.Column="0"
                                                       Size="ExtraSmall"
-                                                      IsPlaceholder="{Binding HasAssigneeAvatar, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource KanbanInverseBooleanConverter}}"
+                                                      IsPlaceholder="{TemplateBinding IsAssigneeAvatarPlaceholder}"
                                                       Source="{TemplateBinding AssigneeAvatarSource}"
                                                       Initials="{TemplateBinding AssigneeInitials}"
                                                       VerticalAlignment="Center"
