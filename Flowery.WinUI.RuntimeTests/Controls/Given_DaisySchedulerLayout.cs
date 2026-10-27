@@ -276,23 +276,33 @@ public sealed partial class Given_DaisyScheduler
     }
 
     [TestMethod]
-    public async Task When_TheTimelineGetsWider_ItsHoursFillTheVisibleWidthWithoutScrollingSideways()
+    public async Task When_TheTimelineIsWiderThanItsHours_TheyFillItWithoutScrollingSideways()
     {
         var scope = await SchedulerScope.CreateAsync(SchedulerView.Timeline);
+        // The smallest size and the shorter clock keep a day of hours within a 1080p width.
+        scope.Scheduler.Size = DaisySize.ExtraSmall;
+        scope.Scheduler.ClockFormat = SchedulerClockFormat.TwentyFourHour;
+        await scope.LayoutAsync();
         double CanvasWidth() => ((Canvas)scope.Frame(scope.Appointment).Parent).Width;
-        var narrow = CanvasWidth();
-        Assert.IsTrue(narrow + 1 >= scope.BodyScroll().ViewportWidth, $"{narrow} for {scope.BodyScroll().ViewportWidth}");
-        // The hours fill a viewport of 2882, and 2882 / 1440 * 1440 is 2882.0000000000005.
-        for (var pass = 0; pass < 3 && scope.BodyScroll().ViewportWidth != 2882; pass++)
+        // Narrower than its hours, the Timeline keeps their minimum width and scrolls.
+        var minimum = CanvasWidth();
+        Assert.IsTrue(minimum + 1 >= scope.BodyScroll().ViewportWidth, $"{minimum} for {scope.BodyScroll().ViewportWidth}");
+        var scale = scope.Host.XamlRoot.RasterizationScale;
+        var chrome = scope.Host.ActualWidth - scope.BodyScroll().ViewportWidth;
+        // Filled hours divide the view width into minutes and multiply it back, which ends a fraction above the
+        // width for about one width in six; layout rounding must absorb that. At no device pixel width may the
+        // Timeline scroll sideways or leave a gap.
+        var first = Math.Ceiling((minimum + chrome) * scale) + 1;
+        Assert.IsTrue((first + 32) / scale <= 1920, $"Hours of {minimum} at scale {scale} do not fill a 1080p width.");
+        for (var pixel = first; pixel < first + 32; pixel++)
         {
-            scope.Host.Width += 2882 - scope.BodyScroll().ViewportWidth;
+            scope.Host.Width = pixel / scale;
             await scope.LayoutAsync();
+            var scroll = scope.BodyScroll();
+            var label = $"Host {scope.Host.Width:R} at scale {scale}";
+            Assert.AreEqual(0, scroll.ScrollableWidth, $"{label}: extent {scroll.ExtentWidth:R} for {scroll.ViewportWidth:R}.");
+            Assert.AreEqual(scroll.ViewportWidth, CanvasWidth(), 1 / scale, $"{label}: lane.");
         }
-        var scroll = scope.BodyScroll();
-        Assert.IsTrue(CanvasWidth() > narrow, $"{CanvasWidth()} after {narrow}");
-        Assert.AreEqual(2882, scroll.ViewportWidth);
-        Assert.AreEqual(scroll.ViewportWidth, scroll.ExtentWidth, $"extent {scroll.ExtentWidth:R}");
-        Assert.AreEqual(2882, CanvasWidth(), $"lane {CanvasWidth():R}");
     }
 
     [TestMethod]
