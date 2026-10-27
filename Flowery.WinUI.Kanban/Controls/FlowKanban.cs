@@ -736,6 +736,8 @@ namespace Flowery.WinUI.Kanban.Controls
 
         #region Persistence Keys
         private const string SettingsStorageKey = "kanban.settings";
+        private const string LegacyUserSettingsStorageKeyPrefix = "kanban.user.settings";
+        private const string LegacyLocalUserIdStorageKey = "FlowKanban.LocalUserId";
         #endregion
 
         #region Settings
@@ -1410,13 +1412,43 @@ namespace Flowery.WinUI.Kanban.Controls
                 return;
 
             _settingsLoaded = true;
-            var json = LoadStateText(SettingsStorageKey);
+            var json = MigrateUserScopedSettings() ?? LoadStateText(SettingsStorageKey);
             if (string.IsNullOrWhiteSpace(json))
                 return;
 
             var data = JsonSerializer.Deserialize(json, FlowKanbanJsonContext.Default.FlowKanbanSettingsState);
             if (data != null)
                 ApplySettingsState(data);
+        }
+
+        // Up to 1.10 the settings were stored per user (`kanban.user.settings.<userId>`) and the entry under
+        // `kanban.settings` could be stale. The entry of the local user, or the only entry, becomes the single
+        // settings entry once; the per-user entries are then removed. Returns the migrated JSON, or null.
+        private static string? MigrateUserScopedSettings()
+        {
+            var storage = StateStorageProvider.Instance;
+            var legacyKeys = storage.GetKeys(LegacyUserSettingsStorageKeyPrefix).ToList();
+            if (legacyKeys.Count == 0)
+                return null;
+
+            var localUserId = storage.LoadLines(LegacyLocalUserIdStorageKey).FirstOrDefault()?.Trim();
+            var sourceKey = string.IsNullOrWhiteSpace(localUserId)
+                ? null
+                : legacyKeys.FirstOrDefault(key => key.Contains(localUserId, StringComparison.Ordinal));
+            sourceKey ??= legacyKeys.Count == 1 ? legacyKeys[0] : null;
+
+            string? json = null;
+            if (sourceKey != null)
+            {
+                json = LoadStateText(sourceKey);
+                if (!string.IsNullOrWhiteSpace(json))
+                    SaveStateText(SettingsStorageKey, json);
+            }
+
+            foreach (var key in legacyKeys)
+                storage.Delete(key);
+
+            return json;
         }
 
         private void SaveSettingsCore()
@@ -2107,6 +2139,12 @@ namespace Flowery.WinUI.Kanban.Controls
             if (string.Equals(e.PropertyName, nameof(FlowTask.LaneId), StringComparison.Ordinal))
             {
                 UpdateLaneRows();
+            }
+
+            if (string.Equals(e.PropertyName, nameof(FlowTask.AssigneeId), StringComparison.Ordinal))
+            {
+                // A reassigned task needs the new assignee's name, avatar and roles.
+                _ = ObserveAssigneeRefreshAsync(RefreshAssigneesAsync());
             }
 
             if (string.Equals(e.PropertyName, nameof(FlowTask.IsSelected), StringComparison.Ordinal))

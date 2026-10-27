@@ -240,6 +240,60 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             CollectionAssert.AreEqual(new[] { "New Role" }, resolved.Roles.ToArray());
         }
 
+        [TestMethod]
+        public async Task When_ATaskIsReassigned_TheNewAssigneesMetadataReplacesTheOld()
+        {
+            var samAvatar = new BitmapImage();
+            var task = new FlowTask { Title = "Assigned", AssigneeId = "sam" };
+            var kanban = CreateKanban(task);
+            kanban.AssigneeAdapter = new FlowKanbanAssigneeAdapter(new[]
+            {
+                new FlowKanbanAssignee("sam", "Sam", samAvatar, new[] { "Administrator" }),
+                new FlowKanbanAssignee("dario", "Dario", roles: new[] { "Product owner" })
+            });
+            RuntimeTestHelpers.AttachToHost(kanban);
+            await RuntimeTestHelpers.EnsureLoadedAsync(kanban);
+            await kanban.RefreshAssigneesAsync();
+            Assert.AreSame(samAvatar, task.AssigneeAvatarSource);
+
+            // The task editor writes the new ID and name of a reassigned task.
+            task.AssigneeId = "dario";
+            task.Assignee = "Dario";
+
+            await RuntimeTestHelpers.WaitUntilAsync(
+                () => task.AssigneeAvatarSource is null && task.AssigneeRoles.Contains("Product owner"),
+                "the card carries Dario's avatar and roles");
+            Assert.AreEqual("Dario", task.Assignee);
+        }
+
+        [TestMethod]
+        public void When_SettingsWereStoredPerUser_TheLocalUsersEntryBecomesTheSettings()
+        {
+            var storage = new InMemoryStateStorage();
+            var previous = StateStorageProvider.Instance;
+            StateStorageProvider.Configure(storage);
+            try
+            {
+                storage.SaveLines("FlowKanban.LocalUserId", new[] { "11111111-2222-3333-4444-555555555555" });
+                storage.SaveLines("kanban.settings", new[] { "{\"ConfirmColumnRemovals\":true,\"ColumnWidth\":280}" });
+                storage.SaveLines("kanban.user.settings.local_11111111-2222-3333-4444-555555555555",
+                    new[] { "{\"ConfirmColumnRemovals\":false,\"ColumnWidth\":333}" });
+                storage.SaveLines("kanban.user.settings.github_octocat", new[] { "{\"ColumnWidth\":120}" });
+
+                var kanban = new FlowKanban();
+                Assert.IsTrue(kanban.TryLoadSettings(forceReload: true, out var error), error?.Message);
+
+                Assert.IsFalse(kanban.ConfirmColumnRemovals);
+                Assert.AreEqual(333, kanban.ColumnWidth);
+                Assert.AreEqual(0, storage.GetKeys("kanban.user.settings").Count());
+                StringAssert.Contains(string.Join("", storage.LoadLines("kanban.settings")), "333");
+            }
+            finally
+            {
+                StateStorageProvider.Configure(previous);
+            }
+        }
+
         private static FlowKanban CreateKanban(FlowTask task)
         {
             return new FlowKanban

@@ -198,6 +198,7 @@ public sealed class FlowKanbanAssigneeAdapter : IFlowKanbanAssigneeAdapter
         return null;
     }
 
+    // FlowKanbanAssignee is immutable and normalizes itself, so only duplicate IDs are dropped.
     private static IReadOnlyList<FlowKanbanAssignee> NormalizeAssignees(
         IEnumerable<FlowKanbanAssignee> assignees)
     {
@@ -205,17 +206,8 @@ public sealed class FlowKanbanAssigneeAdapter : IFlowKanbanAssigneeAdapter
         var seenIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var assignee in assignees)
         {
-            if (assignee is null)
-                continue;
-
-            if (!seenIds.Add(assignee.Id))
-                continue;
-
-            normalized.Add(new FlowKanbanAssignee(
-                assignee.Id,
-                assignee.DisplayName,
-                assignee.AvatarSource,
-                assignee.Roles));
+            if (assignee is not null && seenIds.Add(assignee.Id))
+                normalized.Add(assignee);
         }
 
         return Array.AsReadOnly(normalized.ToArray());

@@ -35,9 +35,12 @@
 
             kanban.CancelAssigneeRefresh();
             kanban.DetachAssigneeAdapter();
-            kanban.UpdateAssigneeFilterOptions(Array.Empty<FlowTaskAssigneeOption>());
-            if (!kanban.IsLoaded)
+            if (e.NewValue is null || !kanban.IsLoaded)
+            {
+                // No refresh will rebuild the filter, so it keeps only the assignees of the saved tasks.
+                kanban.UpdateAssigneeFilterOptions(Array.Empty<FlowTaskAssigneeOption>());
                 return;
+            }
 
             kanban.AttachAssigneeAdapter(e.NewValue as IFlowKanbanAssigneeAdapter);
             _ = ObserveAssigneeRefreshAsync(kanban.RefreshAssigneesAsync());
@@ -86,9 +89,11 @@
         /// </summary>
         public async Task RefreshAssigneesAsync(CancellationToken cancellationToken = default)
         {
-            var adapter = await FlowKanbanDispatcher.InvokeAsync(DispatcherQueue, () => AssigneeAdapter)
+            // The adapter and the version are taken together on the UI thread, so a refresh started from
+            // another thread cannot pair a newer version with an adapter that has already been replaced.
+            var (adapter, version) = await FlowKanbanDispatcher.InvokeAsync(DispatcherQueue, () =>
+                    (AssigneeAdapter, Interlocked.Increment(ref _assigneeRefreshVersion)))
                 .ConfigureAwait(false);
-            var version = Interlocked.Increment(ref _assigneeRefreshVersion);
             var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             var previousCancellation = Interlocked.Exchange(ref _assigneeRefreshCancellation, cancellation);
             previousCancellation?.Cancel();
@@ -199,11 +204,13 @@
             }
             finally
             {
+                // Not disposed: a cancel from the UI thread may still reach this source, and a linked source
+                // without a timer holds nothing that needs disposing.
                 Interlocked.CompareExchange(ref _assigneeRefreshCancellation, null, cancellation);
-                cancellation.Dispose();
             }
         }
 
+        // FlowKanbanAssignee is immutable and normalizes itself, so only duplicate IDs are dropped.
         private static List<FlowKanbanAssignee> NormalizeResolvedAssignees(
             IEnumerable<FlowKanbanAssignee>? assignees)
         {
@@ -211,17 +218,8 @@
             var seenIds = new HashSet<string>(StringComparer.Ordinal);
             foreach (var assignee in assignees ?? Array.Empty<FlowKanbanAssignee>())
             {
-                if (assignee is null)
-                    continue;
-
-                if (!seenIds.Add(assignee.Id))
-                    continue;
-
-                normalized.Add(new FlowKanbanAssignee(
-                    assignee.Id,
-                    assignee.DisplayName,
-                    assignee.AvatarSource,
-                    assignee.Roles));
+                if (assignee is not null && seenIds.Add(assignee.Id))
+                    normalized.Add(assignee);
             }
 
             return normalized;
@@ -290,12 +288,14 @@
                         if (!string.Equals(task.Assignee, assignee.DisplayName, StringComparison.Ordinal))
                             task.Assignee = assignee.DisplayName;
                         task.AssigneeAvatarSource = assignee.AvatarSource;
-                        task.AssigneeRoles = assignee.Roles;
+                        if (!task.AssigneeRoles.SequenceEqual(assignee.Roles, StringComparer.Ordinal))
+                            task.AssigneeRoles = assignee.Roles;
                     }
                     else
                     {
                         task.AssigneeAvatarSource = null;
-                        task.AssigneeRoles = Array.Empty<string>();
+                        if (task.AssigneeRoles.Count > 0)
+                            task.AssigneeRoles = Array.Empty<string>();
                     }
                 }
             }

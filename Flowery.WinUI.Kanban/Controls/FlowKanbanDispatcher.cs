@@ -7,6 +7,8 @@ namespace Flowery.WinUI.Kanban.Controls;
 /// </summary>
 internal static class FlowKanbanDispatcher
 {
+    /// <summary>Runs the action on the UI thread. While the queue shuts down, the action is dropped: it must
+    /// never run on the calling thread, which may not touch the control.</summary>
     internal static void RunOrPost(DispatcherQueue? dispatcher, Action action)
     {
         ArgumentNullException.ThrowIfNull(action);
@@ -16,10 +18,7 @@ internal static class FlowKanbanDispatcher
             return;
         }
 
-        if (!dispatcher.TryEnqueue(() => action()))
-        {
-            action();
-        }
+        dispatcher.TryEnqueue(() => action());
     }
 
     internal static Task InvokeAsync(DispatcherQueue? dispatcher, Action action)
