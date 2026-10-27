@@ -79,7 +79,8 @@ internal sealed partial class DaisyTourHandleLayer : Canvas
         {
             var path = _hitPaths[index];
             path.Data = null;
-            if (index >= tour.AnnotationPresenters.Count) continue;
+            // A connector hidden for an unavailable target keeps no hit area.
+            if (index >= tour.AnnotationPresenters.Count || tour.AnnotationPresenters[index].Visibility == Visibility.Collapsed) continue;
             var points = tour.AnnotationPresenters[index].Course;
             path.Tag = index;
             path.Width = Width;
@@ -97,7 +98,8 @@ internal sealed partial class DaisyTourHandleLayer : Canvas
             path.Data = hitGeometry;
         }
         var selected = _editor.SelectedAnnotationIndex;
-        if (selected < 0 || selected >= tour.AnnotationPresenters.Count || tour.AnnotationPresenters[selected].EditGeometry is not { } geometryForEdit)
+        if (selected < 0 || selected >= tour.AnnotationPresenters.Count || tour.AnnotationPresenters[selected].Visibility == Visibility.Collapsed ||
+            tour.AnnotationPresenters[selected].EditGeometry is not { } geometryForEdit)
         { HideHandles(); return; }
         var geometry = geometryForEdit;
         var along = Unit(geometry.Source, geometry.Target);

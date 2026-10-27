@@ -4,6 +4,7 @@
   "Tour_Skip": "تخطي",
   "Tour_Finish": "إنهاء",
   "Tour_StepCount": "الخطوة {0} من {1}",
+  "Tour_TargetUnavailable": "لا يمكن عرض عنصر هذه الخطوة الآن.",
   "Size_ExtraSmall": "صغير جداً",
   "Sidebar_Favorite": "مفضل",
   "Common_Selected": "محدد",

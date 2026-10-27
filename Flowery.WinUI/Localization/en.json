@@ -4,6 +4,7 @@
   "Tour_Skip": "Skip",
   "Tour_Finish": "Finish",
   "Tour_StepCount": "Step {0} of {1}",
+  "Tour_TargetUnavailable": "This step's element can't be shown right now.",
   "Size_ExtraSmall": "Extra Small",
   "Sidebar_Favorite": "Favorite",
   "Common_Selected": "Selected",

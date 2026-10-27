@@ -4,6 +4,7 @@
   "Tour_Skip": "Пропустити",
   "Tour_Finish": "Завершити",
   "Tour_StepCount": "Крок {0} із {1}",
+  "Tour_TargetUnavailable": "Елемент цього кроку зараз неможливо показати.",
   "Size_ExtraSmall": "Дуже малий",
   "Sidebar_Favorite": "Обране",
   "Common_Selected": "Вибрано",

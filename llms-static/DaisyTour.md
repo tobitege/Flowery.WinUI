@@ -74,11 +74,23 @@ Keep step definitions in the application; the library does not discover targets 
 | `Cancel()` | Close with `Cancelled`. |
 | `IsOpen`, `CurrentIndex`, `CurrentStep` | Read the current session state. |
 | `Closed` | Receive one outcome for the session. |
+| `StepTargetUnavailable` | Learn that a step target or connector end cannot be shown. |
 
 The `Closed` event supplies `DaisyTourClosedEventArgs`.
 Its `Reason` is `Completed`, `Skipped`, `Cancelled`, or `TargetUnavailable`.
-`StepId`, `AnnotationId`, `Target`, and `Error` identify the affected definition when applicable.
-Unavailable targets do not count as completed steps.
+`TargetUnavailable` means the tour could not open because it belongs to no window.
+
+A target that cannot be shown never closes a running tour.
+This covers a missing, collapsed, transparent, detached, or foreign-window target, one that stays outside the visible area after scrolling, and a failed `PrepareAsync`.
+The step stays open in a warning state: the card waits at its stationary position (the center for `Target`), the card frame and the current progress step take the warning color, and a short note explains that the element cannot be shown right now.
+Connectors that need the missing element are hidden.
+When the element becomes visible again, the step returns to its normal presentation.
+`StepTargetUnavailable` supplies `DaisyTourTargetUnavailableEventArgs` with `StepId`, `AnnotationId`, `Target`, and `Error`, once per cause and visit of the step.
+
+```csharp
+Tour.StepTargetUnavailable += (_, problem) =>
+    Log.Warning(problem.Error, "Tour step {Step} cannot show {Annotation}", problem.StepId, problem.AnnotationId);
+```
 
 ```csharp
 Tour.Closed += (_, result) =>
@@ -90,7 +102,7 @@ Tour.Closed += (_, result) =>
 
 The application owns any first-run flag and replay command.
 Keep replay available after completion or Skip.
-Do not mark cancellation or a target error as successful completion.
+Do not mark cancellation as successful completion.
 
 ## Annotations
 
@@ -101,7 +113,7 @@ Set `Source` to connect two distinct controls.
 Both controls must belong to the same `XamlRoot` and be visible in the layout.
 When both cannot fit in a scrolled area, the step target is scrolled into view first.
 A connector then still reaches the other control's real position, even outside the window.
-A collapsed, transparent, detached, or foreign-window endpoint closes the tour with `TargetUnavailable`.
+A collapsed, transparent, detached, or foreign-window endpoint hides its connector and puts the step in its warning state.
 
 ```csharp
 var step = new DaisyTourStep
@@ -133,7 +145,7 @@ Tour.Steps.Add(step);
 `SourceAnchor` and `TargetAnchor` accept `Auto`, `Top`, `Bottom`, `Left`, `Right`, and `Center`.
 Automatic anchors use the current bounds of both controls.
 Resize, reflow, and scrolling update the geometry during the active step.
-When another scroll moves the step target out of view, the tour scrolls its targets into view again; a target that stays outside the visible area closes the tour with `TargetUnavailable`.
+When another scroll moves the step target out of view, the tour scrolls its targets into view again; a target that stays outside the visible area puts the step in its warning state until it returns.
 
 ## Style inheritance
 

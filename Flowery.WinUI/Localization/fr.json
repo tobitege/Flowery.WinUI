@@ -4,6 +4,7 @@
   "Tour_Skip": "Passer",
   "Tour_Finish": "Terminer",
   "Tour_StepCount": "Étape {0} sur {1}",
+  "Tour_TargetUnavailable": "L'élément de cette étape ne peut pas être affiché pour le moment.",
   "Size_ExtraSmall": "Très petit",
   "Sidebar_Favorite": "Favori",
   "Common_Selected": "Sélectionné",

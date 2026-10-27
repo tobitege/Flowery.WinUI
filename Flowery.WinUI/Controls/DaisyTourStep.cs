@@ -8,6 +8,8 @@ public enum DaisyTourPlacement { Auto, Top, Bottom, Left, Right }
 
 /// <summary>Where the step card appears: beside the target, or at a fixed window position.</summary>
 public enum DaisyTourCardPosition { Default, Target, TopLeft, Top, TopRight, Left, Center, Right, BottomLeft, Bottom, BottomRight }
+/// <summary>Why a session ended. <c>TargetUnavailable</c> means the tour could not open because it belongs to no window;
+/// a target that cannot be shown during a session raises <see cref="DaisyTour.StepTargetUnavailable"/> instead.</summary>
 public enum DaisyTourCloseReason { Completed, Skipped, Cancelled, TargetUnavailable }
 
 /// <summary>The result of one tour session. Target failures identify the affected step and annotation.</summary>
@@ -28,6 +30,23 @@ public sealed class DaisyTourClosedEventArgs : EventArgs
     public string? AnnotationId { get; }
     public FrameworkElement? Target { get; }
     public Exception? Error { get; }
+}
+
+/// <summary>A step target or connector end that cannot be shown. The step stays open in its warning state.</summary>
+public sealed class DaisyTourTargetUnavailableEventArgs : EventArgs
+{
+    internal DaisyTourTargetUnavailableEventArgs(string stepId, string? annotationId, FrameworkElement? target, Exception error)
+    {
+        StepId = stepId;
+        AnnotationId = annotationId;
+        Target = target;
+        Error = error;
+    }
+
+    public string StepId { get; }
+    public string? AnnotationId { get; }
+    public FrameworkElement? Target { get; }
+    public Exception Error { get; }
 }
 
 /// <summary>A nonvisual, bindable definition. Preparation runs again on every visit.</summary>

@@ -680,7 +680,7 @@ public class Given_DaisyTour
     }
 
     [TestMethod]
-    public async Task When_TargetIsUnavailableOrPreparationFails_TheFailureIdentifiesTheStep()
+    public async Task When_TargetIsUnavailableOrPreparationFails_TheStepStaysOpenWithAWarningThatIdentifiesIt()
     {
         var visible = CreateTarget();
         var detached = CreateTarget();
@@ -692,7 +692,9 @@ public class Given_DaisyTour
         var tour = new DaisyTour();
         var root = CreateRoot(tour, visible, hidden);
         var closed = new List<DaisyTourClosedEventArgs>();
+        var unavailable = new List<DaisyTourTargetUnavailableEventArgs>();
         tour.Closed += (_, args) => closed.Add(args);
+        tour.StepTargetUnavailable += (_, args) => unavailable.Add(args);
         Func<DaisyTourStep, CancellationToken, Task> failing = (_, _) => throw new InvalidOperationException("Preparation failed");
         var cases = new (string Id, FrameworkElement? Target, Func<DaisyTourStep, CancellationToken, Task>? PrepareAsync)[]
         {
@@ -710,15 +712,26 @@ public class Given_DaisyTour
                 try
                 {
                     tour.Steps.Clear();
-                    tour.Steps.Add(new DaisyTourStep { Id = id, Target = target, PrepareAsync = prepare });
+                    var step = new DaisyTourStep { Id = id, Target = target, PrepareAsync = prepare };
+                    tour.Steps.Add(step);
                     await tour.StartAsync().WaitAsync(Timeout);
-                    AssertClosed(tour);
-                    Assert.AreEqual(DaisyTourCloseReason.TargetUnavailable, closed[^1].Reason);
-                    Assert.AreEqual(id, closed[^1].StepId);
-                    Assert.AreSame(target, closed[^1].Target);
+                    await ArrangeAsync(root);
+                    AssertActive(tour, step, 0);
+                    AssertWarning(tour, true);
+                    Assert.AreEqual(id, unavailable[^1].StepId);
+                    Assert.AreSame(target, unavailable[^1].Target);
+                    Assert.IsNotNull(unavailable[^1].Error);
+                    // The card waits inside the window instead of vanishing.
+                    var surface = GetSurface(tour);
+                    var card = tour.CardBounds;
+                    Assert.IsTrue(card.Width > 0 && card.Left >= 0 && card.Top >= 0 && card.Right <= surface.ActualWidth && card.Bottom <= surface.ActualHeight,
+                        $"The card {card} must stay in the window.");
+                    tour.Skip();
+                    Assert.AreEqual(DaisyTourCloseReason.Skipped, closed[^1].Reason);
                 }
                 catch (Exception error) when (error is not AssertInconclusiveException) { throw CaseFailure(id, error); }
             }
+            Assert.HasCount(cases.Length, unavailable, "Each case reports its cause once.");
             Assert.HasCount(cases.Length, closed);
         }
         finally
@@ -727,6 +740,40 @@ public class Given_DaisyTour
             RuntimeTestContext.Window?.Activate();
             await CleanupAsync(root, tour);
         }
+    }
+
+    [TestMethod]
+    public async Task When_TheStepTargetLeavesTheVisibleArea_TheStepShowsAWarningUntilTheTargetReturns()
+    {
+        var target = CreateTarget();
+        var step = new DaisyTourStep { Id = "outside", Target = target };
+        var tour = new DaisyTour();
+        tour.Steps.Add(step);
+        var root = CreateRoot(tour, target);
+        var reports = new List<DaisyTourTargetUnavailableEventArgs>();
+        tour.StepTargetUnavailable += (_, args) => reports.Add(args);
+        try
+        {
+            await LoadAsync(root);
+            await tour.StartAsync().WaitAsync(Timeout);
+            AssertActive(tour, step, 0);
+            AssertWarning(tour, false);
+            // No scroll area can bring the target back: it moves far below the window.
+            target.Margin = new Thickness(24, 5000, 0, 0);
+            for (var attempt = 0; attempt < 20 && !tour.IsTargetUnavailable; attempt++) await ArrangeAsync(root);
+            AssertActive(tour, step, 0);
+            AssertWarning(tour, true);
+            Assert.HasCount(1, reports);
+            Assert.AreEqual("outside", reports[0].StepId);
+            Assert.AreSame(target, reports[0].Target);
+            target.Margin = new Thickness(24);
+            for (var attempt = 0; attempt < 20 && tour.IsTargetUnavailable; attempt++) await ArrangeAsync(root);
+            AssertActive(tour, step, 0);
+            AssertWarning(tour, false);
+            AssertTargetBounds(tour, target);
+            Assert.HasCount(1, reports, "The returning target raises no further report.");
+        }
+        finally { await CleanupAsync(root, tour); }
     }
 
     [TestMethod]
@@ -1532,7 +1579,7 @@ public class Given_DaisyTour
     }
 
     [TestMethod]
-    public async Task When_ConnectorTargetsReflow_BothEndpointsTrackAndUnavailableTargetIsIdentified()
+    public async Task When_ConnectorTargetsReflow_BothEndpointsTrackAndAnUnavailableEndIsReportedUntilItReturns()
     {
         var source = CreateTarget();
         var target = CreateTarget();
@@ -1549,8 +1596,9 @@ public class Given_DaisyTour
         tour.Steps.Add(step);
         var root = CreateRoot(tour, source, target);
         DaisyTourClosedEventArgs? closed = null;
-        var closure = new TaskCompletionSource<DaisyTourClosedEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
-        tour.Closed += (_, args) => { closed = args; closure.TrySetResult(args); };
+        tour.Closed += (_, args) => closed = args;
+        var unavailable = new TaskCompletionSource<DaisyTourTargetUnavailableEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+        tour.StepTargetUnavailable += (_, args) => unavailable.TrySetResult(args);
         try
         {
             await LoadAsync(root);
@@ -1579,14 +1627,24 @@ public class Given_DaisyTour
             targetBounds = Frame(tour, BoundsInRoot(target));
             AssertEndpoints(path, new Point(sourceBounds.Left, sourceBounds.Y + sourceBounds.Height / 2),
                 new Point(targetBounds.Right, targetBounds.Y + targetBounds.Height / 2));
+            // An end that leaves the layout hides its connector and shows the warning; the step stays open.
             target.Visibility = Visibility.Collapsed;
-            await closure.Task.WaitAsync(Timeout);
-            AssertClosed(tour);
-            Assert.IsNotNull(closed);
-            Assert.AreEqual(DaisyTourCloseReason.TargetUnavailable, closed.Reason);
-            Assert.AreEqual("connection", closed.StepId);
-            Assert.AreEqual("relationship", closed.AnnotationId);
-            Assert.AreSame(target, closed.Target);
+            var reported = await unavailable.Task.WaitAsync(Timeout);
+            await ArrangeAsync(root);
+            AssertActive(tour, step, 0);
+            AssertWarning(tour, true);
+            Assert.IsNull(closed, "An unavailable end must not close the tour.");
+            Assert.AreEqual("connection", reported.StepId);
+            Assert.AreEqual("relationship", reported.AnnotationId);
+            Assert.AreSame(target, reported.Target);
+            Assert.AreEqual(Visibility.Collapsed, presenter.Visibility, "The connector to the unavailable end is hidden.");
+            // The end returns, and so do its connector and the normal card.
+            target.Visibility = Visibility.Visible;
+            for (var attempt = 0; attempt < 20 && tour.IsTargetUnavailable; attempt++) await ArrangeAsync(root);
+            AssertActive(tour, step, 0);
+            AssertWarning(tour, false);
+            Assert.AreEqual(Visibility.Visible, presenter.Visibility, "The connector returns with its end.");
+            Assert.IsNull(closed);
         }
         finally { await CleanupAsync(root, tour); }
     }
@@ -2445,6 +2503,13 @@ public class Given_DaisyTour
         Assert.AreSame(step, tour.CurrentStep, diagnostic);
         Assert.AreEqual(index, tour.CurrentIndex, diagnostic);
         Assert.AreEqual(index, tour.Progress.SelectedIndex, diagnostic);
+    }
+
+    private static void AssertWarning(DaisyTour tour, bool expected)
+    {
+        Assert.AreEqual(expected, tour.IsTargetUnavailable, "warning state");
+        var warning = Descendants<Border>(GetSurface(tour)).Single(border => AutomationProperties.GetAutomationId(border) == "DaisyTourWarning");
+        Assert.AreEqual(expected ? Visibility.Visible : Visibility.Collapsed, warning.Visibility, "warning note");
     }
 
     private static void AssertClosed(DaisyTour tour)

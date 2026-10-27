@@ -457,6 +457,7 @@ Tour_Back
 Tour_Skip
 Tour_Finish
 Tour_StepCount
+Tour_TargetUnavailable
 ```
 
 ---

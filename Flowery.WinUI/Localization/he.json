@@ -4,6 +4,7 @@
   "Tour_Skip": "דלג",
   "Tour_Finish": "סיום",
   "Tour_StepCount": "שלב {0} מתוך {1}",
+  "Tour_TargetUnavailable": "לא ניתן להציג כרגע את הרכיב של שלב זה.",
   "Size_ExtraSmall": "קטן במיוחד",
   "Sidebar_Favorite": "מועדף",
   "Common_Selected": "נבחר",

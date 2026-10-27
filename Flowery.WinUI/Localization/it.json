@@ -4,6 +4,7 @@
   "Tour_Skip": "Salta",
   "Tour_Finish": "Fine",
   "Tour_StepCount": "Passaggio {0} di {1}",
+  "Tour_TargetUnavailable": "L'elemento di questo passaggio non può essere mostrato al momento.",
   "Size_ExtraSmall": "Extra piccolo",
   "Sidebar_Favorite": "Preferito",
   "Common_Selected": "Selezionato",

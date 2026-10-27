@@ -4,6 +4,7 @@
   "Tour_Skip": "Atla",
   "Tour_Finish": "Bitir",
   "Tour_StepCount": "Adım {0} / {1}",
+  "Tour_TargetUnavailable": "Bu adımın öğesi şu anda gösterilemiyor.",
   "Size_ExtraSmall": "Çok küçük",
   "Sidebar_Favorite": "Favori",
   "Common_Selected": "Seçili",
