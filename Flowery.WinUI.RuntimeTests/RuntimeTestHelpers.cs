@@ -111,19 +111,42 @@ namespace Flowery.WinUI.RuntimeTests
             }
         }
 
+        /// <summary>The longest a layout step may wait for the UI thread. Tests call it hundreds of times per suite,
+        /// and a shared CI machine can stall the UI thread for several seconds, so it matches a test case's budget;
+        /// a UI thread that is really stuck still fails.</summary>
+        public static readonly TimeSpan LayoutTimeout = CaseTimeout;
+
         public static async Task CompleteLayoutAsync(FrameworkElement element, params FrameworkElement[] requiredElements)
         {
-            await EnsureLoadedAsync(element).WaitAsync(TimeSpan.FromSeconds(5));
+            await EnsureLoadedAsync(element).WaitAsync(LayoutTimeout);
             foreach (var required in requiredElements)
-                await EnsureLoadedAsync(required).WaitAsync(TimeSpan.FromSeconds(5));
+                await EnsureLoadedAsync(required).WaitAsync(LayoutTimeout);
             var completion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-            if (!element.DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+            var dispatcher = element.DispatcherQueue;
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            long highRan = -1, normalRan = -1;
+            // Probes at the higher priorities make a timeout say whether the UI thread was blocked (no probe ran),
+            // flooded with queued work (only the high probe ran) or busy below that (both ran).
+            dispatcher.TryEnqueue(DispatcherQueuePriority.High, () => highRan = watch.ElapsedMilliseconds);
+            dispatcher.TryEnqueue(DispatcherQueuePriority.Normal, () => normalRan = watch.ElapsedMilliseconds);
+            if (!dispatcher.TryEnqueue(DispatcherQueuePriority.Low, () =>
                 {
                     element.UpdateLayout();
                     completion.TrySetResult(null);
                 }))
                 throw new InvalidOperationException("The runtime dispatcher rejected layout verification.");
-            await completion.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            try
+            {
+                await completion.Task.WaitAsync(LayoutTimeout);
+            }
+            catch (TimeoutException)
+            {
+                throw new TimeoutException(
+                    $"The low-priority layout callback did not run within {LayoutTimeout.TotalSeconds:0} s. " +
+                    $"High probe: {Describe(highRan)}, normal probe: {Describe(normalRan)}.");
+            }
+
+            static string Describe(long elapsed) => elapsed < 0 ? "did not run" : $"ran after {elapsed} ms";
         }
     }
 }

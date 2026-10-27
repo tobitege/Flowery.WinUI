@@ -147,7 +147,7 @@ The focused run does not replace the complete suite in the normal Windows theme.
 ```
 
 This script builds the solution and creates packages in `nupkg/`.
-It creates packages for Flowery.WinUI, Flowery.WinUI.Kanban, Flowery.WinUI.Win2D, and Flowery.Integrations.WinUI.
+It creates packages for Flowery.WinUI, Flowery.WinUI.Kanban and Flowery.WinUI.Win2D.
 Use `-OutputDir` to select another package directory.
 After a successful build of the same configuration, use `-SkipBuild` to package those binaries.
 

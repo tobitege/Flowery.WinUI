@@ -53,7 +53,6 @@ namespace Flowery.WinUI.Kanban.Controls
         private bool _compactScrollRefreshPending;
         private readonly List<FlowKanbanColumn> _cachedColumnControls = new();
         private ItemsControl? _laneRowsHost;
-        private FlowKanbanUserManagement? _userManagementView;
         private readonly Dictionary<(string ColumnId, string? LaneId), FlowKanbanColumn> _columnByKey = new();
 
         #region Layout DPs
@@ -400,21 +399,6 @@ namespace Flowery.WinUI.Kanban.Controls
                 return columns;
             }
             private set => SetValue(BulkMoveColumnsProperty, value);
-        }
-        #endregion
-
-        #region Sidebar UI
-        public static readonly DependencyProperty IsUserManagementButtonVisibleProperty =
-            DependencyProperty.Register(
-                nameof(IsUserManagementButtonVisible),
-                typeof(bool),
-                typeof(FlowKanban),
-                new PropertyMetadata(false));
-
-        public bool IsUserManagementButtonVisible
-        {
-            get => (bool)GetValue(IsUserManagementButtonVisibleProperty);
-            private set => SetValue(IsUserManagementButtonVisibleProperty, value);
         }
         #endregion
 
@@ -774,11 +758,9 @@ namespace Flowery.WinUI.Kanban.Controls
         private void OnKanbanLoaded(object sender, RoutedEventArgs e)
         {
             DaisyResourceLookup.EnsureTokens();
-            ApplyDefaultUserProvider();
-            AttachUserProvider(UserProvider);
-            _ = EnsureGlobalAdminAsync();
-            _ = RefreshAdminStateAsync();
-            _ = EnsureUserSettingsLoadedAsync(forceReload: false);
+            AttachAssigneeAdapter(AssigneeAdapter);
+            _ = ObserveAssigneeRefreshAsync(RefreshAssigneesAsync());
+            TryLoadSettings(forceReload: false, out _);
             RefreshBoards();
             if (CurrentView == FlowKanbanView.Board && Boards.Count == 0)
             {
@@ -803,7 +785,7 @@ namespace Flowery.WinUI.Kanban.Controls
 
         private void OnKanbanUnloaded(object sender, RoutedEventArgs e)
         {
-            if (CurrentView == FlowKanbanView.Home || CurrentView == FlowKanbanView.UserManagement)
+            if (CurrentView == FlowKanbanView.Home)
             {
                 ClearLastBoardId();
             }
@@ -831,7 +813,8 @@ namespace Flowery.WinUI.Kanban.Controls
             _isBoardHeaderFocused = false;
             HideColumnDropIndicator();
             DetachKeyboardSupport();
-            DetachUserProvider();
+            CancelAssigneeRefresh();
+            DetachAssigneeAdapter();
             StopDoneAgingTimer();
             DisposeDoneAgingTimer();
             _themeRefreshTimer?.Stop();
@@ -1830,7 +1813,6 @@ namespace Flowery.WinUI.Kanban.Controls
         internal void ResolveThemeRefreshTemplateParts()
         {
             _laneRowsHost = GetTemplateChild("PART_LaneRowsHost") as ItemsControl;
-            _userManagementView = GetTemplateChild("PART_UserManagementView") as FlowKanbanUserManagement;
         }
 
         private void ApplySwimlaneLaneHeaderTheme()
@@ -1903,7 +1885,6 @@ namespace Flowery.WinUI.Kanban.Controls
             if (DispatcherQueue == null)
             {
                 RefreshTaskCardThemes();
-                RefreshUserManagementThemes();
                 return;
             }
 
@@ -1919,15 +1900,6 @@ namespace Flowery.WinUI.Kanban.Controls
         {
             sender.Stop();
             RefreshTaskCardThemes();
-            RefreshUserManagementThemes();
-        }
-
-        private void RefreshUserManagementThemes()
-        {
-            if (_userManagementView is { IsLoaded: true } view)
-            {
-                view.RefreshTheme();
-            }
         }
 
         private void ShowBoardHeaderButtons()

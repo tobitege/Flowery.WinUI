@@ -6,6 +6,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - 2026-10-27
+
+### Added
+
+- `FlowKanban.AssigneeAdapter`, `IFlowKanbanAssigneeAdapter`, `FlowKanbanAssignee` and `FlowKanbanAssigneeAdapter`, as in Flowery.NET 3.1.0: the host application supplies the assignees of a board as stable IDs with display names, optional avatars (`ImageSource`) and descriptive roles, either as a direct list (`SetAssignees`), through a list callback, or through a single-ID resolver for IDs that saved tasks still carry. The board reloads them when it loads, when `Board` or `AssigneeAdapter` changes and when the adapter raises `AssigneesChanged`, also from another thread; `RefreshAssigneesAsync` reloads on request. Added, moved and reassigned tasks take the last loaded assignees and resolve only an ID the adapter has not been asked about, once. A newer reload replaces an older unfinished one, and an unfinished reload cannot change an unloaded board. Names the adapter updates raise no `CardEdited` and start no auto-save.
+- `FlowKanban.GetAssigneeOptions()` returns the adapter's assignees, sorted by name, as the choices for `FlowTaskEditorDialog.ShowAsyncWithAssignees`.
+- `FlowKanban.AssigneeAdapterFailed` reports a failed adapter call with the operation, the exception and the assignee ID. Saved assignments and names stay as they are.
+- `FlowTask.AssigneeAvatarSource` and `AssigneeRoles` (not saved to JSON) and the card properties `AssigneeAvatarSource`, `HasAssigneeAvatar`, `IsAssigneeAvatarPlaceholder`, `AssigneeRolesText` and `HasAssigneeRoles`: a task card shows the assignee's avatar in place of the initials and the roles as the avatar's tooltip.
+- `FlowTaskAssigneeOption.IsResolved`: the assignee filter lists an assignee that only saved tasks know, so a saved filter keeps working. With an adapter set, the entry is marked "(Unavailable)" in all twelve languages.
+- The demo board of the Kanban home screen gives its tasks the assignee IDs `demo-<name>` ("demo-sam"), as in Flowery.NET.
+- Gallery: the Kanban page's sample tasks are assigned; Sam and Dario have avatar images, every demo assignee has a role. Gallery boards saved before 1.11 have their `local:demo-<name>` IDs mapped to `demo-<name>`.
+- Docs: the "User API" section in `llms-static/FlowKanban.md` explains the adapter, its three forms and the task editor hand-off.
+
+### Changed
+
+- **Breaking:** The `Flowery.Integrations.WinUI` package is removed. Its Teams and Slack providers threw `NotImplementedException` in every data method, the OAuth provider never re-validated a stored token, the loopback sign-in used a fixed port and blocked the UI thread, and the `IdentityModel.OidcClient` dependency has reached its end of life. External identity, authentication, authorization, account mapping and token storage are the host application's responsibility. The Gallery no longer registers GitHub or OpenID Connect demo providers.
+- **Breaking:** The Kanban user-provider API is removed: `IUserProvider`, `ICompositeUserProvider`, `IFlowUser`, `FlowUser`, `FlowUserStatus`, `CompositeUserProvider`, `LocalUserProvider`, `FlowUserIdHelper`, `IUserCacheService`, `UserIdentityLinkStore`, the token interfaces (`ITokenSaveProvider`, `ITokenStateProvider`, `ITokenValidationProvider`, `IInteractiveAuthProvider`), `FlowKanban.UserProvider`, `FlowKanban.DefaultUserProvider`, `FlowKanban.GlobalAdminId`, `FlowKanban.EnsureGlobalAdminAsync`, `FlowKanban.IsUserManagementButtonEnabled`, `FlowKanban.IsUserManagementButtonVisible`, `FlowKanban.ShowUserManagementCommand`, `FlowKanban.IsUserManagementViewActive`, `FlowKanbanView.UserManagement`, the user management view (`FlowKanbanUserManagement`) with its GitHub connect dialog and sidebar button, and the `Kanban_Users_*` texts except `Kanban_Users_Unresolved`. Assignee IDs are opaque: the board keeps them exactly as the host supplied them (no trimming) and no longer clears an ID that no provider knows; on load, an ID longer than 200 characters or with a control character is dropped instead of shortened.
+- **Breaking:** `FlowTaskAssigneeOption` takes an optional third constructor parameter (`isResolved`). Source code compiles unchanged, but binaries built against 1.10 must be rebuilt because the two-parameter constructor no longer exists.
+- **Breaking:** `FlowKanban.TryLoadUserSettings` and `TrySaveUserSettings` are removed; `TryLoadSettings` and `TrySaveSettings` read and write one settings entry (`kanban.settings`) instead of one per user; the first load moves the local user's per-user entry (or the only one) into it and removes the per-user entries. The "global admin" is gone: the column shortcuts Ctrl+B, Ctrl+D and Ctrl+T and their rows in the keyboard help apply to everyone.
+- Kanban: the first settings load deletes the state entries the removed user providers left behind (`FlowKanban.LocalUserId`, `FlowKanban.IdentityLinks`, `kanban.admin.global`). The Gallery removes once the tokens its former GitHub and OpenID Connect demo providers stored in the Windows Credential Manager (`Flowery.GitHub`, `Flowery.OAuth.oidc-demo`). Apps that used the removed providers with `PasswordVaultSecureStorage` should remove their entries under `Flowery.GitHub` and `Flowery.OAuth.<providerKey>`.
+- `ISecureStorage` and `PasswordVaultSecureStorage` stay in the core package as a general service.
+
 ## [1.10.0] - 2026-10-27
 
 ### Added

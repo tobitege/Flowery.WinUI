@@ -1,24 +1,22 @@
-using Flowery.Controls;
+﻿using Flowery.Controls;
 using Flowery.Enums;
-using Flowery.Integrations.WinUI.GitHub;
-using Flowery.Integrations.WinUI.OAuth;
-using Flowery.Services;
 using Flowery.WinUI.Kanban.Controls;
-using Flowery.WinUI.Kanban.Controls.Users;
+using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace Flowery.WinUI.Gallery.Examples
 {
     public sealed partial class FlowKanbanExample : ScrollableExamplePage
     {
-        private static readonly object UserProviderInitLock = new();
         private static readonly object ResourceInitLock = new();
         private static bool _kanbanResourcesLoaded;
         private const string KanbanDictionaryUri = "ms-appx:///Flowery.WinUI.Kanban/Themes/Generic.xaml";
+        private readonly FlowKanbanAssigneeAdapter _assigneeAdapter;
         private FlowKanbanManager? _kanbanManager;
 
         public FlowKanbanExample()
         {
             InitializeComponent();
+            _assigneeAdapter = new FlowKanbanAssigneeAdapter(CreateAssignees());
             InitializeKanbanDemo();
             Unloaded += OnFlowKanbanUnloaded;
         }
@@ -32,24 +30,28 @@ namespace Flowery.WinUI.Gallery.Examples
 
         private void InitializeKanbanDemo()
         {
-#pragma warning disable CA1416 // Kanban providers use Windows APIs.
             if (DemoKanban == null)
                 return;
 
             EnsureKanbanResourcesLoaded();
-            DemoKanban.UserProvider = EnsureDefaultUserProvider();
+            DemoKanban.AssigneeAdapter = _assigneeAdapter;
+            DemoKanban.AssigneeAdapterFailed += (_, args) =>
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"Kanban assignee {args.Operation} failed: {args.Exception.Message}");
+            };
+            DemoKanban.RegisterPropertyChangedCallback(FlowKanban.BoardProperty, OnDemoBoardChanged);
 
             DemoKanban.EditCardCommand = new RelayCommand<FlowTask>(async task =>
             {
                 if (task == null || XamlRoot == null)
                     return;
 
-                var assignees = await GetAssigneeOptionsAsync(DemoKanban.UserProvider);
                 await FlowTaskEditorDialog.ShowAsyncWithAssignees(
                     task,
                     XamlRoot,
                     DemoKanban.Board.Tags,
-                    assignees,
+                    DemoKanban.GetAssigneeOptions(),
                     DemoKanban.AutoExpandCardDetails);
             });
 
@@ -65,56 +67,49 @@ namespace Flowery.WinUI.Gallery.Examples
             {
                 DemoKanban.Board = CreateSampleKanbanBoard();
             }
-#pragma warning restore CA1416
         }
 
-        private static IUserProvider EnsureDefaultUserProvider()
+        private static void OnDemoBoardChanged(DependencyObject sender, DependencyProperty property)
         {
-#pragma warning disable CA1416 // Kanban providers use Windows APIs.
-            if (FlowKanban.DefaultUserProvider != null)
+            if (sender is FlowKanban { Board: { } board })
+                MigrateLegacyDemoAssigneeIds(board);
+        }
+
+        // The demo supplies its assignees directly. A real host app loads them from its own user store.
+        // Sam and Dario have avatar images; the others show their initials.
+        internal static IReadOnlyList<FlowKanbanAssignee> CreateAssignees()
+        {
+            string[] names = ["Sam", "Dario", "Max", "Demis", "Adam", "Lucy", "Anita", "Sue", "Eric", "Forrest"];
+            return names.Select((name, index) =>
             {
-                return FlowKanban.DefaultUserProvider;
-            }
+                string[] roles = index switch
+                {
+                    0 => ["Administrator"],
+                    1 => ["Product owner"],
+                    _ => ["Contributor"]
+                };
+                ImageSource? avatar = index switch
+                {
+                    0 => new BitmapImage(new Uri("ms-appx:///Assets/tile_blue.jpg")),
+                    1 => new BitmapImage(new Uri("ms-appx:///Assets/tile_yellow.jpg")),
+                    _ => null
+                };
+                return new FlowKanbanAssignee(DemoAssigneeId(name), name, avatar, roles);
+            }).ToArray();
+        }
 
-            lock (UserProviderInitLock)
+        private static string DemoAssigneeId(string name) => $"demo-{name.ToLowerInvariant()}";
+
+        // Gallery boards saved before 1.11 carry the IDs of the removed local user provider ("local:demo-sam").
+        // The host owns its IDs, so the Gallery maps them to its current ones once.
+        internal static void MigrateLegacyDemoAssigneeIds(FlowKanbanData board)
+        {
+            const string legacyPrefix = "local:demo-";
+            foreach (var task in board.Columns.SelectMany(column => column.Tasks))
             {
-                if (FlowKanban.DefaultUserProvider != null)
-                {
-                    return FlowKanban.DefaultUserProvider;
-                }
-
-                var demoProvider = new CompositeUserProvider();
-                demoProvider.RegisterProvider(new LocalUserProvider(includeDemoUsers: true));
-                try
-                {
-                    demoProvider.RegisterProvider(new GitHubUserProvider(new PasswordVaultSecureStorage(), loadTokenFromStorage: true));
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"FlowKanbanExample GitHub provider init failed: {ex.GetType().Name} - {ex.Message}");
-                }
-
-                try
-                {
-                    demoProvider.RegisterProvider(new OAuthUserProvider(
-                        providerKey: "oidc-demo",
-                        displayName: "OIDC Demo",
-                        authority: "https://demo.duendesoftware.com/",
-                        clientId: "interactive.confidential",
-                        clientSecret: "secret",
-                        scope: "openid profile api offline_access",
-                        secureStorage: new PasswordVaultSecureStorage(),
-                        loadTokenFromStorage: true));
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"FlowKanbanExample OIDC provider init failed: {ex.GetType().Name} - {ex.Message}");
-                }
-
-                FlowKanban.DefaultUserProvider = demoProvider;
-                return demoProvider;
+                if (task.AssigneeId is { } id && id.StartsWith(legacyPrefix, StringComparison.Ordinal))
+                    task.AssigneeId = id["local:".Length..];
             }
-#pragma warning restore CA1416
         }
 
         private static void EnsureKanbanResourcesLoaded()
@@ -176,7 +171,8 @@ namespace Flowery.WinUI.Gallery.Examples
             return false;
         }
 
-        private static FlowKanbanData CreateSampleKanbanBoard()
+        // Assigned tasks show the adapter's avatar (Sam, Dario) or initials, and the roles as the avatar's tooltip.
+        internal static FlowKanbanData CreateSampleKanbanBoard()
         {
             return new FlowKanbanData
             {
@@ -192,6 +188,8 @@ namespace Flowery.WinUI.Gallery.Examples
                                 Title = "Make content sections more interactive",
                                 Description = "Add extra visual elements to remove big walls of text\n\nhigh priority",
                                 Palette = DaisyColor.Primary,
+                                Assignee = "Sam",
+                                AssigneeId = DemoAssigneeId("Sam"),
                                 Subtasks =
                                 {
                                     new FlowSubtask { Title = "Add cards explaining Kanban concept", IsCompleted = true },
@@ -203,19 +201,25 @@ namespace Flowery.WinUI.Gallery.Examples
                             {
                                 Title = "Some other todo",
                                 Description = "Additional task details here",
-                                Palette = DaisyColor.Default
+                                Palette = DaisyColor.Default,
+                                Assignee = "Dario",
+                                AssigneeId = DemoAssigneeId("Dario")
                             },
                             new FlowTask
                             {
                                 Title = "Another todo",
                                 Description = "Important pending item",
-                                Palette = DaisyColor.Secondary
+                                Palette = DaisyColor.Secondary,
+                                Assignee = "Lucy",
+                                AssigneeId = DemoAssigneeId("Lucy")
                             },
                             new FlowTask
                             {
                                 Title = "One more",
                                 Description = "Final todo item",
-                                Palette = DaisyColor.Default
+                                Palette = DaisyColor.Default,
+                                Assignee = "Eric",
+                                AssigneeId = DemoAssigneeId("Eric")
                             }
                         ]
                     },
@@ -228,7 +232,9 @@ namespace Flowery.WinUI.Gallery.Examples
                             {
                                 Title = "Make content sections more interactive",
                                 Description = "Subtask: 1/3 complete",
-                                Palette = DaisyColor.Error
+                                Palette = DaisyColor.Error,
+                                Assignee = "Max",
+                                AssigneeId = DemoAssigneeId("Max")
                             }
                         ]
                     },
@@ -242,6 +248,8 @@ namespace Flowery.WinUI.Gallery.Examples
                                 Title = "Buy more coffee",
                                 Description = "Completed: 1/3",
                                 Palette = DaisyColor.Default,
+                                Assignee = "Sam",
+                                AssigneeId = DemoAssigneeId("Sam"),
                                 Subtasks =
                                 [
                                     new FlowSubtask { Title = "Order beans online", IsCompleted = true },
@@ -253,45 +261,14 @@ namespace Flowery.WinUI.Gallery.Examples
                             {
                                 Title = "Published repo",
                                 Description = "Successfully published",
-                                Palette = DaisyColor.Success
+                                Palette = DaisyColor.Success,
+                                Assignee = "Anita",
+                                AssigneeId = DemoAssigneeId("Anita")
                             }
                         ]
                     }
                 ]
             };
         }
-
-        private static async Task<IReadOnlyList<FlowTaskAssigneeOption>> GetAssigneeOptionsAsync(IUserProvider? provider)
-        {
-            if (provider == null)
-                return Array.Empty<FlowTaskAssigneeOption>();
-
-            var users = await provider.GetAllUsersAsync();
-            if (users == null)
-                return Array.Empty<FlowTaskAssigneeOption>();
-
-            var seen = new HashSet<string>(StringComparer.Ordinal);
-            var results = new List<FlowTaskAssigneeOption>();
-            foreach (var user in users)
-            {
-                if (user == null)
-                    continue;
-
-                var name = string.IsNullOrWhiteSpace(user.DisplayName) ? user.RawId : user.DisplayName;
-                if (string.IsNullOrWhiteSpace(name))
-                    continue;
-
-                var id = user.Id?.Trim();
-                if (string.IsNullOrWhiteSpace(id))
-                    continue;
-
-                if (seen.Add(id))
-                    results.Add(new FlowTaskAssigneeOption(id, name.Trim()));
-            }
-
-            results.Sort((left, right) => StringComparer.OrdinalIgnoreCase.Compare(left.DisplayName, right.DisplayName));
-            return results;
-        }
-
     }
 }

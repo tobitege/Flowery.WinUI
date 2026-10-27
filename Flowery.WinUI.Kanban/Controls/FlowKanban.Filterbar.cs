@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -9,7 +9,6 @@ using System.Windows.Input;
 using Flowery.Controls;
 using Flowery.Localization;
 using Flowery.Services;
-using Flowery.WinUI.Kanban.Controls.Users;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -29,7 +28,6 @@ namespace Flowery.WinUI.Kanban.Controls
         private bool _isSyncingFilterCriteria;
         private bool _isSyncingSearchText;
         private bool _isSyncingAssigneeFilter;
-        private int _assigneeFilterRefreshVersion;
 
         #region Filter DPs
 
@@ -955,53 +953,58 @@ namespace Flowery.WinUI.Kanban.Controls
             }
         }
 
-        private void UpdateAssigneeFilterOptionsFromUsers(IEnumerable<IFlowUser> users)
+        private void UpdateAssigneeFilterOptions()
         {
-            var options = BuildAssigneeFilterOptions(users);
-            UpdateAssigneeFilterOptions(options);
-        }
-
-        private void UpdateAssigneeFilterOptions(IReadOnlyList<FlowTaskAssigneeOption> options)
-        {
+            var options = BuildAssigneeFilterOptions();
             var items = AssigneeFilterOptions;
-            items.Clear();
-
-            foreach (var option in options)
+            var wasSyncing = _isSyncingAssigneeFilter;
+            _isSyncingAssigneeFilter = true;
+            try
             {
-                items.Add(option);
+                items.Clear();
+                foreach (var option in options)
+                    items.Add(option);
+                HasAssigneeOptions = items.Count > 0;
+            }
+            finally
+            {
+                _isSyncingAssigneeFilter = wasSyncing;
             }
 
-            HasAssigneeOptions = items.Count > 0;
             SyncSelectedAssigneeFromCriteria();
         }
 
-        private void ClearAssigneeFilterOptions()
-        {
-            AssigneeFilterOptions.Clear();
-            HasAssigneeOptions = false;
-            SyncSelectedAssigneeFromCriteria();
-        }
-
-        private static List<FlowTaskAssigneeOption> BuildAssigneeFilterOptions(IEnumerable<IFlowUser> users)
+        // The adapter's assignees, then the IDs that only saved tasks carry, so a saved filter keeps working.
+        private List<FlowTaskAssigneeOption> BuildAssigneeFilterOptions()
         {
             var options = new List<FlowTaskAssigneeOption>();
             var seenIds = new HashSet<string>(StringComparer.Ordinal);
 
-            foreach (var user in users ?? Array.Empty<IFlowUser>())
+            foreach (var assignee in _assignees)
             {
-                if (user == null)
-                    continue;
+                if (seenIds.Add(assignee.Id))
+                    options.Add(new FlowTaskAssigneeOption(assignee.Id, assignee.DisplayName));
+            }
 
-                var id = user.Id?.Trim();
+            // Only an adapter can fail to know an ID. Without one, nothing is unavailable: the names stay plain.
+            var unresolvedSuffix = AssigneeAdapter is null
+                ? string.Empty
+                : $" ({FloweryLocalization.GetStringInternal("Kanban_Users_Unresolved", "Unavailable")})";
+            foreach (var task in EnumerateBoardTasks())
+            {
+                var id = task.AssigneeId;
                 if (string.IsNullOrWhiteSpace(id) || !seenIds.Add(id))
                     continue;
 
-                var displayName = string.IsNullOrWhiteSpace(user.DisplayName) ? id : user.DisplayName.Trim();
-                options.Add(new FlowTaskAssigneeOption(id, displayName));
+                var displayName = string.IsNullOrWhiteSpace(task.Assignee)
+                    ? id
+                    : task.Assignee.Trim();
+                options.Add(new FlowTaskAssigneeOption(id, displayName + unresolvedSuffix, isResolved: false));
             }
 
+            // Same order as GetAssigneeOptions, so the filter and the task editor list people alike.
             options.Sort((left, right) =>
-                string.Compare(left.DisplayName, right.DisplayName, StringComparison.OrdinalIgnoreCase));
+                string.Compare(left.DisplayName, right.DisplayName, StringComparison.CurrentCultureIgnoreCase));
             return options;
         }
 

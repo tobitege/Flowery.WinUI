@@ -13,8 +13,8 @@
     <EmbeddedResource Include="WebAssets\*.js" LogicalName="Flowery.GL.%(Filename)%(Extension)" />
     <EmbeddedResource Include="WebAssets\gl-transitions\**\*" LogicalName="Flowery.GL.Shaders.%(Filename)%(Extension)" />
     <ProjectReference Include="..\Flowery.WinUI\Flowery.WinUI.csproj" />
-    <ProjectReference Include="..\Flowery.Integrations.WinUI\Flowery.Integrations.WinUI.csproj" />
     <ProjectReference Include="..\Flowery.WinUI.Kanban\Flowery.WinUI.Kanban.csproj" />
     <EmbeddedResource Include="Localization\*.json" LogicalName="$(AssemblyName).Localization.%(Filename)%(Extension)" />
+    <InternalsVisibleTo Include="Flowery.WinUI.RuntimeTests" />
   </ItemGroup>
 </Project>

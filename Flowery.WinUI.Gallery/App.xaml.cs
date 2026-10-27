@@ -1,4 +1,4 @@
-// Uncomment to regenerate ProductPalettes.Generated.cs on next run:
+﻿// Uncomment to regenerate ProductPalettes.Generated.cs on next run:
 // #define GENERATE_PRODUCT_PALETTES
 
 using System.Diagnostics;
@@ -8,7 +8,6 @@ using System.Xml.Linq;
 using IOPath = System.IO.Path;
 using Flowery.Theming;
 using Flowery.WinUI.Gallery.Localization;
-using Flowery.WinUI.Kanban.Controls;
 using Flowery.Services;
 using Flowery.WinUI.RuntimeTests;
 
@@ -77,9 +76,7 @@ namespace Flowery.WinUI.Gallery
 #endif
 
             ConfigureStateStorage();
-            // only for demo purposes we enable the user management button!
-            // FlowKanban is SINGLE-USER only for time being!
-            FlowKanban.IsUserManagementButtonEnabled = true;
+            RemoveLegacyKanbanCredentials();
 
             // Apply language BEFORE creating MainWindow so FloweryLocalization.CurrentCultureName
             // is already set when the sidebar reads it during construction.
@@ -105,6 +102,24 @@ namespace Flowery.WinUI.Gallery
         private static void ConfigureStateStorage()
         {
             StateStorageProvider.Configure(new FileStateStorage(GetStateDirectory()));
+        }
+
+        // Runs off the UI thread: the vault lookups must not delay the window. Runtime test launches skip it
+        // (they return before this point), so tests never touch the user's Credential Manager.
+        private static void RemoveLegacyKanbanCredentials()
+        {
+            var stateStorage = StateStorageProvider.Instance;
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    LegacyKanbanCredentials.RemoveOnce(new PasswordVaultSecureStorage(), stateStorage);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Removing the legacy Kanban credentials failed: {ex.Message}");
+                }
+            });
         }
 
         private static void ApplyRequestedWindowPlacement(Window window)

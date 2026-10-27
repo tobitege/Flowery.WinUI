@@ -22,7 +22,7 @@ if (-not $SkipBuild) {
 }
 
 Initialize-BuildEnvironment -HeadName 'packages' -LogFileName 'nuget-pack' -Configuration $Configuration -SdkVersion $SdkVersion -DotNetPath $DotNetPath
-$projects = @('Flowery.WinUI', 'Flowery.WinUI.Kanban', 'Flowery.WinUI.Win2D', 'Flowery.Integrations.WinUI')
+$projects = @('Flowery.WinUI', 'Flowery.WinUI.Kanban', 'Flowery.WinUI.Win2D')
 foreach ($name in $projects) {
     $project = Join-Path $repoRoot ('{0}\{0}.csproj' -f $name)
     $packArgs = @($project, '-t:Pack', '-nologo', '-nodeReuse:false', '-m:1', '-p:NoBuild=true',

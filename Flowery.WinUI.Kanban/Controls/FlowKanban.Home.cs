@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -40,7 +40,7 @@ namespace Flowery.WinUI.Kanban.Controls
                     kanban.RefreshBoards();
                 }
 
-                if (!kanban._isApplyingUserSettings)
+                if (!kanban._isApplyingSettings)
                 {
                     kanban.TrySaveSettings(out _);
                 }
@@ -105,21 +105,6 @@ namespace Flowery.WinUI.Kanban.Controls
         {
             get => (bool)GetValue(IsHomeViewActiveProperty);
             private set => SetValue(IsHomeViewActiveProperty, value);
-        }
-        #endregion
-
-        #region IsUserManagementViewActive
-        public static readonly DependencyProperty IsUserManagementViewActiveProperty =
-            DependencyProperty.Register(
-                nameof(IsUserManagementViewActive),
-                typeof(bool),
-                typeof(FlowKanban),
-                new PropertyMetadata(false));
-
-        public bool IsUserManagementViewActive
-        {
-            get => (bool)GetValue(IsUserManagementViewActiveProperty);
-            private set => SetValue(IsUserManagementViewActiveProperty, value);
         }
         #endregion
 
@@ -189,19 +174,6 @@ namespace Flowery.WinUI.Kanban.Controls
         {
             get => (ICommand)GetValue(ShowHomeCommandProperty);
             set => SetValue(ShowHomeCommandProperty, value);
-        }
-
-        public static readonly DependencyProperty ShowUserManagementCommandProperty =
-            DependencyProperty.Register(
-                nameof(ShowUserManagementCommand),
-                typeof(ICommand),
-                typeof(FlowKanban),
-                new PropertyMetadata(null));
-
-        public ICommand ShowUserManagementCommand
-        {
-            get => (ICommand)GetValue(ShowUserManagementCommandProperty);
-            set => SetValue(ShowUserManagementCommandProperty, value);
         }
 
         public static readonly DependencyProperty OpenBoardCommandProperty =
@@ -500,11 +472,6 @@ namespace Flowery.WinUI.Kanban.Controls
             CurrentView = FlowKanbanView.Home;
         }
 
-        private void ExecuteShowUserManagement()
-        {
-            CurrentView = FlowKanbanView.UserManagement;
-        }
-
         private async void ExecuteOpenBoard(FlowBoardMetadata? metadata)
         {
             if (metadata == null)
@@ -589,7 +556,6 @@ namespace Flowery.WinUI.Kanban.Controls
             }
 
             UpdateLastBoardId(data.Id);
-            _ = EnsureAssigneeIdsValidAsync();
         }
 
         private async void ExecuteCreateBoard()
@@ -828,7 +794,7 @@ namespace Flowery.WinUI.Kanban.Controls
             CurrentView = FlowKanbanView.Board;
         }
 
-        private static FlowKanbanData BuildDefaultBoard(bool includeDemoTasks)
+        internal static FlowKanbanData BuildDefaultBoard(bool includeDemoTasks)
         {
             var board = new FlowKanbanData();
             if (includeDemoTasks)
@@ -1044,6 +1010,8 @@ namespace Flowery.WinUI.Kanban.Controls
                         Description = description,
                         Tags = $"{primaryTag}, {secondaryTag}",
                         Assignee = assignee,
+                        // Demo IDs a host adapter can resolve, as in Flowery.NET: "demo-sam" for Sam.
+                        AssigneeId = $"demo-{assignee.ToLowerInvariant()}",
                         Priority = priority,
                         Palette = palette,
                         ProgressPercent = progress
@@ -1187,10 +1155,7 @@ namespace Flowery.WinUI.Kanban.Controls
 
         private void UpdateViewState()
         {
-            var isHome = CurrentView == FlowKanbanView.Home;
-            var isUsers = CurrentView == FlowKanbanView.UserManagement;
-            IsHomeViewActive = isHome;
-            IsUserManagementViewActive = isUsers;
+            IsHomeViewActive = CurrentView == FlowKanbanView.Home;
             IsBoardViewActive = CurrentView == FlowKanbanView.Board;
             UpdateBoardStatusBarVisibility();
             UpdateCompactLayoutState();
@@ -1224,8 +1189,7 @@ namespace Flowery.WinUI.Kanban.Controls
     public enum FlowKanbanView
     {
         Board,
-        Home,
-        UserManagement
+        Home
     }
 
     public sealed class FlowKanbanBoardExportRequestedEventArgs : EventArgs
