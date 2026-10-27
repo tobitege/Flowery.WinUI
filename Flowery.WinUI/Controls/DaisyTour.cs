@@ -36,9 +36,36 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
         internal DaisyTourStep? PendingStep;
         internal bool Busy;
         internal bool Editing;
-        // A failed preparation of the current step, and the cause last reported for it.
+        // The visit of the current step: its number, its failed preparation, the warning it shows, the problems
+        // already reported, the reports and announcement waiting until the step settles, and whether the hidden
+        // step target was scrolled into view once since it was last visible.
+        internal int Visit;
         internal Exception? PreparationError;
-        internal string? ReportedProblem;
+        internal DaisyTourTargetProblem? Warning;
+        internal readonly HashSet<(DaisyTourTargetProblem, DaisyTourAnnotation?, FrameworkElement?)> ReportedProblems = [];
+        internal readonly List<TargetProblem> PendingReports = [];
+        internal bool PendingAnnouncement;
+        internal bool HiddenTargetRevealed;
+    }
+
+    private readonly record struct TargetProblem(DaisyTourTargetProblem Kind, DaisyTourAnnotation? Annotation, FrameworkElement? Target, Exception Error)
+    {
+        public (DaisyTourTargetProblem, DaisyTourAnnotation?, FrameworkElement?) Key => (Kind, Annotation, Target);
+
+        // The warning names the most fundamental problem: a failed preparation, then the step target, then an annotation end.
+        public int Priority => Kind switch { DaisyTourTargetProblem.Preparation => 0, DaisyTourTargetProblem.Target => 1, _ => 2 };
+    }
+
+    // Where the targets of a step are, and what keeps them from being shown.
+    private sealed class TargetLayout
+    {
+        // The visible bounds of the step target; null when it cannot be shown.
+        public Rect? Visible;
+        public bool TargetHidden;
+        public readonly Dictionary<FrameworkElement, Rect> Bounds = [];
+        public readonly List<Rect> Holes = [];
+        public readonly HashSet<DaisyTourAnnotation> Hidden = [];
+        public readonly List<TargetProblem> Problems = [];
     }
 
     private readonly Popup _popup = new() { IsLightDismissEnabled = false, ShouldConstrainToRootBounds = true };
@@ -51,11 +78,11 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
     private readonly TextBlock _title = new() { TextWrapping = TextWrapping.Wrap, FontWeight = FontWeights.SemiBold };
     private readonly TextBlock _description = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _count = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly Border _warning = new()
+    private readonly Border _warningNote = new()
     {
         CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1), Padding = new Thickness(10, 6, 10, 6), Visibility = Visibility.Collapsed
     };
-    private readonly TextBlock _warningText = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _warningNoteText = new() { TextWrapping = TextWrapping.Wrap };
     private readonly ContentPresenter _customContent = new();
     private readonly ScrollViewer _textScroll = new() { HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     private readonly ScrollViewer _progressScroll = new() { HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, IsTabStop = false };
@@ -73,7 +100,10 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
     private Rect _previousStepCard;
     private bool _updateQueued;
     private bool? _verticalButtons;
-    private bool _targetProblem;
+    // Opacity and the visibility of ancestors change no bounds, so the target trackers miss them; while a
+    // session runs, this timer compares the availability of the step's targets with the last update.
+    private DispatcherQueueTimer? _availabilityTimer;
+    private bool[]? _availability;
 
     public DaisyTour()
     {
@@ -92,8 +122,8 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
             _cardLayout.RowDefinitions.Add(new RowDefinition { Height = index == 0 ? new GridLength(1, GridUnitType.Star) : GridLength.Auto });
         var text = new StackPanel { Spacing = 8 };
         text.Children.Add(CreateCardHeader());
-        _warning.Child = _warningText;
-        text.Children.Add(_warning);
+        _warningNote.Child = _warningNoteText;
+        text.Children.Add(_warningNote);
         text.Children.Add(_description);
         text.Children.Add(_customContent);
         _textScroll.Content = text;
@@ -114,7 +144,7 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
         AutomationProperties.SetAutomationId(_next, "DaisyTourNext");
         AutomationProperties.SetAutomationId(_skip, "DaisyTourSkip");
         AutomationProperties.SetAutomationId(_card, "DaisyTourCard");
-        AutomationProperties.SetAutomationId(_warning, "DaisyTourWarning");
+        AutomationProperties.SetAutomationId(_warningNote, "DaisyTourWarning");
         AutomationProperties.SetLiveSetting(_card, AutomationLiveSetting.Polite);
         Steps.CollectionChanged += OnStepsChanged;
     }
@@ -124,13 +154,16 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
     public int CurrentIndex { get; private set; } = -1;
     public DaisyTourStep? CurrentStep { get; private set; }
     public event EventHandler<DaisyTourClosedEventArgs>? Closed;
-    /// <summary>A step target or connector end cannot be shown, such as one outside every scrollable area or
-    /// removed from the window. The step stays open in a warning state; this is raised once per cause and visit.</summary>
-    public event EventHandler<DaisyTourTargetUnavailableEventArgs>? StepTargetUnavailable;
+    /// <summary>A step cannot show everything it describes: its preparation failed, or its target or a connector end
+    /// is missing, collapsed, transparent, in another window or outside the visible area after scrolling. The step
+    /// stays open in a warning state. Raised after the step is laid out, once per cause and visit of the step, and
+    /// not while the editor previews the tour.</summary>
+    public event EventHandler<DaisyTourStepTargetUnavailableEventArgs>? StepTargetUnavailable;
     public event PropertyChangedEventHandler? PropertyChanged;
 
     internal Rect TargetBounds { get; private set; }
-    internal bool IsTargetUnavailable => _targetProblem;
+    /// <summary>The problem the step's warning shows, or null without a warning.</summary>
+    internal DaisyTourTargetProblem? Warning => _session?.Warning;
     internal Rect CardBounds { get; private set; }
     internal DaisySteps Progress => _progress;
     internal bool IsTransitioning => _session?.Busy == true;
@@ -210,6 +243,8 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
         session.Unsubscribe.Add(() => root.Changed -= OnRootChanged);
         session.Unsubscribe.Add(() => FloweryLocalization.CultureChanged -= OnCultureChanged);
         session.Unsubscribe.Add(() => FocusManager.GettingFocus -= OnGettingFocus);
+        _availabilityTimer ??= CreateAvailabilityTimer();
+        _availabilityTimer.Start();
         session.Registration = cancellationToken.Register(() => DispatchCancel(session));
         // Moving the window changes which part of it the display shows.
         if (root.ContentIslandEnvironment is { AppWindowId.Value: not 0 } environment &&
@@ -256,7 +291,13 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
         ClearStepObservers(session);
         _annotations.Children.Clear();
         _outline.Data = null;
-        _targetProblem = false;
+        session.Visit++;
+        session.Warning = null;
+        session.PreparationError = null;
+        session.ReportedProblems.Clear();
+        session.PendingReports.Clear();
+        session.PendingAnnouncement = false;
+        session.HiddenTargetRevealed = false;
         _backdrop.Data = new RectangleGeometry { Rect = new Rect(0, 0, _surface.Width, _surface.Height) };
         _surface.IsTabStop = true;
         _surface.Focus(FocusState.Programmatic);
@@ -284,12 +325,11 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
             CurrentStep = step;
             session.PendingStep = null;
             session.PreparationError = preparationError;
-            session.ReportedProblem = null;
             BuildProgress(session);
             ObserveCurrentStep(session);
             _card.Visibility = Visibility.Visible;
             RefreshPresentation();
-            await RevealHiddenTargetAsync(step, token);
+            await RevealHiddenTargetAsync(session, step, token);
             if (!ReferenceEquals(_session, session)) return;
             if (!UpdateGeometry(session)) return;
             await DaisyTourLayout.SettleAsync(_surface, token);
@@ -304,12 +344,15 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
             var peer = FrameworkElementAutomationPeer.FromElement(this) ?? FrameworkElementAutomationPeer.CreatePeerForElement(this);
             peer?.RaiseNotificationEvent(AutomationNotificationKind.Other, AutomationNotificationProcessing.ImportantMostRecent,
                 AutomationProperties.GetName(_card), "DaisyTourStep");
+            FlushReports(session);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception error)
         {
+            // Target problems keep the step open; this is a failure of the tour itself, such as a dispatcher
+            // that no longer accepts work.
             if (ReferenceEquals(_session, session))
-                Close(session, DaisyTourCloseReason.TargetUnavailable, step.Target, error: error);
+                Close(session, DaisyTourCloseReason.Failed, step.Target, error);
         }
         finally
         {
@@ -325,12 +368,15 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
 
     // Another scroll can move the step target out of view after its targets were revealed, such as a page
     // control bringing itself into view. The targets are revealed once more; a target that stays hidden puts
-    // the step in its warning state.
-    private async Task RevealHiddenTargetAsync(DaisyTourStep step, CancellationToken token)
+    // the step in its warning state, and it is not scrolled twice in a row without having been visible in between,
+    // so the tour does not keep scrolling against another control that hides it.
+    private async Task RevealHiddenTargetAsync(Session session, DaisyTourStep step, CancellationToken token)
     {
-        if (step.Target is { } target && DaisyTourLayout.TryBounds(target, _surface, out var bounds) &&
-            DaisyTourLayout.VisibleBounds(target, _surface, bounds) is not { Width: > 0, Height: > 0 })
-            await RevealTargetsAsync(step, token);
+        if (session.HiddenTargetRevealed || step.Target is not { } target || !DaisyTourLayout.TryBounds(target, _surface, out var bounds) ||
+            DaisyTourLayout.VisibleBounds(target, _surface, bounds) is { Width: > 0, Height: > 0 })
+            return;
+        session.HiddenTargetRevealed = true;
+        await RevealTargetsAsync(step, token);
     }
 
     private static List<FrameworkElement> GetTargets(DaisyTourStep step)
@@ -397,7 +443,7 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
             {
                 await DaisyTourLayout.SettleAsync(_surface, token);
                 if (ReferenceEquals(_session, session) && !session.Busy && CurrentStep is { } step)
-                    await RevealHiddenTargetAsync(step, token);
+                    await RevealHiddenTargetAsync(session, step, token);
                 if (ReferenceEquals(_session, session) && !session.Busy) UpdateGeometry(session, revealHidden: false);
             }
             catch (OperationCanceledException) { }
@@ -405,98 +451,117 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
         })) _updateQueued = false;
     }
 
-    private bool UpdateGeometry(Session session, bool revealHidden = true)
+    // Where the step's targets are and what keeps them from being shown. It only reads layout.
+    private TargetLayout ResolveTargets(Session session, DaisyTourStep step)
     {
-        if (CurrentStep is not { } step) return false;
-        // A target that cannot be shown never closes the tour: the step stays open in its warning state, without
-        // the target's highlight and the connectors that need it, and the card waits at a fixed position.
-        var problem = session.PreparationError;
-        var cause = problem is null ? null : "prepare";
-        var failed = step.Target;
-        string? failedAnnotation = null;
-        FrameworkElement? shown = null;
-        var visible = default(Rect);
+        var layout = new TargetLayout();
+        if (session.PreparationError is { } preparation)
+            layout.Problems.Add(new(DaisyTourTargetProblem.Preparation, null, step.Target, preparation));
+        var targetMissing = false;
         if (step.Target is not { } target || !DaisyTourLayout.TryBounds(target, _surface, out var primary))
         {
-            problem ??= new InvalidOperationException("The tour target is unavailable. " + DaisyTourLayout.Describe(step.Target, _surface));
-            cause ??= "target";
+            targetMissing = true;
+            layout.Problems.Add(new(DaisyTourTargetProblem.Target, null, step.Target,
+                new InvalidOperationException("The tour target is unavailable. " + DaisyTourLayout.Describe(step.Target, _surface))));
+        }
+        else if (DaisyTourLayout.VisibleBounds(target, _surface, primary) is { IsEmpty: false, Width: > 0, Height: > 0 } visible)
+        {
+            layout.Visible = visible;
+            layout.Holes.Add(visible);
+            layout.Bounds[target] = visible;
         }
         else
         {
-            visible = DaisyTourLayout.VisibleBounds(target, _surface, primary);
-            if (visible is { IsEmpty: false, Width: > 0, Height: > 0 })
-                shown = target;
-            else
+            layout.TargetHidden = true;
+            layout.Problems.Add(new(DaisyTourTargetProblem.Target, null, target, new InvalidOperationException(
+                $"The tour target is outside the visible area. Bounds={primary}; viewport={_surface.ActualWidth}x{_surface.ActualHeight}.")));
+        }
+        // Without annotations, the default pointer runs from the card to the step target.
+        foreach (var annotation in step.Annotations.Count == 0 ? new[] { _defaultAnnotation } : step.Annotations.ToArray())
+        {
+            // Without its own target, an annotation ends at the step target and needs it on screen.
+            if (layout.Visible is null && annotation.Target is null)
             {
-                // Direct updates, such as a card size change, can run while another scroll hides the target.
-                // The queued update reveals the targets once and shows the warning only if the target stays hidden.
-                if (revealHidden && !session.Busy)
-                {
-                    QueueGeometry();
-                    return false;
-                }
-                problem ??= new InvalidOperationException($"The tour target is outside the visible area. Bounds={primary}; viewport={_surface.ActualWidth}x{_surface.ActualHeight}.");
-                cause ??= "target";
+                layout.Hidden.Add(annotation);
+                continue;
             }
-        }
-        TargetBounds = shown is null ? default : visible;
-        var holes = new List<Rect>();
-        var bounds = new Dictionary<FrameworkElement, Rect>();
-        if (shown is not null)
-        {
-            holes.Add(visible);
-            bounds[shown] = visible;
-        }
-        var hidden = new HashSet<DaisyTourAnnotation>();
-        foreach (var annotation in step.Annotations)
-        {
-            // Without its own target, a connector ends at the step target and needs it on screen.
-            if (shown is null && annotation.Target is null) { hidden.Add(annotation); continue; }
             var endpoints = new[] { annotation.Source, annotation.Target }.OfType<FrameworkElement>().ToArray();
             var ends = new Rect[endpoints.Length];
-            var missing = -1;
-            for (var index = 0; index < endpoints.Length && missing < 0; index++)
-                if (!DaisyTourLayout.TryBounds(endpoints[index], _surface, out ends[index])) missing = index;
-            if (missing >= 0)
+            var available = true;
+            for (var index = 0; index < endpoints.Length; index++)
             {
-                hidden.Add(annotation);
-                if (problem is null)
-                {
-                    problem = new InvalidOperationException("A connector end is unavailable. " + DaisyTourLayout.Describe(endpoints[missing], _surface));
-                    cause = "annotation:" + annotation.Id;
-                    failed = endpoints[missing];
-                    failedAnnotation = annotation.Id;
-                }
+                if (DaisyTourLayout.TryBounds(endpoints[index], _surface, out ends[index])) continue;
+                available = false;
+                // An end that is the step target is reported as the step target.
+                if (targetMissing && ReferenceEquals(endpoints[index], step.Target)) continue;
+                layout.Problems.Add(new(DaisyTourTargetProblem.Annotation, annotation, endpoints[index],
+                    new InvalidOperationException("A connector end is unavailable. " + DaisyTourLayout.Describe(endpoints[index], _surface))));
+            }
+            if (!available)
+            {
+                layout.Hidden.Add(annotation);
                 continue;
             }
             for (var index = 0; index < endpoints.Length; index++)
             {
                 // Connectors keep the endpoint's real position, even partly outside the visible area.
                 // Only its visible part is highlighted.
-                if (!bounds.ContainsKey(endpoints[index])) bounds[endpoints[index]] = ends[index];
+                layout.Bounds.TryAdd(endpoints[index], ends[index]);
                 var clipped = DaisyTourLayout.VisibleBounds(endpoints[index], _surface, ends[index]);
-                if (!clipped.IsEmpty && clipped.Width > 0 && clipped.Height > 0 && !holes.Contains(clipped)) holes.Add(clipped);
+                if (clipped is { IsEmpty: false, Width: > 0, Height: > 0 } && !layout.Holes.Contains(clipped)) layout.Holes.Add(clipped);
             }
         }
+        return layout;
+    }
+
+    // A target that cannot be shown never closes the tour: the step stays open in its warning state, without the
+    // target's highlight and the connectors that need it, and the card waits at a fixed position.
+    private bool UpdateGeometry(Session session, bool revealHidden = true)
+    {
+        if (CurrentStep is not { } step) return false;
+        var layout = ResolveTargets(session, step);
+        if (layout.Visible is not null)
+            session.HiddenTargetRevealed = false;
+        else if (layout.TargetHidden && revealHidden && !session.Busy && !session.HiddenTargetRevealed)
+        {
+            // Direct updates, such as a card size change, can run while another scroll hides the target.
+            // The queued update scrolls the targets into view once before the warning shows.
+            QueueGeometry();
+            return false;
+        }
+        _availability = Availability(step);
+        TargetBounds = layout.Visible ?? default;
         _visibleArea = _popup.XamlRoot is { } root ? DaisyTourLayout.VisibleArea(root) : new Rect(0, 0, _surface.Width, _surface.Height);
         _editor?.ArrangeInspector(new Size(_visibleArea.Width, _visibleArea.Height), new Point(_visibleArea.X, _visibleArea.Y));
-        SetTargetProblem(session, step, problem, cause, failed, failedAnnotation);
+        DaisyTourTargetProblem? warning = layout.Problems.Count == 0 ? null : layout.Problems.MinBy(problem => problem.Priority).Kind;
+        if (warning != session.Warning)
+        {
+            // A warning that appears while the step is shown is announced. One that is there when the step opens
+            // starts the card's name, which the step announcement reads.
+            session.PendingAnnouncement |= session.Warning is null && !session.Busy;
+            session.Warning = warning;
+            ApplyWarning();
+            if (warning is null && session.Editing) _editor?.OnPreviewTargetAvailable();
+        }
         LayoutCard();
         _card.Measure(new Size(_card.Width, _card.MaxHeight));
-        var allTargets = holes.Count > 0 ? holes[0] : default;
-        foreach (var hole in holes) allTargets.Union(hole);
+        var highlighted = layout.Holes.Count > 0;
+        var allTargets = highlighted ? layout.Holes[0] : default;
+        foreach (var hole in layout.Holes) allTargets.Union(hole);
         // The card is placed in the visible part of the window, in coordinates relative to that part.
         var viewport = new Size(_visibleArea.Width, _visibleArea.Height);
         var stepPosition = StepSetting(step, DaisyTourStep.CardPositionProperty, step.CardPosition, DaisyTourCardPosition.Default);
         var position = stepPosition == DaisyTourCardPosition.Default ? EffectiveCardPosition : stepPosition;
-        if (shown is null && position is DaisyTourCardPosition.Default or DaisyTourCardPosition.Target)
+        if (layout.Visible is null && position is (DaisyTourCardPosition.Default or DaisyTourCardPosition.Target))
             position = DaisyTourCardPosition.Center;
         var placement = StepSetting(step, DaisyTourStep.PlacementProperty, step.Placement, DaisyTourPlacement.Auto);
         var frame = Math.Max(0, double.IsFinite(EffectiveHighlightPadding) ? EffectiveHighlightPadding : 0) + _outline.StrokeThickness;
         var targets = Shift(allTargets, -_visibleArea.X, -_visibleArea.Y);
+        // Without anything highlighted, nothing is in the card's way.
+        Rect? highlight = highlighted ? Inflate(targets, frame) : null;
         CardBounds = _editor is not null
             ? PlaceEditorCard(_card.DesiredSize)
-            : Shift(DaisyTourLayout.PlaceStationary(position, _card.DesiredSize, viewport, Inflate(targets, frame))
+            : Shift(DaisyTourLayout.PlaceStationary(position, _card.DesiredSize, viewport, highlight)
                 ?? DaisyTourLayout.Place(targets, _card.DesiredSize, viewport, placement), _visibleArea.X, _visibleArea.Y);
         var cardX = StepSetting(step, DaisyTourStep.CardXProperty, step.CardX, double.NaN);
         var cardY = StepSetting(step, DaisyTourStep.CardYProperty, step.CardY, double.NaN);
@@ -516,7 +581,7 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
         cutout.Children.Add(new RectangleGeometry { Rect = new Rect(0, 0, _surface.Width, _surface.Height) });
         var outlines = new GeometryGroup { FillRule = FillRule.Nonzero };
         var expandedHoles = new List<Rect>();
-        foreach (var hole in holes)
+        foreach (var hole in layout.Holes)
         {
             var padding = Math.Max(0, double.IsFinite(EffectiveHighlightPadding) ? EffectiveHighlightPadding : 0);
             var expanded = new Rect(hole.X - padding, hole.Y - padding, hole.Width + 2 * padding, hole.Height + 2 * padding);
@@ -541,78 +606,136 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
         }
         _backdrop.Data = cutout;
         _outline.Data = outlines;
-        UpdateAnnotations(step, bounds, hidden, shown is not null);
+        UpdateAnnotations(step, layout);
         // A card covering a course between controls, or the area its route limit keeps clear, moves away.
         // Courses from the card itself follow it.
-        var courses = CourseBounds(step, bounds, hidden, -_visibleArea.X, -_visibleArea.Y);
+        var courses = CourseBounds(step, layout, -_visibleArea.X, -_visibleArea.Y);
         if (_editor is null && !manualCard && courses.Count > 0 && DaisyTourLayout.Covers(Shift(CardBounds, -_visibleArea.X, -_visibleArea.Y), courses))
         {
             var obstacles = new List<Rect>(courses);
-            foreach (var hole in holes) obstacles.Add(Shift(Inflate(hole, frame), -_visibleArea.X, -_visibleArea.Y));
+            foreach (var hole in layout.Holes) obstacles.Add(Shift(Inflate(hole, frame), -_visibleArea.X, -_visibleArea.Y));
             Rect? kept = _previousStepCard.Width > 0
                 ? new Rect(_previousStepCard.X - _visibleArea.X, _previousStepCard.Y - _visibleArea.Y, _card.DesiredSize.Width, _card.DesiredSize.Height)
                 : null;
-            if (DaisyTourLayout.AvoidObstacles(position, placement, targets, _card.DesiredSize, viewport, obstacles, kept) is { } clear)
+            if (DaisyTourLayout.AvoidObstacles(position, placement, highlighted ? targets : null, _card.DesiredSize, viewport, obstacles, kept) is { } clear)
             {
                 CardBounds = Shift(clear, _visibleArea.X, _visibleArea.Y);
                 Canvas.SetLeft(_card, CardBounds.X);
                 Canvas.SetTop(_card, CardBounds.Y);
-                UpdateAnnotations(step, bounds, hidden, shown is not null);
+                UpdateAnnotations(step, layout);
             }
         }
         GeometryUpdated?.Invoke(this, EventArgs.Empty);
         _editor?.UpdateHandles();
+        QueueReports(session, layout.Problems);
         return true;
     }
 
-    // The warning follows the current cause. The host hears about each cause once per visit of the step.
-    private void SetTargetProblem(Session session, DaisyTourStep step, Exception? error, string? cause,
-        FrameworkElement? target, string? annotationId)
+    // Reports wait until the step is laid out and settled, so a handler may close, replay or move the tour; a handler
+    // that throws is logged without affecting the tour. Each problem is reported once per visit of the step, and
+    // reports of a visit that is over are dropped. While the editor previews the tour, the editor shows them instead.
+    private void QueueReports(Session session, List<TargetProblem> problems)
     {
-        if (_targetProblem != error is not null)
+        foreach (var problem in problems)
         {
-            _targetProblem = error is not null;
-            ApplyTargetProblem();
+            if (session.ReportedProblems.Add(problem.Key)) session.PendingReports.Add(problem);
         }
-        if (cause == session.ReportedProblem) return;
-        session.ReportedProblem = cause;
-        if (error is not null) StepTargetUnavailable?.Invoke(this, new(step.Id, annotationId, target, error));
+        if (!session.Busy) FlushReports(session);
+    }
+
+    private void FlushReports(Session session)
+    {
+        if (session.PendingReports.Count == 0 && !session.PendingAnnouncement) return;
+        var reports = session.PendingReports.ToArray();
+        var announce = session.PendingAnnouncement;
+        var visit = session.Visit;
+        session.PendingReports.Clear();
+        session.PendingAnnouncement = false;
+        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Normal, () => Report(session, visit, reports, announce));
+    }
+
+    private void Report(Session session, int visit, TargetProblem[] reports, bool announce)
+    {
+        foreach (var problem in reports)
+        {
+            // A handler may have closed, replayed or moved the tour; the rest belongs to a visit that is over.
+            if (!ReferenceEquals(_session, session) || session.Visit != visit || session.Busy || CurrentStep is not { } step) return;
+            var args = new DaisyTourStepTargetUnavailableEventArgs(step.Id, problem.Kind, problem.Annotation?.Id, problem.Target, problem.Error);
+            if (session.Editing) _editor?.OnPreviewTargetUnavailable(args);
+            else Flowery.Services.FloweryEventRaiser.Raise(StepTargetUnavailable, this, args, nameof(StepTargetUnavailable));
+        }
+        if (announce && ReferenceEquals(_session, session) && session.Visit == visit && session.Warning is not null)
+        {
+            var peer = FrameworkElementAutomationPeer.FromElement(this) ?? FrameworkElementAutomationPeer.CreatePeerForElement(this);
+            peer?.RaiseNotificationEvent(AutomationNotificationKind.Other, AutomationNotificationProcessing.ImportantMostRecent,
+                _warningNoteText.Text, "DaisyTourWarning");
+        }
     }
 
     // The card frame, a note above the description and the current progress step take the warning color.
     // Windows contrast colors take precedence over it.
-    private void ApplyTargetProblem()
+    private void ApplyWarning()
     {
         var contrast = Flowery.Services.DaisySystemAppearance.HighContrast;
         var foreground = DaisyResourceLookup.GetBrush("DaisyBaseContentBrush");
-        var warning = DaisyResourceLookup.GetBrush("DaisyWarningBrush");
-        _warning.Visibility = _targetProblem ? Visibility.Visible : Visibility.Collapsed;
-        _warning.Background = contrast ? new SolidColorBrush(Colors.Transparent) : warning;
-        _warning.BorderBrush = contrast ? DaisyResourceLookup.GetBorderBrush() : warning;
-        _warningText.Foreground = contrast ? foreground : DaisyResourceLookup.GetBrush("DaisyWarningContentBrush");
-        _warningText.Text = FloweryLocalization.GetStringInternal("Tour_TargetUnavailable");
-        _card.BorderBrush = _targetProblem && !contrast ? warning : CardBorder(foreground);
-        _card.BorderThickness = new Thickness(_targetProblem ? 2 : 1);
+        var warningBrush = DaisyResourceLookup.GetBrush("DaisyWarningBrush");
+        var active = Warning is not null;
+        _warningNote.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
+        _warningNote.Background = contrast ? new SolidColorBrush(Colors.Transparent) : warningBrush;
+        _warningNote.BorderBrush = contrast ? DaisyResourceLookup.GetBorderBrush() : warningBrush;
+        _warningNoteText.Foreground = contrast ? foreground : DaisyResourceLookup.GetBrush("DaisyWarningContentBrush");
+        _warningNoteText.Text = FloweryLocalization.GetStringInternal(
+            Warning == DaisyTourTargetProblem.Preparation ? "Tour_PreparationFailed" : "Tour_TargetUnavailable");
+        _card.BorderBrush = active && !contrast ? warningBrush : CardBorder(foreground);
+        _card.BorderThickness = new Thickness(active ? 2 : 1);
         for (var index = 0; index < _progressItems.Count; index++)
-            _progressItems[index].Color = _targetProblem && index == CurrentIndex ? DaisyStepColor.Warning : DaisyStepColor.Default;
+            _progressItems[index].Color = active && index == CurrentIndex ? DaisyStepColor.Warning : DaisyStepColor.Default;
+        UpdateCardName();
     }
+
+    // Screen readers read the card as one name, starting with the warning when there is one.
+    private void UpdateCardName()
+    {
+        if (CurrentStep is not { } step) return;
+        var descriptions = step.Annotations.Select(annotation => annotation.Text).Where(text => !string.IsNullOrWhiteSpace(text));
+        var note = Warning is null ? string.Empty : _warningNoteText.Text + " ";
+        AutomationProperties.SetName(_card, $"{note}{step.Title}. {step.Description}. {_count.Text}. {string.Join(". ", descriptions)}");
+    }
+
+    private DispatcherQueueTimer CreateAvailabilityTimer()
+    {
+        var timer = DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(250);
+        timer.Tick += OnAvailabilityTick;
+        return timer;
+    }
+
+    private void OnAvailabilityTick(DispatcherQueueTimer sender, object args)
+    {
+        if (_session is { Busy: false } && CurrentStep is { } step && (_availability is null || !Availability(step).SequenceEqual(_availability)))
+            QueueGeometry();
+    }
+
+    // Which of the step's targets can be measured at all: collapsed or transparent ones and their ancestors cannot.
+    private bool[] Availability(DaisyTourStep step) =>
+        GetTargets(step).Select(target => DaisyTourLayout.TryBounds(target, _surface, out _)).ToArray();
 
     // Segment bounds of the connector courses between controls, padded by half the stroke plus 4 DIP
     // of clearance, and the areas their route limits keep clear.
-    private List<Rect> CourseBounds(DaisyTourStep step, Dictionary<FrameworkElement, Rect> bounds, HashSet<DaisyTourAnnotation> hidden, double x, double y)
+    private List<Rect> CourseBounds(DaisyTourStep step, TargetLayout layout, double x, double y)
     {
         var courses = new List<Rect>();
         for (var index = 0; index < step.Annotations.Count && index < _presenters.Count; index++)
         {
             var annotation = step.Annotations[index];
-            if (annotation.Source is not { } source || hidden.Contains(annotation)) continue;
+            if (annotation.Source is not { } source || layout.Hidden.Contains(annotation)) continue;
             var presenter = _presenters[index];
             var course = presenter.Course;
             for (var point = 1; point < course.Count; point++)
                 courses.Add(Shift(Inflate(new Rect(course[point - 1], course[point]), presenter.CourseThickness / 2 + 4), x, y));
             // Without its own target, a connector ends at the step target.
-            var end = annotation.Target is { } target ? bounds[target] : TargetBounds;
-            if (course.Count > 0 && RouteZone(annotation, bounds[source], end) is { } zone)
+            var end = annotation.Target is { } target ? layout.Bounds[target] : TargetBounds;
+            if (course.Count > 0 && RouteZone(annotation, layout.Bounds[source], end) is { } zone)
                 courses.Add(Shift(zone, x, y));
         }
         return courses;
@@ -640,8 +763,8 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
         };
     }
 
-    // Annotations that need a target that cannot be shown are hidden.
-    private void UpdateAnnotations(DaisyTourStep step, Dictionary<FrameworkElement, Rect> bounds, HashSet<DaisyTourAnnotation> hidden, bool targetShown)
+    // Annotations that need a target that cannot be shown are hidden. The default pointer ends at the step target.
+    private void UpdateAnnotations(DaisyTourStep step, TargetLayout layout)
     {
         var definitions = step.Annotations.Count == 0 ? new[] { _defaultAnnotation } : step.Annotations.ToArray();
         if (_presenters.Count != definitions.Length || _annotations.Children.Count != definitions.Length)
@@ -659,12 +782,6 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
         {
             var annotation = definitions[index];
             var presenter = _presenters[index];
-            if (hidden.Contains(annotation) || !targetShown && annotation.Target is null)
-            {
-                presenter.Visibility = Visibility.Collapsed;
-                continue;
-            }
-            presenter.Visibility = Visibility.Visible;
             presenter.Width = _surface.Width;
             presenter.Height = _surface.Height;
             var foreground = DaisyResourceLookup.GetBrush("DaisyBaseContentBrush");
@@ -672,10 +789,20 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
             {
                 DaisySize.ExtraSmall => 0.8, DaisySize.Small => 0.9, DaisySize.Large => 1.15, DaisySize.ExtraLarge => 1.3, _ => 1
             };
-            var end = annotation.Target is { } target ? bounds[target] : TargetBounds;
             var layers = ProfileLayers(step, annotation);
+            if (layout.Hidden.Contains(annotation))
+            {
+                // A hidden annotation still resolves its style, so the editor inspects its current values.
+                presenter.Update(annotation, CardBounds, CardBounds,
+                    DaisyResourceLookup.GetBrush("DaisyPrimaryBrush"), DaisyResourceLookup.GetBrush("DaisyBase100Brush"),
+                    foreground, AnnotationDefaults, step.AnnotationDefaults, scale, _card.FlowDirection, RouteLimitFor(annotation), layers);
+                presenter.Visibility = Visibility.Collapsed;
+                continue;
+            }
+            presenter.Visibility = Visibility.Visible;
+            var end = annotation.Target is { } target ? layout.Bounds[target] : TargetBounds;
             var kind = DaisyTourAnnotationPresenter.ResolveKind(annotation, AnnotationDefaults, step.AnnotationDefaults, layers);
-            var source = annotation.Source is { } start ? bounds[start] : CardBounds;
+            var source = annotation.Source is { } start ? layout.Bounds[start] : CardBounds;
             if (kind != DaisyTourAnnotationKind.Custom)
             {
                 // Connectors and tails start and end at the highlight frame instead of crossing it.
@@ -687,7 +814,7 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
                 source = MarkerBounds(annotation.Source is null ? end : source);
             presenter.WidthLimit = double.PositiveInfinity;
             if (annotation.Source is null && kind is DaisyTourAnnotationKind.Cloud or DaisyTourAnnotationKind.SpeechBubble)
-                source = PlaceSurface(presenter, annotation, step, end, bounds.Values, foreground, scale);
+                source = PlaceSurface(presenter, annotation, step, end, layout.Bounds.Values, foreground, scale);
             presenter.Update(annotation, source, end,
                 DaisyResourceLookup.GetBrush("DaisyPrimaryBrush"), DaisyResourceLookup.GetBrush("DaisyBase100Brush"),
                 foreground, AnnotationDefaults, step.AnnotationDefaults, scale, _card.FlowDirection, RouteLimitFor(annotation), layers);
@@ -795,7 +922,6 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
         _progress.FlowDirection = FlowDirection.LeftToRight;
         _card.Background = DaisyResourceLookup.GetBrush("DaisyBase100Brush");
         var foreground = DaisyResourceLookup.GetBrush("DaisyBaseContentBrush");
-        ApplyTargetProblem();
         _title.Foreground = _description.Foreground = _count.Foreground = foreground;
         _outline.Stroke = DaisyResourceLookup.GetBrush("DaisyPrimaryBrush");
         _backdrop.Fill = new SolidColorBrush(Color.FromArgb(170, 0, 0, 0));
@@ -834,7 +960,7 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
         ToolTipService.SetToolTip(_cardSave, saveCardLabel);
         _back.Size = _skip.Size = _next.Size = _progress.Size = EffectiveSize;
         _title.FontSize = FlowerySizeManager.GetFontSizeForTier(ResponsiveFontTier.SectionHeader, EffectiveSize);
-        _description.FontSize = _count.FontSize = _warningText.FontSize = FlowerySizeManager.GetFontSizeForTier(ResponsiveFontTier.Primary, EffectiveSize);
+        _description.FontSize = _count.FontSize = _warningNoteText.FontSize = FlowerySizeManager.GetFontSizeForTier(ResponsiveFontTier.Primary, EffectiveSize);
         if (CurrentStep is { } step)
         {
             _title.Text = step.Title;
@@ -842,9 +968,8 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
             _customContent.ContentTemplate = step.ContentTemplate;
             _customContent.Content = step.ContentTemplate is null ? null : step;
             _count.Text = string.Format(CultureInfo.CurrentCulture, FloweryLocalization.GetStringInternal("Tour_StepCount"), CurrentIndex + 1, session.Steps.Length);
-            var descriptions = step.Annotations.Select(annotation => annotation.Text).Where(text => !string.IsNullOrWhiteSpace(text));
-            AutomationProperties.SetName(_card, $"{step.Title}. {step.Description}. {_count.Text}. {string.Join(". ", descriptions)}");
         }
+        ApplyWarning();
         QueueGeometry();
     }
 
@@ -991,15 +1116,15 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
         else DispatcherQueue.TryEnqueue(() => { if (ReferenceEquals(_session, session)) Close(session, DaisyTourCloseReason.Cancelled); });
     }
 
-    private void Close(Session session, DaisyTourCloseReason reason, FrameworkElement? target = null, string? annotationId = null, Exception? error = null)
+    private void Close(Session session, DaisyTourCloseReason reason, FrameworkElement? target = null, Exception? error = null)
     {
         if (!ReferenceEquals(_session, session)) return;
         var stepId = (session.PendingStep ?? CurrentStep)?.Id;
         _session = null;
         _cardCollapsed = false;
         _updateQueued = false;
-        _targetProblem = false;
-        _warning.Visibility = Visibility.Collapsed;
+        _availabilityTimer?.Stop();
+        _availability = null;
         try { session.Cancellation.Cancel(); }
         catch (AggregateException cancellationError) { error ??= cancellationError; }
         session.Registration.Dispose();
@@ -1010,6 +1135,8 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
         _annotations.Children.Clear();
         _presenters.Clear();
         _progressItems.Clear();
+        // Without a session there is no warning to show.
+        ApplyWarning();
         _backdrop.Data = _outline.Data = null;
         _customContent.Content = null;
         _progress.Content = null;
@@ -1023,7 +1150,7 @@ public sealed partial class DaisyTour : DaisyBaseContentControl, INotifyProperty
             control.Focus(FocusState.Programmatic);
         NotifyState();
         if (session.Editing) _editor?.OnPreviewClosed(error);
-        else Closed?.Invoke(this, new(reason, stepId, annotationId, target, error));
+        else Closed?.Invoke(this, new(reason, stepId, target, error));
     }
 
     private void NotifyState()

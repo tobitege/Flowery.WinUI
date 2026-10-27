@@ -5,6 +5,7 @@
   "Tour_Finish": "إنهاء",
   "Tour_StepCount": "الخطوة {0} من {1}",
   "Tour_TargetUnavailable": "لا يمكن عرض عنصر هذه الخطوة الآن.",
+  "Tour_PreparationFailed": "تعذّر تجهيز هذه الخطوة بالكامل.",
   "Size_ExtraSmall": "صغير جداً",
   "Sidebar_Favorite": "مفضل",
   "Common_Selected": "محدد",

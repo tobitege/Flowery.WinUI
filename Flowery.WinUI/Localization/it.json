@@ -5,6 +5,7 @@
   "Tour_Finish": "Fine",
   "Tour_StepCount": "Passaggio {0} di {1}",
   "Tour_TargetUnavailable": "L'elemento di questo passaggio non può essere mostrato al momento.",
+  "Tour_PreparationFailed": "Questo passaggio non è stato preparato completamente.",
   "Size_ExtraSmall": "Extra piccolo",
   "Sidebar_Favorite": "Preferito",
   "Common_Selected": "Selezionato",

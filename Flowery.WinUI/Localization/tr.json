@@ -5,6 +5,7 @@
   "Tour_Finish": "Bitir",
   "Tour_StepCount": "Adım {0} / {1}",
   "Tour_TargetUnavailable": "Bu adımın öğesi şu anda gösterilemiyor.",
+  "Tour_PreparationFailed": "Bu adım tam olarak hazırlanamadı.",
   "Size_ExtraSmall": "Çok küçük",
   "Sidebar_Favorite": "Favori",
   "Common_Selected": "Seçili",

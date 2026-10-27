@@ -74,22 +74,36 @@ Keep step definitions in the application; the library does not discover targets 
 | `Cancel()` | Close with `Cancelled`. |
 | `IsOpen`, `CurrentIndex`, `CurrentStep` | Read the current session state. |
 | `Closed` | Receive one outcome for the session. |
-| `StepTargetUnavailable` | Learn that a step target or connector end cannot be shown. |
+| `StepTargetUnavailable` | Learn that a step cannot show everything it describes. |
 
 The `Closed` event supplies `DaisyTourClosedEventArgs`.
-Its `Reason` is `Completed`, `Skipped`, `Cancelled`, or `TargetUnavailable`.
+Its `Reason` is `Completed`, `Skipped`, `Cancelled`, `TargetUnavailable`, or `Failed`.
 `TargetUnavailable` means the tour could not open because it belongs to no window.
+`Failed` means the tour itself could not continue, such as when its dispatcher no longer accepts work; `Error` tells why.
+`AnnotationId` is always null, because target problems no longer close the tour.
 
 A target that cannot be shown never closes a running tour.
-This covers a missing, collapsed, transparent, detached, or foreign-window target, one that stays outside the visible area after scrolling, and a failed `PrepareAsync`.
-The step stays open in a warning state: the card waits at its stationary position (the center for `Target`), the card frame and the current progress step take the warning color, and a short note explains that the element cannot be shown right now.
-Connectors that need the missing element are hidden.
-When the element becomes visible again, the step returns to its normal presentation.
-`StepTargetUnavailable` supplies `DaisyTourTargetUnavailableEventArgs` with `StepId`, `AnnotationId`, `Target`, and `Error`, once per cause and visit of the step.
+The step stays open in a warning state:
+
+- The card waits at its stationary position; with `CardPosition` `Target`, it waits in the center.
+- The card frame and the current progress step take the warning color, and a note above the description says what is wrong. Screen readers hear the note when it appears, and the card's name starts with it.
+- Connectors that need the missing element are hidden.
+
+| `DaisyTourTargetProblem` | Cause | Ends when |
+| --- | --- | --- |
+| `Target` | The step target is missing, collapsed, transparent, detached, in another window, or stays outside the visible area after the tour scrolled it into view once. | The target can be shown again; the step returns to normal. |
+| `Annotation` | An end of an annotation is collapsed, transparent, detached, or in another window. | The end can be measured again. |
+| `Preparation` | `PrepareAsync` threw. The note says that the step could not be prepared completely; the target is still highlighted when it can be shown. | The step is left. |
+
+`StepTargetUnavailable` supplies `DaisyTourStepTargetUnavailableEventArgs` with `StepId`, `Problem`, `AnnotationId`, `Target`, and `Error`.
+It is raised after the step is laid out and settled, so a handler may call `Skip()`, `NextAsync()` or `StartAsync()`; reports of a visit that a handler ended are dropped.
+Each cause is reported once per visit of the step: an element that returns and leaves again is not reported twice, every unavailable end of every annotation is reported, and an end that is the step target is reported as the target.
+A handler that throws is logged under `Events` and does not affect the tour.
+While the editor previews the tour, the editor shows the error instead, and the event is not raised.
 
 ```csharp
 Tour.StepTargetUnavailable += (_, problem) =>
-    Log.Warning(problem.Error, "Tour step {Step} cannot show {Annotation}", problem.StepId, problem.AnnotationId);
+    Log.Warning(problem.Error, "Tour step {Step} cannot show {Problem} {Annotation}", problem.StepId, problem.Problem, problem.AnnotationId);
 ```
 
 ```csharp
@@ -102,12 +116,12 @@ Tour.Closed += (_, result) =>
 
 The application owns any first-run flag and replay command.
 Keep replay available after completion or Skip.
-Do not mark cancellation as successful completion.
+Do not mark cancellation or a failure as successful completion.
 
 ## Annotations
 
 Each step has an `Annotations` collection.
-Give each annotation an `Id` to identify it in target-error outcomes.
+Give each annotation an `Id` that is unique within its step: `StepTargetUnavailable` names it, and style profiles use it.
 An annotation uses the step target unless its `Target` supplies another control.
 Set `Source` to connect two distinct controls.
 Both controls must belong to the same `XamlRoot` and be visible in the layout.
@@ -338,7 +352,7 @@ The application owns file dialogs and storage.
 | `Apply()`, `Discard()` | Keep the draft as the active profile, or close without applying it. |
 | `Undo()`, `Redo()` | Move through draft changes. |
 | `ProfileChanged` | Observe draft changes. |
-| `Closed`, `LastError` | Observe editor closure and inspect a preparation or lifecycle error. |
+| `Closed`, `LastError` | Observe editor closure and inspect a lifecycle error. A preview step that cannot show its target stays open and shows its error in the editor. |
 
 Export and Apply are separate commands.
 Export saves the current draft without changing the active profile.
