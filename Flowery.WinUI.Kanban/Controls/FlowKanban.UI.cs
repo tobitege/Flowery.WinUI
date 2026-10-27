@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -1082,6 +1082,8 @@ namespace Flowery.WinUI.Kanban.Controls
             if (_boardContentHost != null)
             {
                 _boardContentHost.SizeChanged += OnBoardContentSizeChanged;
+                // In every layout, the compact one too, unlike the column reordering below.
+                AttachFreeTapHandlers();
                 if (_isColumnReorderActive)
                 {
                     AttachBoardDragHandlers();
@@ -1106,6 +1108,7 @@ namespace Flowery.WinUI.Kanban.Controls
             if (_boardContentHost != null)
             {
                 _boardContentHost.SizeChanged -= OnBoardContentSizeChanged;
+                DetachFreeTapHandlers();
                 DetachBoardDragHandlers();
                 _boardContentHost = null;
             }

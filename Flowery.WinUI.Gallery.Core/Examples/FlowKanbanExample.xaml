@@ -50,6 +50,8 @@
                            Text="• Drag task cards between columns (with visual drop indicator)
 • Inline add: Click '+ Add Card' to type a new task directly
 • Double-click any card to edit title, description, and color
+• Touch: tap a card to edit it; hold a card to select it and drag it with your finger; while cards are selected, tap to add or remove them
+• Click or tap a free place of the board to clear the selection
 • Color-coded task cards using DaisyColor palette
 • JSON persistence via Save/Load buttons in sidebar
 • Built on FlowKanbanData, FlowKanbanColumnData, and FlowTask models" />

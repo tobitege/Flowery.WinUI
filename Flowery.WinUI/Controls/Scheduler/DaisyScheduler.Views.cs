@@ -1,4 +1,4 @@
-// WinUI adaptation of Xtreme.Components Scheduler (MIT).
+﻿// WinUI adaptation of Xtreme.Components Scheduler (MIT).
 // See ThirdPartyNotices/Xtreme.Components.txt for attribution and license.
 using Flowery.Controls.Scheduler.Models;
 using Flowery.Controls.Scheduler.Rendering;
@@ -420,6 +420,8 @@ public partial class DaisyScheduler
         _bodyScroll.Loaded += OnBodyLoaded;
         _bodyScroll.ViewChanged += OnBodyScrolled;
         _bodyScroll.SizeChanged += OnBodyResized;
+        _bodyScroll.DirectManipulationStarted += OnBodyManipulationStarted;
+        _bodyScroll.DirectManipulationCompleted += OnBodyManipulationCompleted;
         return _bodyScroll;
     }
 

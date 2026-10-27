@@ -1,8 +1,9 @@
-// WinUI adaptation of Xtreme.Components Scheduler (MIT).
+﻿// WinUI adaptation of Xtreme.Components Scheduler (MIT).
 // See ThirdPartyNotices/Xtreme.Components.txt for attribution and license.
 using Flowery.Controls.Scheduler.Contracts;
 using Flowery.Controls.Scheduler.Models;
 using Flowery.Controls.Scheduler.Utilities;
+using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -19,9 +20,10 @@ public partial class DaisyScheduler
     private sealed record DayTarget(DateTime Date, ResourceModel? Resource);
     private enum GestureKind { Create, Move, ResizeStart, ResizeEnd }
 
-    /// <summary>One pointer press as the views see it. Positions are relative to the scheduler.</summary>
+    /// <summary>One pointer press as the views see it. Positions are relative to the scheduler. Touch also stands
+    /// for a pen.</summary>
     internal readonly record struct SchedulerPointer(uint Id, Point Position, VirtualKeyModifiers Modifiers,
-        int ClickCount = 1, bool IsRightButton = false, Pointer? Native = null);
+        int ClickCount = 1, bool IsRightButton = false, Pointer? Native = null, bool IsTouch = false);
 
     private sealed class Gesture
     {
@@ -43,7 +45,27 @@ public partial class DaisyScheduler
         public Border? Ghost { get; set; }
     }
 
+    // A touch or pen press is left to scrolling first: released where it was pressed, it opens its appointment (or
+    // toggles it while appointments are selected), or selects its slot or day; held, it selects its appointment.
+    private sealed record PendingTap(SchedulerPointer Pointer, Border? Frame, AppointmentTarget? Target, GestureKind Kind,
+        Lane? Lane, DateTime Slot, DayTarget? Day);
+
     private Gesture? _gesture;
+    private PendingTap? _pendingTap;
+    // The touch or pen taps in a row: the click count counts every press at the same spot, a swipe too, and a double
+    // tap needs two taps.
+    private int _taps;
+    // The view keeps moving after a swipe; a press then only stops it.
+    private bool _flinging;
+    // How far a finger or pen may move and still tap, and its edge for resizing.
+    private const double TouchTapTolerance = 8;
+    private const double TouchEdge = 12;
+    // A touch or pen press on an appointment, until it is held long enough to select and drag it. WinUI's Holding
+    // gives no hold to a press right after a tap (it waits for a double tap), so the scheduler times the hold itself,
+    // as long as Holding takes.
+    private static readonly TimeSpan TouchHoldTime = TimeSpan.FromMilliseconds(500);
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _holdTimer;
+    private PendingTap? _holdTap;
     private static readonly uint DoubleClickMilliseconds = new UISettings().DoubleClickTime;
     private ClickRecord? _lastClick;
 
@@ -51,13 +73,14 @@ public partial class DaisyScheduler
     internal readonly record struct ClickRecord(uint PointerId, bool IsRightButton, Point Position, ulong Timestamp, int Count);
 
     /// <summary>WinUI reports no click count. A press continues the previous click sequence when it uses the same
-    /// pointer and button within the system double-click time and four pixels; otherwise it starts at one.</summary>
+    /// pointer and button within the system double-click time and <paramref name="tolerance"/> pixels; otherwise it
+    /// starts at one.</summary>
     internal static ClickRecord NextClick(ClickRecord? last, uint pointerId, bool isRightButton, Point position,
-        ulong timestamp, uint doubleClickMilliseconds)
+        ulong timestamp, uint doubleClickMilliseconds, double tolerance = 4)
     {
         var continues = last is { } previous && previous.PointerId == pointerId && previous.IsRightButton == isRightButton &&
             timestamp >= previous.Timestamp && timestamp - previous.Timestamp <= doubleClickMilliseconds * 1000UL &&
-            Math.Abs(position.X - previous.Position.X) <= 4 && Math.Abs(position.Y - previous.Position.Y) <= 4;
+            Math.Abs(position.X - previous.Position.X) <= tolerance && Math.Abs(position.Y - previous.Position.Y) <= tolerance;
         return new ClickRecord(pointerId, isRightButton, position, timestamp, continues ? last!.Value.Count + 1 : 1);
     }
 
@@ -65,10 +88,15 @@ public partial class DaisyScheduler
     {
         var point = e.GetCurrentPoint(this);
         var isRight = point.Properties.IsRightButtonPressed;
-        var click = NextClick(_lastClick, e.Pointer.PointerId, isRight, point.Position, point.Timestamp, DoubleClickMilliseconds);
+        var touch = e.Pointer.PointerDeviceType != PointerDeviceType.Mouse;
+        var click = NextClick(_lastClick, e.Pointer.PointerId, isRight, point.Position, point.Timestamp, DoubleClickMilliseconds,
+            touch ? TouchTapTolerance : 4);
         _lastClick = click;
-        return new SchedulerPointer(e.Pointer.PointerId, point.Position, e.KeyModifiers, click.Count, isRight, e.Pointer);
+        return new SchedulerPointer(e.Pointer.PointerId, point.Position, e.KeyModifiers, click.Count, isRight, e.Pointer, touch);
     }
+
+    private static bool IsTap(Point press, Point position) =>
+        Math.Abs(position.X - press.X) <= TouchTapTolerance && Math.Abs(position.Y - press.Y) <= TouchTapTolerance;
 
     private static bool IsLeftPress(PointerRoutedEventArgs e, UIElement element) =>
         e.GetCurrentPoint(element).Properties.IsLeftButtonPressed;
@@ -107,6 +135,17 @@ public partial class DaisyScheduler
         }
         if (appointment.IsLocked)
             return true;
+        // On touch or pen, as in the apps of the platforms: a tap opens an appointment, or toggles its selection while
+        // appointments are selected; holding one selects it, and the finger then moves it, or resizes it from an edge.
+        // Every press is left to scrolling first, so a swipe through the view opens, selects and moves nothing.
+        if (pointer.IsTouch)
+        {
+            _pendingTap = _flinging ? null : new PendingTap(pointer, frame, target,
+                target.Lane is { } touchLane ? EdgeKind(touchLane, frame, pointer) : GestureKind.Move, null, default, null);
+            if (_pendingTap is not null)
+                StartHold(_pendingTap);
+            return true;
+        }
         RememberSelectionResource(target);
         var multiple = (pointer.Modifiers & (VirtualKeyModifiers.Control | VirtualKeyModifiers.Windows)) != 0;
         if (multiple || !selectedBefore)
@@ -120,20 +159,101 @@ public partial class DaisyScheduler
         }
         if (IsReadOnly || target.Lane is not { } lane || multiple && selectedBefore)
             return true;
-        var kind = GestureKind.Move;
-        if (selectedBefore)
-        {
-            var position = PositionIn(frame, pointer.Position);
-            var axis = lane.Horizontal ? position.X : position.Y;
-            var length = lane.Horizontal ? frame.ActualWidth : frame.ActualHeight;
-            if (axis < 5)
-                kind = GestureKind.ResizeStart;
-            else if (axis > length - 5)
-                kind = GestureKind.ResizeEnd;
-        }
-        BeginGesture(pointer, frame, lane, kind, appointment, target.Displayed);
+        BeginGesture(pointer, frame, lane, selectedBefore ? EdgeKind(lane, frame, pointer) : GestureKind.Move, appointment, target.Displayed);
         return true;
     }
+
+    // A press near an edge of an appointment resizes it, elsewhere it moves it. Touch and pen need a wider edge than a
+    // mouse; a short appointment keeps half of its length for moving.
+    private GestureKind EdgeKind(Lane lane, Border frame, SchedulerPointer pointer)
+    {
+        var position = PositionIn(frame, pointer.Position);
+        var axis = lane.Horizontal ? position.X : position.Y;
+        var length = lane.Horizontal ? frame.ActualWidth : frame.ActualHeight;
+        var edge = pointer.IsTouch ? Math.Min(TouchEdge, length / 4) : 5;
+        return axis < edge ? GestureKind.ResizeStart : axis > length - edge ? GestureKind.ResizeEnd : GestureKind.Move;
+    }
+
+    private void StartHold(PendingTap tap)
+    {
+        _holdTap = tap;
+        if (_holdTimer is null)
+        {
+            _holdTimer = DispatcherQueue.CreateTimer();
+            _holdTimer.IsRepeating = false;
+            _holdTimer.Interval = TouchHoldTime;
+            _holdTimer.Tick += OnHoldTimerTick;
+        }
+        _holdTimer.Stop();
+        _holdTimer.Start();
+    }
+
+    // Held without moving: the press is still pending, as a release, a swipe or a render ends it.
+    private void OnHoldTimerTick(Microsoft.UI.Dispatching.DispatcherQueueTimer sender, object args)
+    {
+        if (_pendingTap is { Frame: { } frame } tap && ReferenceEquals(tap, _holdTap))
+            HoldAppointment(frame);
+    }
+
+    /// <summary>A touch or pen press held on an appointment without moving selects it; the finger then moves it, or
+    /// resizes it from an edge.</summary>
+    internal bool HoldAppointment(Border frame)
+    {
+        if (_pendingTap is not { Target: { } target } tap || !ReferenceEquals(tap.Frame, frame))
+            return false;
+        _pendingTap = null;
+        _taps = 0;
+        var appointment = target.Appointment;
+        RememberSelectionResource(target);
+        if (!_selection.Any(selected => Same(selected, appointment)))
+            SelectAppointment(appointment, _selection.Count > 0);
+        if (IsReadOnly || target.Lane is not { } lane)
+            return true;
+        // The view must not pan with the finger that holds the appointment.
+        frame.CancelDirectManipulations();
+        BeginGesture(tap.Pointer, frame, lane, tap.Kind, appointment, target.Displayed);
+        return true;
+    }
+
+    /// <summary>Ends a touch or pen press that was left to scrolling. Only a release where it was pressed is a tap.
+    /// The position is relative to the scheduler.</summary>
+    internal bool ReleasePendingTap(Point position, VirtualKeyModifiers modifiers)
+    {
+        if (_pendingTap is not { } tap)
+            return false;
+        _pendingTap = null;
+        if (!IsTap(tap.Pointer.Position, position))
+        {
+            _taps = 0;
+            return false;
+        }
+        _taps = tap.Pointer.ClickCount > 1 && _taps > 0 ? _taps + 1 : 1;
+        if (tap.Target is { } target)
+        {
+            _taps = 0;
+            RememberSelectionResource(target);
+            if (_selection.Count > 0 || (modifiers & (VirtualKeyModifiers.Control | VirtualKeyModifiers.Windows)) != 0)
+                SelectAppointment(target.Appointment, true);
+            else
+                AppointmentEditRequested?.Invoke(this, new AppointmentEditRequestedArgs { Appointment = target.Appointment });
+        }
+        else if (tap.Lane is { } lane && TryStoredTime(tap.Slot, lane, out var slot))
+            SelectSlot(slot, lane.Resource, false, _taps, WindowPosition(position));
+        else if (tap.Day is { } day)
+            SelectSlot(day.Date, day.Resource, true, _taps, WindowPosition(position));
+        return true;
+    }
+
+    // The view took the finger for a swipe. WinUI then sends the press neither moves nor a release, so it ends here
+    // and neither taps nor holds.
+    private void OnBodyManipulationStarted(object? sender, object e)
+    {
+        _flinging = true;
+        _pendingTap = null;
+        _taps = 0;
+    }
+
+    private void OnBodyManipulationCompleted(object? sender, object e) => _flinging = false;
 
     private void OnAppointmentKeyDown(object? sender, KeyRoutedEventArgs e)
     {
@@ -177,6 +297,12 @@ public partial class DaisyScheduler
     {
         if (IsReadOnly || control.Tag is not DayTarget target)
             return false;
+        // On touch or pen a swipe over a free day scrolls, and a tap selects the day, as in a lane.
+        if (pointer.IsTouch)
+        {
+            _pendingTap = _flinging ? null : new PendingTap(pointer, null, null, GestureKind.Create, null, default, target);
+            return true;
+        }
         SelectSlot(target.Date, target.Resource, true, pointer.ClickCount, WindowPosition(pointer.Position));
         return true;
     }
@@ -202,6 +328,13 @@ public partial class DaisyScheduler
         if (IsReadOnly || canvas.Tag is not Lane lane)
             return false;
         Focus(FocusState.Pointer);
+        // On touch or pen a swipe over a free slot scrolls, and a tap selects the slot; there is no create by dragging.
+        if (pointer.IsTouch)
+        {
+            _pendingTap = _flinging ? null : new PendingTap(pointer, null, null, GestureKind.Create, lane,
+                SlotTime(lane, PositionIn(canvas, pointer.Position)), null);
+            return true;
+        }
         BeginGesture(pointer, canvas, lane, GestureKind.Create, null);
         return true;
     }
@@ -234,13 +367,20 @@ public partial class DaisyScheduler
     protected override void OnPointerMoved(PointerRoutedEventArgs e)
     {
         base.OnPointerMoved(e);
-        if (_gesture is { } gesture && gesture.PointerId == e.Pointer.PointerId && MoveGesture(e.GetCurrentPoint(this).Position))
+        var id = e.Pointer.PointerId;
+        if ((_gesture?.PointerId == id || _pendingTap?.Pointer.Id == id) && MoveGesture(e.GetCurrentPoint(this).Position))
             e.Handled = true;
     }
 
-    /// <summary>Updates the active gesture and its ghost. The position is relative to the scheduler.</summary>
+    /// <summary>Updates the active gesture and its ghost. A touch or pen press that moves before it is held is a swipe,
+    /// which the view scrolls. The position is relative to the scheduler.</summary>
     internal bool MoveGesture(Point position)
     {
+        if (_pendingTap is { } tap && !IsTap(tap.Pointer.Position, position))
+        {
+            _pendingTap = null;
+            _taps = 0;
+        }
         if (_gesture is not { } gesture || IsReadOnly)
             return false;
         var distance = new Point(position.X - gesture.PressPoint.X, position.Y - gesture.PressPoint.Y);
@@ -309,9 +449,26 @@ public partial class DaisyScheduler
     protected override void OnPointerReleased(PointerRoutedEventArgs e)
     {
         base.OnPointerReleased(e);
-        if (_gesture is { } gesture && gesture.PointerId == e.Pointer.PointerId &&
-            ReleaseGesture(e.GetCurrentPoint(this).Position, e.KeyModifiers))
+        var id = e.Pointer.PointerId;
+        if ((_pendingTap?.Pointer.Id == id && ReleasePendingTap(e.GetCurrentPoint(this).Position, e.KeyModifiers)) ||
+            (_gesture?.PointerId == id && ReleaseGesture(e.GetCurrentPoint(this).Position, e.KeyModifiers)))
             e.Handled = true;
+    }
+
+    // The view took the finger for a swipe.
+    protected override void OnPointerCanceled(PointerRoutedEventArgs e)
+    {
+        if (_pendingTap?.Pointer.Id == e.Pointer.PointerId)
+            _pendingTap = null;
+        base.OnPointerCanceled(e);
+    }
+
+    // A finger that leaves the scheduler is lifted elsewhere: the press neither taps nor holds.
+    protected override void OnPointerExited(PointerRoutedEventArgs e)
+    {
+        if (_pendingTap?.Pointer.Id == e.Pointer.PointerId)
+            _pendingTap = null;
+        base.OnPointerExited(e);
     }
 
     /// <summary>Ends the active gesture and raises its request. The position is relative to the scheduler.</summary>
@@ -448,6 +605,8 @@ public partial class DaisyScheduler
 
     private void CancelGesture()
     {
+        // A pending tap ends with the gesture: its frame or lane may be gone with the next render.
+        _pendingTap = null;
         var gesture = _gesture;
         _gesture = null;
         if (gesture?.Ghost?.Parent is Panel panel)

@@ -1,4 +1,4 @@
-// WinUI adaptation of Xtreme.Components Scheduler (MIT).
+﻿// WinUI adaptation of Xtreme.Components Scheduler (MIT).
 // Copyright (c) 2026 Data Access Inc. and Xtreme.Components contributors.
 // See ThirdPartyNotices/Xtreme.Components.txt for attribution and license.
 using System.Collections.ObjectModel;
@@ -456,6 +456,7 @@ public partial class DaisyScheduler : Control
         else
             _savedOffset = null;
         _bodyScroll = null;
+        _flinging = false;
         _headerScroll = null;
         _gutterScroll = null;
         _monthGrid = null;

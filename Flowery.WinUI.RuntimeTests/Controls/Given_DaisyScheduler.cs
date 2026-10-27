@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Flowery.Controls;
 using Flowery.Controls.Scheduler.Contracts;
 using Flowery.Controls.Scheduler.Models;
@@ -497,7 +497,7 @@ public sealed partial class Given_DaisyScheduler
         }
     }
 
-    private sealed class SchedulerScope
+    private sealed partial class SchedulerScope
     {
         private SchedulerScope(SchedulerView view)
         {
@@ -521,6 +521,20 @@ public sealed partial class Given_DaisyScheduler
             var scope = new SchedulerScope(view);
             RuntimeTestHelpers.AttachToHost(scope.Host);
             await scope.LayoutAsync();
+            // The view scrolls to the start of the day once it is loaded, and WinUI applies that scroll later.
+            if (view is SchedulerView.Day or SchedulerView.Week or SchedulerView.Planner or SchedulerView.Timeline)
+            {
+                var scroll = scope.BodyScroll();
+                bool Scrolled() => view is SchedulerView.Day or SchedulerView.Week
+                    ? scroll.VerticalOffset > 0 || scroll.ScrollableHeight == 0
+                    : scroll.HorizontalOffset > 0 || scroll.ScrollableWidth == 0;
+                for (var pass = 0; pass < 100 && !Scrolled(); pass++)
+                {
+                    await Task.Delay(20);
+                    await scope.LayoutAsync();
+                }
+                Assert.IsTrue(Scrolled(), "The view did not scroll to the start of the day.");
+            }
             return scope;
         }
 
