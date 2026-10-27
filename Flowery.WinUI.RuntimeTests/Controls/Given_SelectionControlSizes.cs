@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Threading.Tasks;
 using Flowery.Controls;
 using Flowery.Enums;
@@ -38,7 +38,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         }
 
         [TestMethod]
-        public async Task When_RadioSized_IndicatorUsesItsOwnSizes()
+        public async Task When_RadioSized_IndicatorUsesItsOwnSizesAndSkipsLayoutRounding()
         {
             double[] outer = [14, 16, 20, 24, 28];
             double[] dots = [8, 10, 12, 14, 16];
@@ -58,127 +58,110 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                     .ToList();
                 CollectionAssert.Contains(squares, outer[i], $"Radio {Tiers[i]} outer");
                 CollectionAssert.Contains(squares, dots[i], $"Radio {Tiers[i]} dot");
+
+                // Like the WinUI RadioButton: rounding ring and dot separately moves the dot off center at 125 % or 175 %.
+                var ring = Descendants<Border>(radio).Single(b => b.Name == "PART_IndicatorBorder");
+                var dot = Descendants<Ellipse>(radio).Single(e => e.Name == "PART_InnerDot");
+                Assert.IsFalse(ring.UseLayoutRounding, $"Radio {Tiers[i]} ring UseLayoutRounding");
+                Assert.IsFalse(dot.UseLayoutRounding, $"Radio {Tiers[i]} dot UseLayoutRounding");
             }
         }
 
         [TestMethod]
-        public async Task When_RadioLoaded_RingAndDotSkipLayoutRounding()
-        {
-            var radio = new DaisyRadio { Content = "Label", IsChecked = true };
-            RuntimeTestHelpers.AttachToHost(radio);
-            await RuntimeTestHelpers.EnsureLoadedAsync(radio);
-
-            // Like the WinUI RadioButton: rounding ring and dot separately moves the dot off center at 125 % or 175 %.
-            var ring = Descendants<Border>(radio).Single(b => b.Name == "PART_IndicatorBorder");
-            var dot = Descendants<Ellipse>(radio).Single(e => e.Name == "PART_InnerDot");
-            Assert.IsFalse(ring.UseLayoutRounding, "Radio ring UseLayoutRounding");
-            Assert.IsFalse(dot.UseLayoutRounding, "Radio dot UseLayoutRounding");
-        }
-
-        [TestMethod]
-        public async Task When_ToggleSized_TrackAndKnobUseTokenSizesAndKnobStaysInside()
+        public async Task When_ToggleSized_TrackAndKnobUseTokenSizesAndTheGapInBothStates()
         {
             double[] widths = [28, 32, 40, 48, 56];
             double[] heights = [14, 16, 20, 24, 28];
             double[] knobs = [8, 10, 12, 14, 16];
+            // Every size starts once unchecked and once checked, so both the initial state and the animated change
+            // are measured. The last case replaces the automatic gap (3 at Medium) with TogglePadding.
+            var cases = new List<(DaisySize Size, bool InitialIsOn, double? Padding, double Width, double Height, double Knob)>();
             for (var i = 0; i < Tiers.Length; i++)
             {
-                var toggle = new DaisyToggle { Size = Tiers[i], IsOn = true };
+                cases.Add((Tiers[i], false, null, widths[i], heights[i], knobs[i]));
+                cases.Add((Tiers[i], true, null, widths[i], heights[i], knobs[i]));
+            }
+            cases.Add((DaisySize.Medium, false, 1, widths[2], heights[2], knobs[2]));
+
+            foreach (var (size, initialIsOn, padding, width, height, knobSize) in cases)
+            {
+                var name = $"Toggle {size} initially {(initialIsOn ? "on" : "off")}{(padding is { } value ? $", TogglePadding {value}" : "")}";
+                var toggle = new DaisyToggle { Size = size, IsOn = initialIsOn };
+                if (padding is { } togglePadding)
+                    toggle.TogglePadding = togglePadding;
                 RuntimeTestHelpers.AttachToHost(toggle);
                 await RuntimeTestHelpers.EnsureLoadedAsync(toggle);
-                await Task.Delay(300); // let the knob animation finish
+                await Task.Delay(initialIsOn ? 300 : 100); // let the knob animation finish
 
                 var (track, knob) = GetToggleParts(toggle);
-                Assert.AreEqual(widths[i], track.Width, $"Toggle {Tiers[i]} width");
-                Assert.AreEqual(heights[i], track.Height, $"Toggle {Tiers[i]} height");
-                Assert.AreEqual(knobs[i], knob.Width, $"Toggle {Tiers[i]} knob");
+                Assert.AreEqual(width, track.Width, $"{name} width");
+                Assert.AreEqual(height, track.Height, $"{name} height");
+                Assert.AreEqual(knobSize, knob.Width, $"{name} knob");
 
                 // The knob is positioned inside the track border; the automatic padding equals the vertical gap,
                 // so the checked knob keeps the same gap to the right edge as to the top and bottom.
                 var innerWidth = track.Width - track.BorderThickness.Left - track.BorderThickness.Right;
                 var innerHeight = track.Height - track.BorderThickness.Top - track.BorderThickness.Bottom;
-                var gap = (innerHeight - knobs[i]) / 2;
-                var offset = KnobOffset(knob);
-                Assert.AreEqual(innerWidth - knobs[i] - gap, offset, 0.01, $"Toggle {Tiers[i]} checked knob offset");
-                Assert.AreEqual(heights[i], offset - gap, 0.01, $"Toggle {Tiers[i]} knob travels one track height (WinUI ToggleSwitch)");
+                var gap = padding ?? (innerHeight - knobSize) / 2;
+                foreach (var isOn in new[] { initialIsOn, !initialIsOn })
+                {
+                    var state = isOn == initialIsOn ? "initial" : "after the change";
+                    if (toggle.IsOn != isOn)
+                    {
+                        toggle.IsOn = isOn;
+                        await Task.Delay(300); // let the knob animation finish
+                    }
+
+                    var offset = KnobOffset(knob);
+                    if (!isOn)
+                    {
+                        Assert.AreEqual(gap, offset, 0.01, $"{name} unchecked knob offset ({state})");
+                        continue;
+                    }
+
+                    Assert.AreEqual(innerWidth - knobSize - gap, offset, 0.01, $"{name} checked knob offset ({state})");
+                    if (padding is null)
+                        Assert.AreEqual(height, offset - gap, 0.01, $"{name} knob travels one track height (WinUI ToggleSwitch, {state})");
+                }
             }
         }
 
         [TestMethod]
-        public async Task When_ToggleUnchecked_KnobSitsAtTheAutomaticGap()
+        public async Task When_SecondaryToggleTrackColorVaries_KnobAndBorderStayVisible()
         {
-            for (var i = 0; i < Tiers.Length; i++)
+            // A track painted in the Secondary color hides a Secondary knob and border unless the toggle adjusts them.
+            // The Gallery runs the tests in its saved theme, so the contrasting track takes a color far from Secondary.
+            var secondary = (SolidColorBrush)DaisyResourceLookup.GetBrush("DaisySecondaryBrush");
+            var contrast = FloweryColorHelpers.IsDark(secondary.Color) ? Microsoft.UI.Colors.White : Microsoft.UI.Colors.Black;
+            (string Name, Windows.UI.Color Track, bool MatchesTrack)[] cases =
+                [("TrackEqualsSecondary", secondary.Color, true), ("TrackContrasts", contrast, false)];
+            foreach (var (name, trackColor, matchesTrack) in cases)
             {
-                var toggle = new DaisyToggle { Size = Tiers[i] };
+                var toggle = new DaisyToggle { Variant = DaisyToggleVariant.Secondary, IsOn = true };
+                toggle.Resources["DaisyToggleTrackBackground"] = new SolidColorBrush(trackColor);
                 RuntimeTestHelpers.AttachToHost(toggle);
                 await RuntimeTestHelpers.EnsureLoadedAsync(toggle);
                 await Task.Delay(100);
 
                 var (track, knob) = GetToggleParts(toggle);
-                var innerHeight = track.Height - track.BorderThickness.Top - track.BorderThickness.Bottom;
-                var gap = (innerHeight - knob.Width) / 2;
-                Assert.AreEqual(gap, KnobOffset(knob), 0.01, $"Toggle {Tiers[i]} unchecked knob offset");
+                if (matchesTrack)
+                {
+                    var knobColor = ((SolidColorBrush)knob.Fill).Color;
+                    Assert.AreNotEqual(secondary.Color, knobColor, $"{name}: the knob is adjusted away from the track color.");
+                    Assert.IsTrue(FloweryColorHelpers.GetColorDifference(knobColor, secondary.Color) >= 20,
+                        $"{name}: the adjusted knob stands out from the track.");
+                    Assert.AreEqual(1, knob.StrokeThickness, $"{name}: the knob has an outline.");
+                    Assert.IsInstanceOfType<SolidColorBrush>(knob.Stroke, $"{name}: the outline has a color.");
+                    Assert.AreNotEqual(secondary.Color, ((SolidColorBrush)track.BorderBrush).Color,
+                        $"{name}: a variant border the color of the track would not be seen, so the neutral border stays.");
+                    continue;
+                }
+
+                Assert.AreEqual(secondary.Color, ((SolidColorBrush)track.BorderBrush).Color, $"{name}: the checked track border takes the variant color.");
+                toggle.IsOn = false;
+                await Task.Delay(100);
+                Assert.AreNotEqual(secondary.Color, ((SolidColorBrush)track.BorderBrush).Color, $"{name}: the unchecked track border is neutral again.");
             }
-        }
-
-        [TestMethod]
-        public async Task When_TogglePaddingIsSet_ItReplacesTheAutomaticGapInBothStates()
-        {
-            const double padding = 1; // the automatic gap of the default Medium size is 3
-            var toggle = new DaisyToggle { TogglePadding = padding };
-            RuntimeTestHelpers.AttachToHost(toggle);
-            await RuntimeTestHelpers.EnsureLoadedAsync(toggle);
-            await Task.Delay(100);
-
-            var (track, knob) = GetToggleParts(toggle);
-            Assert.AreEqual(padding, KnobOffset(knob), 0.01, "Unchecked knob offset");
-
-            toggle.IsOn = true;
-            await Task.Delay(300); // let the knob animation finish
-            var innerWidth = track.Width - track.BorderThickness.Left - track.BorderThickness.Right;
-            Assert.AreEqual(innerWidth - knob.Width - padding, KnobOffset(knob), 0.01, "Checked knob offset");
-        }
-
-        [TestMethod]
-        public async Task When_CheckedKnobMatchesTheTrack_ItGetsContrastAnOutlineAndKeepsTheNeutralBorder()
-        {
-            // A track painted in the Secondary color hides a Secondary knob unless the toggle adjusts it.
-            var secondary = (SolidColorBrush)DaisyResourceLookup.GetBrush("DaisySecondaryBrush");
-            var toggle = new DaisyToggle { Variant = DaisyToggleVariant.Secondary, IsOn = true };
-            toggle.Resources["DaisyToggleTrackBackground"] = new SolidColorBrush(secondary.Color);
-            RuntimeTestHelpers.AttachToHost(toggle);
-            await RuntimeTestHelpers.EnsureLoadedAsync(toggle);
-            await Task.Delay(100);
-
-            var (track, knob) = GetToggleParts(toggle);
-            var knobColor = ((SolidColorBrush)knob.Fill).Color;
-            Assert.AreNotEqual(secondary.Color, knobColor, "The knob is adjusted away from the track color.");
-            Assert.IsTrue(FloweryColorHelpers.GetColorDifference(knobColor, secondary.Color) >= 20,
-                "The adjusted knob stands out from the track.");
-            Assert.AreEqual(1, knob.StrokeThickness, "The knob has an outline.");
-            Assert.IsInstanceOfType<SolidColorBrush>(knob.Stroke, "The outline has a color.");
-            Assert.AreNotEqual(secondary.Color, ((SolidColorBrush)track.BorderBrush).Color,
-                "A variant border the color of the track would not be seen, so the neutral border stays.");
-        }
-
-        [TestMethod]
-        public async Task When_VariantColorStandsOutFromTheTrack_TheCheckedTrackBorderTakesIt()
-        {
-            // The Gallery runs the tests in its saved theme, so the track takes a color far from Secondary.
-            var secondary = (SolidColorBrush)DaisyResourceLookup.GetBrush("DaisySecondaryBrush");
-            var trackColor = FloweryColorHelpers.IsDark(secondary.Color) ? Microsoft.UI.Colors.White : Microsoft.UI.Colors.Black;
-            var toggle = new DaisyToggle { Variant = DaisyToggleVariant.Secondary, IsOn = true };
-            toggle.Resources["DaisyToggleTrackBackground"] = new SolidColorBrush(trackColor);
-            RuntimeTestHelpers.AttachToHost(toggle);
-            await RuntimeTestHelpers.EnsureLoadedAsync(toggle);
-            await Task.Delay(100);
-
-            var (track, _) = GetToggleParts(toggle);
-            Assert.AreEqual(secondary.Color, ((SolidColorBrush)track.BorderBrush).Color, "The checked track border takes the variant color.");
-
-            toggle.IsOn = false;
-            await Task.Delay(100);
-            Assert.AreNotEqual(secondary.Color, ((SolidColorBrush)track.BorderBrush).Color, "The unchecked track border is neutral again.");
         }
 
         [TestMethod]

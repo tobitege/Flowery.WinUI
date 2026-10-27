@@ -10,7 +10,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls
     public class Given_HomePageDiagnostics
     {
         [TestMethod]
-        public async Task When_DiagnosticsAreAppended_EmptyOutputStaysHiddenAndMessagesArePreserved()
+        public async Task When_DiagnosticsChange_VisibilityFollowsTheText()
         {
             var page = new HomePage();
             var diagnostics = (TextBox)page.FindName("DiagnosticsTextBox");
@@ -36,22 +36,6 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                 Assert.AreEqual("First message\n" + new string('#', 50) +
                     "\nSecond message", diagnostics.Text.ReplaceLineEndings("\n"));
                 Assert.AreEqual(Visibility.Visible, diagnostics.Visibility);
-            }
-            finally
-            {
-                RuntimeTestHelpers.GetHostPanel().Children.Clear();
-            }
-        }
-
-        [TestMethod]
-        public async Task When_DiagnosticsAreReplacedOrCleared_VisibilityFollowsTheCurrentText()
-        {
-            var page = new HomePage();
-            var diagnostics = (TextBox)page.FindName("DiagnosticsTextBox");
-            try
-            {
-                RuntimeTestHelpers.AttachToHost(page);
-                await RuntimeTestHelpers.EnsureLoadedAsync(page);
 
                 page.SetDiagnosticsText("Restored diagnostics");
                 Assert.AreEqual("Restored diagnostics", diagnostics.Text);

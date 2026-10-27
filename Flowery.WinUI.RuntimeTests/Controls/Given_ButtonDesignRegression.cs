@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Flowery.Controls;
 using Microsoft.UI.Xaml;
@@ -106,7 +106,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         }
 
         [TestMethod]
-        public async Task When_ButtonResizedAfterLoad_CornerRadiusFollowsTheNewSize()
+        public async Task When_ButtonResizedAfterLoad_CornerRadiusFollowsTheSizeUnlessAuthored()
         {
             // A global size change sets Size on loaded buttons; the token radius must follow instead of sticking.
             // Comparing with fresh buttons keeps the test independent of the host's global size.
@@ -121,6 +121,12 @@ namespace Flowery.WinUI.RuntimeTests.Controls
 
             resized.Size = DaisySize.ExtraLarge;
             Assert.AreEqual(large.CornerRadius, resized.CornerRadius, "ExtraSmall -> ExtraLarge");
+
+            // DaisyJoin and DaisyButtonGroup set CornerRadius on their buttons; a size change must not undo that.
+            var joined = new CornerRadius(0, 8, 8, 0);
+            resized.CornerRadius = joined;
+            resized.Size = DaisySize.Large;
+            Assert.AreEqual(joined, resized.CornerRadius, "An authored radius survives ExtraLarge -> Large");
         }
 
         [TestMethod]
@@ -179,20 +185,6 @@ namespace Flowery.WinUI.RuntimeTests.Controls
 
             Assert.AreEqual(Flowery.Theming.DaisyResourceLookup.GetDouble("DaisySizeLargeHeight"), large.ActualHeight, 0.5);
             Assert.AreEqual(Flowery.Theming.DaisyResourceLookup.GetDouble($"DaisySize{automatic.ResolvedSize}Height"), automatic.ActualHeight, 0.5);
-        }
-
-        [TestMethod]
-        public async Task When_ButtonGetsItsOwnCornerRadius_ResizeKeepsIt()
-        {
-            // DaisyJoin and DaisyButtonGroup set CornerRadius on their buttons; a size change must not undo that.
-            var joined = new CornerRadius(0, 8, 8, 0);
-            var button = new DaisyButton { Content = "Save" };
-            RuntimeTestHelpers.AttachToHost(button);
-            await RuntimeTestHelpers.EnsureLoadedAsync(button);
-
-            button.CornerRadius = joined;
-            button.Size = DaisySize.Large;
-            Assert.AreEqual(joined, button.CornerRadius);
         }
 
         private static Button? FindNavigationButton(DependencyObject element, string name)

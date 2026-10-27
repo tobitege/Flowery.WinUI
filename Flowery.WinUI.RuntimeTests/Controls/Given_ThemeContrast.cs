@@ -1,10 +1,11 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Flowery.Controls;
 using Flowery.Enums;
 using Flowery.Helpers;
 using Flowery.Theming;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Windows.UI;
@@ -62,45 +63,41 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         }
 
         [TestMethod]
-        public async Task When_DarkThemeApplied_OutlineButtonAndIconTextUseLighterPrimary()
+        public async Task When_ContrastFixedThemeIsApplied_ControlsRenderTheCorrectedColor()
         {
+            var cases = new (string Name, string Theme, Func<Control> Create, Func<Control, Brush> BrushOf, string ExpectedHex, bool Opaque)[]
+            {
+                ("Dark outline primary button", "Dark",
+                    static () => new DaisyButton { Content = "Outline", Variant = DaisyButtonVariant.Primary, ButtonStyle = DaisyButtonStyle.Outline },
+                    static control => control.Foreground, "#8D8AFF", false),
+                ("Dark primary icon text", "Dark",
+                    static () => new DaisyIconText { Text = "Primary", Variant = DaisyBadgeVariant.Primary },
+                    static control => control.Foreground, "#8D8AFF", false),
+                ("Business disabled primary button", "Business",
+                    static () => new DaisyButton { Content = "Disabled", Variant = DaisyButtonVariant.Primary, IsEnabled = false },
+                    static control => control.Background, "#2B4055", true)
+            };
             var previous = DaisyThemeManager.CurrentThemeName ?? "Dark";
             try
             {
-                Assert.IsTrue(DaisyThemeManager.ApplyTheme("Light") || DaisyThemeManager.CurrentThemeName == "Light");
-                Assert.IsTrue(DaisyThemeManager.ApplyTheme("Dark"));
+                foreach (var (name, theme, create, brushOf, expectedHex, opaque) in cases)
+                {
+                    // Start from Light so the target theme is a real change.
+                    Assert.IsTrue(DaisyThemeManager.ApplyTheme("Light") || DaisyThemeManager.CurrentThemeName == "Light", name);
+                    Assert.IsTrue(DaisyThemeManager.ApplyTheme(theme), name);
 
-                var button = new DaisyButton { Content = "Outline", Variant = DaisyButtonVariant.Primary, ButtonStyle = DaisyButtonStyle.Outline };
-                RuntimeTestHelpers.AttachToHost(button);
-                await RuntimeTestHelpers.EnsureLoadedAsync(button);
-                Assert.AreEqual(FloweryColorHelpers.ColorFromHex("#8D8AFF"), (button.Foreground as SolidColorBrush)?.Color);
+                    var control = create();
+                    RuntimeTestHelpers.AttachToHost(control);
+                    await RuntimeTestHelpers.EnsureLoadedAsync(control);
 
-                var iconText = new DaisyIconText { Text = "Primary", Variant = DaisyBadgeVariant.Primary };
-                RuntimeTestHelpers.AttachToHost(iconText);
-                await RuntimeTestHelpers.EnsureLoadedAsync(iconText);
-                Assert.AreEqual(FloweryColorHelpers.ColorFromHex("#8D8AFF"), (iconText.Foreground as SolidColorBrush)?.Color);
-            }
-            finally
-            {
-                DaisyThemeManager.ApplyTheme(previous);
-            }
-        }
-
-        [TestMethod]
-        public async Task When_BusinessThemeApplied_DisabledPrimaryButtonUsesOpaqueFill()
-        {
-            var previous = DaisyThemeManager.CurrentThemeName ?? "Dark";
-            try
-            {
-                Assert.IsTrue(DaisyThemeManager.ApplyTheme("Business"));
-
-                var button = new DaisyButton { Content = "Disabled", Variant = DaisyButtonVariant.Primary, IsEnabled = false };
-                RuntimeTestHelpers.AttachToHost(button);
-                await RuntimeTestHelpers.EnsureLoadedAsync(button);
-
-                var fill = (button.Background as SolidColorBrush)?.Color;
-                Assert.AreEqual(FloweryColorHelpers.ColorFromHex("#2B4055"), fill);
-                Assert.AreEqual(1.0, (button.Background as SolidColorBrush)!.Opacity, 0.001);
+                    var brush = brushOf(control) as SolidColorBrush;
+                    Assert.IsNotNull(brush, name);
+                    Assert.AreEqual(FloweryColorHelpers.ColorFromHex(expectedHex), brush.Color, name);
+                    if (opaque)
+                    {
+                        Assert.AreEqual(1.0, brush.Opacity, 0.001, $"{name}: the fill is opaque");
+                    }
+                }
             }
             finally
             {

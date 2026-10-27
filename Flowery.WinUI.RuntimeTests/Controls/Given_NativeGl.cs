@@ -31,40 +31,20 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                     if (kind != CarouselGlEffectKind.TextFill)
                         Assert.IsTrue(frame.Pixel[3] > 0, kind + " rendered an empty GPU surface.");
                 }
+
+                RuntimeTestHelpers.GetHostPanel().Children.Clear();
+                await FlushAsync(host.DispatcherQueue);
+                Assert.IsFalse(host.IsRendererInitialized, "Unloading must close the owned WebView2 composition control.");
             }
             finally
             {
                 RuntimeTestHelpers.GetHostPanel().Children.Clear();
                 await FlushAsync(host.DispatcherQueue);
-                Assert.IsFalse(host.IsRendererInitialized, "Unloading must close the owned WebView2 composition control.");
             }
         }
 
         [TestMethod]
-        public async Task When_OriginalGlTransitionCatalogCompiled_AllHundredShadersLinkOnNativeGpu()
-        {
-            var host = new CarouselGlTransitionHost { Width = 160, Height = 100, TransitionName = "fade", IntervalSeconds = 0, TransitionSeconds = 1 };
-            try
-            {
-                RuntimeTestHelpers.AttachToHost(host);
-                await RuntimeTestHelpers.EnsureLoadedAsync(host);
-                var compiled = await host.CompileShadersAsync();
-                Assert.AreEqual(100, compiled.Count, "Every original advertised GLSL transition must compile.");
-                Assert.AreEqual(100, compiled.Distinct(StringComparer.OrdinalIgnoreCase).Count());
-                CollectionAssert.AreEquivalent(CarouselGlTransitionHost.AvailableShaders.Keys.ToArray(), compiled.ToArray());
-                foreach (var name in new[] { "fade", "cube", "GridFlip", "InvertedPageCurl", "Swirl", "pixelize", "displacement", "dissolve", "SimpleZoomOut" })
-                {
-                    host.TransitionName = name;
-                    var frame = await host.ReadFrameAsync(0.05);
-                    AssertFrame(frame, name);
-                    Assert.IsTrue(frame.Pixel[3] > 0, name + " did not render its source image.");
-                }
-            }
-            finally { RuntimeTestHelpers.GetHostPanel().Children.Clear(); await FlushAsync(host.DispatcherQueue); }
-        }
-
-        [TestMethod]
-        public async Task When_GlImageTransitionAdvances_RealGpuPixelChangesAndReloadRecreatesRenderer()
+        public async Task When_GlTransitionHostRuns_AllShadersLinkFramesAdvanceAndReloadRecreatesRenderer()
         {
             var host = new CarouselGlTransitionHost { Width = 160, Height = 100, TransitionName = "fade", IntervalSeconds = 0, TransitionSeconds = 1 };
             try
@@ -81,6 +61,20 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                 Assert.IsFalse(source.Pixel.SequenceEqual(middle.Pixel), "The middle frame must blend both textures.");
                 Assert.IsFalse(destination.Pixel.SequenceEqual(middle.Pixel), "The middle frame must precede the destination image.");
 
+                var compiled = await host.CompileShadersAsync();
+                Assert.AreEqual(100, compiled.Count, "Every original advertised GLSL transition must compile.");
+                Assert.AreEqual(100, compiled.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+                CollectionAssert.AreEquivalent(CarouselGlTransitionHost.AvailableShaders.Keys.ToArray(), compiled.ToArray());
+                foreach (var name in new[] { "fade", "cube", "GridFlip", "InvertedPageCurl", "Swirl", "pixelize", "displacement", "dissolve", "SimpleZoomOut" })
+                {
+                    host.TransitionName = name;
+                    var frame = await host.ReadFrameAsync(0.05);
+                    AssertFrame(frame, name);
+                    Assert.IsTrue(frame.Pixel[3] > 0, name + " did not render its source image.");
+                }
+
+                // Reload with the first transition so the reloaded frame can be compared with the original source frame.
+                host.TransitionName = "fade";
                 RuntimeTestHelpers.GetHostPanel().Children.Clear();
                 await FlushAsync(host.DispatcherQueue);
                 Assert.IsFalse(host.IsRendererInitialized);

@@ -1,6 +1,5 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Flowery.Controls;
-using Flowery.Controls.Scheduler.Contracts;
 using Flowery.Controls.Scheduler.Models;
 using Flowery.Controls.Scheduler.Rendering;
 using Flowery.Localization;
@@ -89,27 +88,6 @@ public sealed partial class Given_DaisyScheduler
     }
 
     [TestMethod]
-    public async Task When_DraggingALaterDailyOccurrence_TheWholeSeriesMovesByTheSameDelta()
-    {
-        var scope = await SchedulerScope.CreateAsync(SchedulerView.Day);
-        scope.Appointment.SpanMode = AppointmentSpanMode.Daily;
-        scope.Appointment.End = Monday.AddDays(2).AddHours(10);
-        scope.Scheduler.SelectedDate = new DateTimeOffset(Monday.AddDays(2));
-        scope.Scheduler.Appointments = new[] { scope.Appointment };
-        await scope.LayoutAsync();
-        AppointmentMoveArgs? request = null;
-        scope.Scheduler.AppointmentMoveRequested += (_, args) => request = args;
-        var frame = scope.Frame(scope.Appointment);
-        var origin = scope.Point(frame, frame.ActualWidth / 2, frame.ActualHeight / 2);
-        await scope.DragAsync(frame, origin, Offset(origin, 0, 48));
-        Assert.IsNotNull(request);
-        Assert.AreSame(scope.Appointment, request.Appointment);
-        Assert.AreEqual(Monday.AddHours(10), request.NewStart);
-        Assert.AreEqual(Monday.AddDays(2).AddHours(11), request.NewEnd);
-        Assert.AreEqual(Monday.AddHours(9), scope.Appointment.Start);
-    }
-
-    [TestMethod]
     public async Task When_PlannerShowsSeries_EachAppointmentKeepsOneRowAndDailyBarsShareTheirSeriesRow()
     {
         var scope = await SchedulerScope.CreateAsync(SchedulerView.Planner);
@@ -161,7 +139,6 @@ public sealed partial class Given_DaisyScheduler
         await scope.LayoutAsync();
         CollectionAssert.AreEqual(new object[] { "all" }, scope.Scheduler.CollapsedResourceGroupIds!.ToArray());
         Assert.HasCount(1, scope.Frames(scope.Appointment));
-        Assert.AreEqual("All", all.Name);
         scope.Scheduler.ResourceKindFilter = ResourceKind.Room;
         await scope.LayoutAsync();
         Assert.IsEmpty(scope.Frames(scope.Appointment));

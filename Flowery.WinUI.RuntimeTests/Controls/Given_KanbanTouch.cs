@@ -20,7 +20,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls
     public class Given_KanbanTouch
     {
         [TestMethod]
-        public async Task When_TouchTapsOrHoldsACard_ATapOpensAHoldSelectsAndTapsThenToggle()
+        public async Task When_TouchTapsOrHoldsACard_ATapOpensAHoldSelectsTapsThenToggleAndControlsAreNoFreePlace()
         {
             var tasks = new[] { new FlowTask { Title = "A" }, new FlowTask { Title = "B" } };
             var kanban = await CreateBoardAsync(tasks);
@@ -29,6 +29,16 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             foreach (var card in cards)
                 card.EditCommand = new EditCounter(edits);
             bool[] Selected() => tasks.Select(static task => task.IsSelected).ToArray();
+
+            // A press on a card or a control is no free place of the board.
+            var column = Descendants<FlowKanbanColumn>(kanban).First();
+            Assert.IsTrue(kanban.IsFreePlace(column));
+            Assert.IsFalse(kanban.IsFreePlace(cards[0]));
+            Assert.IsFalse(kanban.IsFreePlace(Descendants<TextBlock>(cards[0]).First()));
+            Assert.IsFalse(kanban.IsFreePlace(Descendants<ButtonBase>(column).First()));
+            Assert.IsFalse(kanban.IsFreePlace(null));
+            // On touch a tap on a column header shows its buttons.
+            Assert.IsFalse(kanban.IsFreePlace(Descendants<FrameworkElement>(column).First(static element => element.Name == "PART_ColumnHeaderGrid")));
 
             Assert.IsTrue(cards[0].TapTask());
             CollectionAssert.AreEqual(new[] { tasks[0] }, edits);
@@ -50,23 +60,6 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             cards[1].HoldTask();
             cards[1].HoldTask();
             CollectionAssert.AreEqual(new[] { false, true }, Selected());
-        }
-
-        [TestMethod]
-        public async Task When_ThePressLiesOnACardOrAControl_ItIsNoFreePlaceOfTheBoard()
-        {
-            var task = new FlowTask { Title = "A" };
-            var kanban = await CreateBoardAsync(new[] { task });
-            var card = CardOf(kanban, task);
-            var column = Descendants<FlowKanbanColumn>(kanban).First();
-
-            Assert.IsTrue(kanban.IsFreePlace(column));
-            Assert.IsFalse(kanban.IsFreePlace(card));
-            Assert.IsFalse(kanban.IsFreePlace(Descendants<TextBlock>(card).First()));
-            Assert.IsFalse(kanban.IsFreePlace(Descendants<ButtonBase>(column).First()));
-            Assert.IsFalse(kanban.IsFreePlace(null));
-            // On touch a tap on a column header shows its buttons.
-            Assert.IsFalse(kanban.IsFreePlace(Descendants<FrameworkElement>(column).First(static element => element.Name == "PART_ColumnHeaderGrid")));
         }
 
         [TestMethod]

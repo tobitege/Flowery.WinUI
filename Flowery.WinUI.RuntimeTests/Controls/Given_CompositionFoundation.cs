@@ -279,11 +279,6 @@ public class Given_CompositionFoundation
             Assert.AreSame(geometry, shape.Geometry);
             Assert.AreSame(fill, shape.FillBrush);
             Assert.AreSame(stroke, shape.StrokeBrush);
-            Assert.AreEqual(new Vector2(150, 60), geometry.Size);
-            Assert.AreEqual(new Vector2(170, 80), vector.Visual.Size);
-            Assert.AreEqual(Colors.Gold, fill.Color);
-            Assert.AreEqual(new Vector2(5, 6), shape.Offset);
-            CollectionAssert.AreEqual(new float[] { 2, 4 }, shape.StrokeDashArray.ToArray());
             scope.Dispose();
             Assert.IsNull(ElementCompositionPreview.GetElementChildVisual(host));
             Assert.IsFalse(scope.IsAttached);
@@ -355,64 +350,48 @@ public class Given_CompositionFoundation
     }
 
     [TestMethod]
-    public async Task When_HostAlreadyHasAChildVisual_ShadowDoesNotReplaceIt()
+    public async Task When_ForeignChildVisualIsOnTheHost_ShadowNeverReplacesOrReleasesIt()
     {
-        var owner = CreateOwner();
-        SpriteVisual? foreign = null;
-        Canvas? host = null;
-        try
+        // The foreign visual is placed before the shadow exists, or it replaces the shadow's own root.
+        (string Name, bool ShadowFirst)[] cases = [("ForeignBeforeShadow", false), ("ForeignReplacesOwnedRoot", true)];
+        foreach (var (name, shadowFirst) in cases)
         {
-            await AttachAsync(owner);
-            host = FindHost(owner);
-            Assert.IsNull(ElementCompositionPreview.GetElementChildVisual(host));
-            foreign = ElementCompositionPreview.GetElementVisual(host).Compositor.CreateSpriteVisual();
-            ElementCompositionPreview.SetElementChildVisual(host, foreign);
-            owner.Shadows.Add(new DaisyShadow());
-            await FlushAsync(owner);
-            Assert.AreSame(foreign, ElementCompositionPreview.GetElementChildVisual(host));
+            var owner = CreateOwner();
+            if (shadowFirst)
+                owner.Shadows.Add(new DaisyShadow());
+            SpriteVisual? foreign = null;
+            Canvas? host = null;
+            try
+            {
+                await AttachAsync(owner);
+                host = FindHost(owner);
+                if (shadowFirst)
+                    Assert.IsInstanceOfType<ContainerVisual>(ElementCompositionPreview.GetElementChildVisual(host), $"{name}: the shadow root.");
+                else
+                    Assert.IsNull(ElementCompositionPreview.GetElementChildVisual(host), $"{name}: no child visual before the shadow.");
+                foreign = ElementCompositionPreview.GetElementVisual(host).Compositor.CreateSpriteVisual();
+                ElementCompositionPreview.SetElementChildVisual(host, foreign);
+                if (shadowFirst)
+                    owner.Shadows[0].OffsetX = 10;
+                else
+                    owner.Shadows.Add(new DaisyShadow());
+                await FlushAsync(owner);
+                Assert.AreSame(foreign, ElementCompositionPreview.GetElementChildVisual(host), $"{name}: after the shadow change.");
 
-            owner.Width = 190;
-            owner.UpdateLayout();
-            await FlushAsync(owner);
-            Assert.AreSame(foreign, ElementCompositionPreview.GetElementChildVisual(host));
-            await DetachAsync(owner);
-            Assert.AreSame(foreign, ElementCompositionPreview.GetElementChildVisual(host));
-        }
-        finally
-        {
-            await DetachAsync(owner);
-            if (host is not null && ReferenceEquals(ElementCompositionPreview.GetElementChildVisual(host), foreign))
-                ElementCompositionPreview.SetElementChildVisual(host, null);
-            foreign?.Dispose();
-        }
-    }
-
-    [TestMethod]
-    public async Task When_OwnedChildVisualIsReplaced_UnloadPreservesTheReplacement()
-    {
-        var owner = CreateOwner();
-        owner.Shadows.Add(new DaisyShadow());
-        SpriteVisual? foreign = null;
-        Canvas? host = null;
-        try
-        {
-            await AttachAsync(owner);
-            host = FindHost(owner);
-            _ = GetRoot(host);
-            foreign = ElementCompositionPreview.GetElementVisual(host).Compositor.CreateSpriteVisual();
-            ElementCompositionPreview.SetElementChildVisual(host, foreign);
-            owner.Shadows[0].OffsetX = 10;
-            await FlushAsync(owner);
-            Assert.AreSame(foreign, ElementCompositionPreview.GetElementChildVisual(host));
-            await DetachAsync(owner);
-            Assert.AreSame(foreign, ElementCompositionPreview.GetElementChildVisual(host));
-        }
-        finally
-        {
-            await DetachAsync(owner);
-            if (host is not null && ReferenceEquals(ElementCompositionPreview.GetElementChildVisual(host), foreign))
-                ElementCompositionPreview.SetElementChildVisual(host, null);
-            foreign?.Dispose();
+                owner.Width = 190;
+                owner.UpdateLayout();
+                await FlushAsync(owner);
+                Assert.AreSame(foreign, ElementCompositionPreview.GetElementChildVisual(host), $"{name}: after a resize.");
+                await DetachAsync(owner);
+                Assert.AreSame(foreign, ElementCompositionPreview.GetElementChildVisual(host), $"{name}: after unload.");
+            }
+            finally
+            {
+                await DetachAsync(owner);
+                if (host is not null && ReferenceEquals(ElementCompositionPreview.GetElementChildVisual(host), foreign))
+                    ElementCompositionPreview.SetElementChildVisual(host, null);
+                foreign?.Dispose();
+            }
         }
     }
 

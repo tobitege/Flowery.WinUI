@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Threading.Tasks;
 using Flowery.Controls;
 using Microsoft.UI.Dispatching;
@@ -14,7 +14,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls
     public class Given_ComboBoxAccessibility
     {
         [TestMethod]
-        public async Task When_DisplayMemberPath_Binds_AutomationName()
+        public async Task When_SelectionNameChangesOrIsOverridden_AutomationNameFollows()
         {
             var item = new NameItem { Name = "Alpha" };
             var combo = new DaisySelect
@@ -33,23 +33,6 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             item.Name = "Beta";
             await EnqueueAsync(combo.DispatcherQueue);
             Assert.AreEqual("Beta", AutomationProperties.GetName(trigger));
-        }
-
-        [TestMethod]
-        public async Task When_AccessibleText_Overrides_AutomationName()
-        {
-            var item = new NameItem { Name = "Option" };
-            var combo = new DaisySelect
-            {
-                DisplayMemberPath = nameof(NameItem.Name),
-                SelectedItem = item
-            };
-
-            RuntimeTestHelpers.AttachToHost(combo);
-            await RuntimeTestHelpers.EnsureLoadedAsync(combo);
-
-            var trigger = FindDescendant<Button>(combo);
-            Assert.IsNotNull(trigger);
 
             combo.AccessibleText = "Override";
             await EnqueueAsync(combo.DispatcherQueue);
@@ -57,7 +40,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls
 
             combo.AccessibleText = null;
             await EnqueueAsync(combo.DispatcherQueue);
-            Assert.AreEqual("Option", AutomationProperties.GetName(trigger));
+            Assert.AreEqual("Beta", AutomationProperties.GetName(trigger), "Clearing AccessibleText must restore the display member name.");
         }
 
         private static Task EnqueueAsync(DispatcherQueue dispatcher)

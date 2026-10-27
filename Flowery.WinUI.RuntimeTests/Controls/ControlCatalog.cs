@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -16,28 +16,9 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             return GetControlsByNamespace("Flowery.Controls");
         }
 
-        public static IReadOnlyList<Type> GetDaisyControls()
-        {
-            return GetControlsByNamespace("Flowery.Controls")
-                .Where(type => !type.Namespace!.Contains(".Kanban", StringComparison.Ordinal)
-                               && !type.Namespace.Contains(".ColorPicker", StringComparison.Ordinal)
-                               && !type.Namespace.Contains(".Custom", StringComparison.Ordinal))
-                .ToList();
-        }
-
         public static IReadOnlyList<Type> GetKanbanControls()
         {
             return GetControlsByNamespace("Flowery.WinUI.Kanban.Controls", typeof(FlowKanban).Assembly);
-        }
-
-        public static IReadOnlyList<Type> GetColorPickerControls()
-        {
-            return GetControlsByNamespace("Flowery.Controls.ColorPicker");
-        }
-
-        public static IReadOnlyList<Type> GetCustomControls()
-        {
-            return GetControlsByNamespace("Flowery.Controls");
         }
 
         private static IReadOnlyList<Type> GetControlsByNamespace(string rootNamespace, Assembly? assembly = null)

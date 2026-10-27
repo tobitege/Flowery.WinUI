@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Threading.Tasks;
 using Flowery.Controls;
 using Microsoft.UI.Xaml;
@@ -58,35 +58,20 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         }
 
         [TestMethod]
-        public void When_GlobalNeumorphicIsOn_OnlyTheTableTakesPart()
+        public async Task When_GlobalNeumorphicIsOn_OnlyTheTableGetsASurface()
         {
             // Rows and cells opt out, so a table reads as one raised surface instead of one box per row and cell (#12).
-            // The probes are not attached: WinUI cannot apply the cell and row styles to subclasses without XAML metadata.
+            // The helper injects a Grid tagged DaisyNeumorphicContainer next to its host: one for the table, none inside a row.
             var previousMode = DaisyBaseContentControl.GlobalNeumorphicMode;
             var previousEnabled = DaisyBaseContentControl.GlobalNeumorphicEnabled;
             DaisyBaseContentControl.GlobalNeumorphicEnabled = true;
             try
             {
+                // The probes are not attached: WinUI cannot apply the cell and row styles to subclasses without XAML metadata.
                 Assert.IsTrue(new ProbeTable().IsEffectivelyNeumorphicEnabled(), "Table");
                 Assert.IsFalse(new ProbeRow().IsEffectivelyNeumorphicEnabled(), "Row");
                 Assert.IsFalse(new ProbeCell().IsEffectivelyNeumorphicEnabled(), "Cell");
-            }
-            finally
-            {
-                DaisyBaseContentControl.GlobalNeumorphicMode = previousMode;
-                DaisyBaseContentControl.GlobalNeumorphicEnabled = previousEnabled;
-            }
-        }
 
-        [TestMethod]
-        public async Task When_GlobalNeumorphicIsOn_OnlyTheTableGetsASurface()
-        {
-            // The helper injects a Grid tagged DaisyNeumorphicContainer next to its host: one for the table, none inside a row (#12).
-            var previousMode = DaisyBaseContentControl.GlobalNeumorphicMode;
-            var previousEnabled = DaisyBaseContentControl.GlobalNeumorphicEnabled;
-            DaisyBaseContentControl.GlobalNeumorphicEnabled = true;
-            try
-            {
                 var rows = new[] { CreateRow("First"), CreateRow("Second") };
                 var table = new DaisyTable { Content = new StackPanel { Children = { rows[0], rows[1] } } };
 

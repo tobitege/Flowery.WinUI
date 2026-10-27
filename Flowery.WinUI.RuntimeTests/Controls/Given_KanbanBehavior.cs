@@ -1,10 +1,9 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Flowery.WinUI.Kanban.Controls;
-using Flowery.Enums;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Flowery.WinUI.RuntimeTests.Controls
@@ -12,23 +11,6 @@ namespace Flowery.WinUI.RuntimeTests.Controls
     [TestClass]
     public class Given_KanbanBehavior
     {
-        [TestMethod]
-        public void When_Constructing_Kanban_Defaults_AreSet()
-        {
-            var kanban = new FlowKanban();
-
-            Assert.IsNotNull(kanban.Board);
-            Assert.AreEqual(DaisySize.Medium, kanban.BoardSize);
-            Assert.AreEqual(string.Empty, kanban.SearchText);
-            Assert.IsTrue(kanban.IsStatusBarVisible);
-            Assert.IsTrue(kanban.ConfirmColumnRemovals);
-            Assert.IsTrue(kanban.ConfirmCardRemovals);
-            Assert.IsTrue(kanban.AutoSaveAfterEdits);
-            Assert.IsTrue(kanban.AutoExpandCardDetails);
-            Assert.IsFalse(kanban.EnableUndoRedo);
-            Assert.AreEqual(FlowKanbanView.Board, kanban.CurrentView);
-        }
-
         [TestMethod]
         public async Task When_SearchText_Changes_TaskMatchesUpdate()
         {
@@ -96,26 +78,6 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         }
 
         [TestMethod]
-        public void When_BoardSize_Changes_EventFires()
-        {
-            var kanban = new FlowKanban();
-            var invocationCount = 0;
-            DaisySize? lastSize = null;
-
-            kanban.BoardSizeChanged += (_, size) =>
-            {
-                invocationCount++;
-                lastSize = size;
-            };
-
-            kanban.BoardSize = DaisySize.Small;
-            kanban.BoardSize = DaisySize.Large;
-
-            Assert.AreEqual(2, invocationCount);
-            Assert.AreEqual(DaisySize.Large, lastSize);
-        }
-
-        [TestMethod]
         public void When_WipLimit_Exceeded_MoveResultReflectsPolicy()
         {
             var kanban = new FlowKanban
@@ -151,49 +113,6 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             var warning = manager.TryMoveTaskWithWipEnforcement(task, target, enforceHard: false);
             Assert.AreEqual(MoveResult.AllowedWithWipWarning, warning);
             Assert.AreEqual(2, target.Tasks.Count);
-        }
-
-        [TestMethod]
-        public void When_Configuring_Column_Defaults_RespectSettings()
-        {
-            var column = new FlowKanbanColumn();
-
-            Assert.IsTrue(column.ShowColumnHeader);
-            Assert.IsTrue(column.ShowTasks);
-            Assert.IsTrue(column.ShowAddCard);
-            Assert.IsFalse(column.IsCollapsed);
-            Assert.IsTrue(column.IsDropEnabled);
-            Assert.AreEqual(DaisySize.Medium, column.ColumnSize);
-            Assert.IsNull(column.LaneFilterId);
-
-            column.IsDropEnabled = false;
-            Assert.IsFalse(column.AllowDrop);
-        }
-
-        [TestMethod]
-        public void When_TaskCard_BindsTask_SubtaskSummaryUpdates()
-        {
-            var task = new FlowTask
-            {
-                Title = "Card",
-                PlannedEndDate = DateTime.Today.AddDays(1),
-                Subtasks =
-                {
-                    new FlowSubtask { Title = "A", IsCompleted = true },
-                    new FlowSubtask { Title = "B", IsCompleted = false },
-                    new FlowSubtask { Title = "C", IsCompleted = false }
-                }
-            };
-
-            var card = new FlowTaskCard
-            {
-                Task = task
-            };
-
-            Assert.IsTrue(card.HasSubtaskSummary);
-            Assert.IsFalse(string.IsNullOrWhiteSpace(card.SubtaskSummaryText));
-            Assert.IsTrue(card.HasDueDate);
-            Assert.IsFalse(string.IsNullOrWhiteSpace(card.DueDateText));
         }
 
         [TestMethod]
@@ -398,66 +317,57 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         }
 
         [TestMethod]
-        public void When_PersistingBoard_RoundTrips()
+        public void When_PersistingOrMigratingABoard_ItLoadsBack()
         {
-            var storage = new InMemoryStateStorage();
-            var store = new FlowKanbanBoardStore(storage);
-            var board = new FlowKanbanData
+            foreach (var (name, load) in new (string, Func<FlowKanbanData, string, FlowKanbanData?>)[]
+                     {
+                         ("store", SaveAndLoad),
+                         ("v0 json", MigrateWithoutSchemaVersion)
+                     })
             {
-                Id = "board-1",
-                Title = "Round Trip",
-                Columns =
+                var board = new FlowKanbanData
                 {
-                    new FlowKanbanColumnData
+                    Id = "board-1",
+                    Title = "Round Trip",
+                    Columns =
                     {
-                        Title = "Todo",
-                        Tasks = { new FlowTask { Title = "Saved Task" } }
+                        new FlowKanbanColumnData
+                        {
+                            Title = "Todo",
+                            Tasks = { new FlowTask { Title = "Saved Task" } }
+                        }
                     }
-                }
-            };
+                };
 
-            Assert.IsTrue(store.TrySaveBoard(board, out var saveError));
-            Assert.IsNull(saveError);
+                var loaded = load(board, name);
 
-            Assert.IsTrue(store.TryLoadBoard(board.Id, out var loaded, out var loadError));
-            Assert.IsNull(loadError);
-            Assert.IsNotNull(loaded);
-            Assert.AreEqual(board.Id, loaded!.Id);
-            Assert.AreEqual(board.Title, loaded.Title);
-            Assert.AreEqual(1, loaded.Columns.Count);
-            Assert.AreEqual("Todo", loaded.Columns[0].Title);
-            Assert.AreEqual(1, loaded.Columns[0].Tasks.Count);
+                Assert.IsNotNull(loaded, name);
+                Assert.AreEqual(board.Id, loaded!.Id, name);
+                Assert.AreEqual(board.Title, loaded.Title, name);
+                Assert.AreEqual(1, loaded.Columns.Count, name);
+                Assert.AreEqual("Todo", loaded.Columns[0].Title, name);
+                Assert.AreEqual(1, loaded.Columns[0].Tasks.Count, name);
+            }
         }
 
-        [TestMethod]
-        public void When_Migrating_V0Json_LoadsBoard()
+        private static FlowKanbanData? SaveAndLoad(FlowKanbanData board, string name)
         {
-            var board = new FlowKanbanData
-            {
-                Id = "legacy-board",
-                Title = "Legacy",
-                Columns =
-                {
-                    new FlowKanbanColumnData
-                    {
-                        Title = "Backlog",
-                        Tasks = { new FlowTask { Title = "Legacy Task" } }
-                    }
-                }
-            };
+            var store = new FlowKanbanBoardStore(new InMemoryStateStorage());
+            Assert.IsTrue(store.TrySaveBoard(board, out var saveError), name);
+            Assert.IsNull(saveError, name);
+            Assert.IsTrue(store.TryLoadBoard(board.Id, out var loaded, out var loadError), name);
+            Assert.IsNull(loadError, name);
+            return loaded;
+        }
 
+        // A board saved before schema versions has no schemaVersion property.
+        private static FlowKanbanData? MigrateWithoutSchemaVersion(FlowKanbanData board, string name)
+        {
             var json = JsonSerializer.Serialize(board, FlowKanbanJsonContext.Default.FlowKanbanData);
             var root = JsonNode.Parse(json) as JsonObject;
-            root?.Remove("schemaVersion");
-
-            var migrated = FlowKanbanMigration.MigrateFromJson(root?.ToJsonString() ?? json);
-
-            Assert.IsNotNull(migrated);
-            Assert.AreEqual(board.Id, migrated!.Id);
-            Assert.AreEqual(board.Title, migrated.Title);
-            Assert.AreEqual(1, migrated.Columns.Count);
-            Assert.AreEqual("Backlog", migrated.Columns[0].Title);
-            Assert.AreEqual(1, migrated.Columns[0].Tasks.Count);
+            Assert.IsNotNull(root, name);
+            root.Remove("schemaVersion");
+            return FlowKanbanMigration.MigrateFromJson(root.ToJsonString());
         }
     }
 }

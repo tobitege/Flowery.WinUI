@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Flowery.Controls.ColorPicker;
@@ -14,30 +14,27 @@ namespace Flowery.WinUI.RuntimeTests.Controls
     public class Given_ColorPickerDialog
     {
         [TestMethod]
-        public async Task When_Cancelled_ReturnsNull()
+        public async Task When_ClosedWithoutConfirm_ShowAsyncReturnsNull()
         {
-            var dialog = new DaisyColorPickerDialog { Color = Colors.Red, OriginalColor = Colors.Red };
-            var task = dialog.ShowAsync(XamlRootOfHost());
-            await Task.Delay(100);
+            var cases = new (string Name, Action<DaisyColorPickerDialog> Close)[]
+            {
+                ("Cancel", static dialog => dialog.Cancel()),
+                ("Modal close", static dialog => dialog.IsOpen = false) // what Escape and outside clicks do
+            };
 
-            Assert.IsTrue(dialog.IsOpen);
-            dialog.Cancel();
+            foreach (var (name, close) in cases)
+            {
+                var dialog = new DaisyColorPickerDialog { Color = Colors.Red, OriginalColor = Colors.Red };
+                var task = dialog.ShowAsync(XamlRootOfHost());
+                await Task.Delay(100);
 
-            Assert.IsNull(await task);
-            Assert.IsFalse(dialog.IsOpen);
-            Assert.IsNull(dialog.Parent, "The dialog must be removed from the dialog host.");
-        }
+                Assert.IsTrue(dialog.IsOpen, name);
+                close(dialog);
 
-        [TestMethod]
-        public async Task When_ClosedByModal_CountsAsCancel()
-        {
-            var dialog = new DaisyColorPickerDialog { Color = Colors.Red };
-            var task = dialog.ShowAsync(XamlRootOfHost());
-            await Task.Delay(100);
-
-            dialog.IsOpen = false; // what Escape and outside clicks do
-
-            Assert.IsNull(await task);
+                Assert.IsNull(await task, name);
+                Assert.IsFalse(dialog.IsOpen, name);
+                Assert.IsNull(dialog.Parent, $"{name}: the dialog must be removed from the dialog host.");
+            }
         }
 
         [TestMethod]

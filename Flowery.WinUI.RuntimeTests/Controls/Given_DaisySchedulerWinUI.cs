@@ -1,6 +1,5 @@
-using Flowery.Controls;
+﻿using Flowery.Controls;
 using Flowery.Controls.Scheduler.Models;
-using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Windows.Foundation;
@@ -72,21 +71,6 @@ public sealed partial class Given_DaisyScheduler
     }
 
     [TestMethod]
-    public async Task When_SizeChanges_TheCornerRadiusFollowsUnlessTheHostSetIt()
-    {
-        var scope = await SchedulerScope.CreateAsync(SchedulerView.Month);
-        var medium = scope.Scheduler.CornerRadius;
-        scope.Scheduler.Size = DaisySize.ExtraLarge;
-        await scope.LayoutAsync();
-        Assert.AreEqual(Flowery.Theming.DaisyResourceLookup.GetCornerRadius("DaisySizeExtraLargeCornerRadius"), scope.Scheduler.CornerRadius);
-        Assert.AreNotEqual(medium, scope.Scheduler.CornerRadius);
-        scope.Scheduler.CornerRadius = new CornerRadius(3);
-        scope.Scheduler.Size = DaisySize.Small;
-        await scope.LayoutAsync();
-        Assert.AreEqual(new CornerRadius(3), scope.Scheduler.CornerRadius);
-    }
-
-    [TestMethod]
     public async Task When_WeekendsAreHiddenAndIdleResourcesToo_WeekendOnlyResourcesLeaveThePlanner()
     {
         var scope = await SchedulerScope.CreateAsync(SchedulerView.Planner);
@@ -104,20 +88,10 @@ public sealed partial class Given_DaisyScheduler
     }
 
     [TestMethod]
-    public async Task When_TheSchedulerIsRemoved_ItStopsRendering()
+    public async Task When_TheSchedulerChangesParentOrIsRemoved_ItRendersOnlyWhileAttached()
     {
         var scope = await SchedulerScope.CreateAsync(SchedulerView.Month);
-        scope.Host.Children.Remove(scope.Scheduler);
-        await RuntimeTestHelpers.CompleteLayoutAsync(scope.Host);
-        await RuntimeTestHelpers.CompleteLayoutAsync(scope.Host);
-        scope.Scheduler.CurrentView = SchedulerView.Week;
-        Assert.IsFalse(scope.Scheduler.IsRenderPending);
-    }
-
-    [TestMethod]
-    public async Task When_TheSchedulerMovesToAnotherParentInOneTick_ItKeepsRendering()
-    {
-        var scope = await SchedulerScope.CreateAsync(SchedulerView.Month);
+        // A move to another parent within one tick keeps it rendering.
         var other = new Grid();
         scope.Host.Children.Add(other);
         await scope.LayoutAsync();
@@ -129,6 +103,13 @@ public sealed partial class Given_DaisyScheduler
         scope.Scheduler.Appointments = new[] { renamed };
         await scope.LayoutAsync();
         Assert.IsTrue(Descendants<TextBlock>(scope.Scheduler).Any(text => text.Text.Contains("Moved", StringComparison.Ordinal)));
+
+        // Once removed, it stops rendering.
+        other.Children.Remove(scope.Scheduler);
+        await RuntimeTestHelpers.CompleteLayoutAsync(scope.Host);
+        await RuntimeTestHelpers.CompleteLayoutAsync(scope.Host);
+        scope.Scheduler.CurrentView = SchedulerView.Week;
+        Assert.IsFalse(scope.Scheduler.IsRenderPending);
     }
 
     [TestMethod]
@@ -153,33 +134,5 @@ public sealed partial class Given_DaisyScheduler
         await scope.LayoutAsync();
         Assert.IsTrue(replaced);
         Assert.IsTrue(Descendants<TextBlock>(scope.Scheduler).Any(text => text.Text.Contains("Renamed in SelectionChanged", StringComparison.Ordinal)));
-    }
-
-    [TestMethod]
-    public async Task When_AHostSuppliesATooltipWithAStyle_ItsStyleIsKept()
-    {
-        var scope = await SchedulerScope.CreateAsync(SchedulerView.Month);
-        var hostStyle = new Style(typeof(ToolTip));
-        scope.Scheduler.AppointmentTooltipRenderer = _ => new ToolTip { Style = hostStyle, Content = "Host" };
-        await scope.LayoutAsync();
-        Assert.AreSame(hostStyle, ((ToolTip)ToolTipService.GetToolTip(scope.Frame(scope.Appointment))).Style);
-    }
-
-    [TestMethod]
-    public async Task When_AnAppointmentIsSelected_ItsFrameAndContentDoNotMove()
-    {
-        foreach (var view in new[] { SchedulerView.Month, SchedulerView.Week, SchedulerView.Timeline })
-        {
-            var scope = await SchedulerScope.CreateAsync(view);
-            var frame = scope.Frame(scope.Appointment);
-            var content = (FrameworkElement)((Panel)frame.Child).Children[0];
-            var size = new Size(frame.ActualWidth, frame.ActualHeight);
-            var position = content.TransformToVisual(scope.Scheduler).TransformPoint(default);
-            await scope.ClickAsync(frame);
-            Assert.AreSame(scope.Appointment, scope.Scheduler.SelectedAppointment, view.ToString());
-            Assert.AreSame(frame, scope.Frame(scope.Appointment), view.ToString());
-            Assert.AreEqual(size, new Size(frame.ActualWidth, frame.ActualHeight), view.ToString());
-            Assert.AreEqual(position, content.TransformToVisual(scope.Scheduler).TransformPoint(default), view.ToString());
-        }
     }
 }

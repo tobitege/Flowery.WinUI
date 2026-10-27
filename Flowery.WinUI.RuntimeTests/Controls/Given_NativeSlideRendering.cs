@@ -36,16 +36,25 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         ];
 
         [TestMethod]
-        public Task When_DissolveRuns_NativeSurfaceRevealsImagePixels() =>
-            VerifyRenderedTransitionAsync(FlowerySlideTransition.Dissolve, hasOldSlide: true);
-
-        [TestMethod]
-        public Task When_PixelateRuns_NativeSurfacesReplaceOldSlideWithImagePixels() =>
-            VerifyRenderedTransitionAsync(FlowerySlideTransition.Pixelate, hasOldSlide: true);
-
-        [TestMethod]
-        public Task When_PixelateRunsWithoutOldSlide_NativeSurfaceRevealsImagePixels() =>
-            VerifyRenderedTransitionAsync(FlowerySlideTransition.Pixelate, hasOldSlide: false);
+        public async Task When_PixelTransitionsRun_NativeSurfacesRevealImagePixels()
+        {
+            // Pixelate replaces an old slide or reveals the image over an empty container.
+            foreach (var (transition, hasOldSlide) in new[]
+            {
+                (FlowerySlideTransition.Dissolve, true), (FlowerySlideTransition.Pixelate, true), (FlowerySlideTransition.Pixelate, false)
+            })
+            {
+                try
+                {
+                    await VerifyRenderedTransitionAsync(transition, hasOldSlide);
+                }
+                catch (Exception error) when (error is not AssertInconclusiveException)
+                {
+                    // The runner has no data rows, so the failure names its case.
+                    throw new AssertFailedException($"{transition}, old slide={hasOldSlide}: {error.Message}", error);
+                }
+            }
+        }
 
         private static async Task VerifyRenderedTransitionAsync(FlowerySlideTransition transition, bool hasOldSlide)
         {

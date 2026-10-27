@@ -29,12 +29,15 @@ public class Given_DaisyTour
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
 
     [TestMethod]
-    public Task When_GalleryTourStarts_DeclaredStepsResolveAndNavigationPreparesRealTargets() =>
-        VerifyGalleryTourAsync(900, 600);
-
-    [TestMethod]
-    public Task When_GalleryTourUsesCiViewport_DeclaredStepsResolveAndNavigationPreparesRealTargets() =>
-        VerifyGalleryTourAsync(752, 480);
+    public async Task When_GalleryTourStarts_DeclaredStepsResolveAndNavigationPreparesRealTargets()
+    {
+        // The CI window is 752x480; larger local windows also show the wider page.
+        foreach (var (name, maxWidth, maxHeight) in new[] { ("default viewport", 900d, 600d), ("CI viewport", 752d, 480d) })
+        {
+            try { await VerifyGalleryTourAsync(maxWidth, maxHeight); }
+            catch (Exception error) when (error is not AssertInconclusiveException) { throw CaseFailure(name, error); }
+        }
+    }
 
     private static async Task VerifyGalleryTourAsync(double maxWidth, double maxHeight)
     {
@@ -579,12 +582,24 @@ public class Given_DaisyTour
     }
 
     [TestMethod]
-    public async Task When_InitialPreparationIsCancelled_TheHiddenCardCannotAppearAfterLateCompletion()
+    public async Task When_ClosedDuringInitialPreparation_LateCompletionCannotReopenTheTour()
+    {
+        foreach (var (name, skip, reason) in new[]
+        {
+            ("caller cancellation", false, DaisyTourCloseReason.Cancelled), ("Skip", true, DaisyTourCloseReason.Skipped)
+        })
+        {
+            try { await VerifyClosedDuringInitialPreparationAsync(skip, reason); }
+            catch (Exception error) when (error is not AssertInconclusiveException) { throw CaseFailure(name, error); }
+        }
+    }
+
+    private static async Task VerifyClosedDuringInitialPreparationAsync(bool skip, DaisyTourCloseReason reason)
     {
         var target = CreateTarget();
         var gate = new PreparationGate();
         var tour = new DaisyTour();
-        tour.Steps.Add(new DaisyTourStep { Id = "hidden-cancel", Target = target, PrepareAsync = gate.PrepareAsync });
+        tour.Steps.Add(new DaisyTourStep { Id = "pending", Target = target, PrepareAsync = gate.PrepareAsync });
         var closed = new List<DaisyTourClosedEventArgs>();
         tour.Closed += (_, args) => closed.Add(args);
         var root = CreateRoot(tour, target);
@@ -596,19 +611,20 @@ public class Given_DaisyTour
             await gate.Entered.Task.WaitAsync(Timeout);
             var card = Descendants<Border>(GetSurface(tour)).Single(border => AutomationProperties.GetAutomationId(border) == "DaisyTourCard");
             await RenderFrameAsync(root);
-            Assert.AreEqual(Visibility.Collapsed, card.Visibility);
-            cancellation.Cancel();
+            Assert.AreEqual(Visibility.Collapsed, card.Visibility, "Initial preparation must not show the card.");
+            if (skip) tour.Skip();
+            else cancellation.Cancel();
+            Assert.IsTrue(gate.Token.IsCancellationRequested, "Closing must cancel the pending preparation.");
             AssertClosed(tour);
-            Assert.IsTrue(gate.Token.IsCancellationRequested);
             gate.Release.TrySetResult();
             await starting.WaitAsync(Timeout);
             await RenderFrameAsync(root);
             AssertClosed(tour);
             Assert.HasCount(1, closed);
-            Assert.AreEqual(DaisyTourCloseReason.Cancelled, closed[0].Reason);
-            Assert.AreEqual("hidden-cancel", closed[0].StepId);
+            Assert.AreEqual(reason, closed[0].Reason);
+            Assert.AreEqual("pending", closed[0].StepId);
             Assert.IsFalse(VisualTreeHelper.GetOpenPopupsForXamlRoot(root.XamlRoot).Any(popup =>
-                Descendants<Border>(popup.Child).Any(border => ReferenceEquals(border, card))));
+                Descendants<Border>(popup.Child).Any(border => ReferenceEquals(border, card))), "The late completion must not show the card again.");
         }
         finally { gate.Release.TrySetResult(); await CleanupAsync(root, tour); }
     }
@@ -643,49 +659,6 @@ public class Given_DaisyTour
             await repeatedNavigation.WaitAsync(Timeout);
             AssertActive(tour, second, 1);
             Assert.AreEqual(1, calls);
-        }
-        finally { release.TrySetResult(); await CleanupAsync(root, tour); }
-    }
-
-    [TestMethod]
-    public async Task When_SkippedDuringPreparation_LateCompletionCannotReopenTheTour()
-    {
-        var target = CreateTarget();
-        var entered = NewCompletion();
-        var release = NewCompletion();
-        var token = CancellationToken.None;
-        var tour = new DaisyTour();
-        tour.Steps.Add(new DaisyTourStep
-        {
-            Id = "pending", Target = target,
-            PrepareAsync = async (_, cancellationToken) =>
-            {
-                token = cancellationToken;
-                entered.TrySetResult();
-                await release.Task;
-            }
-        });
-        var closed = new List<DaisyTourClosedEventArgs>();
-        tour.Closed += (_, args) => closed.Add(args);
-        var root = CreateRoot(tour, target);
-        try
-        {
-            await LoadAsync(root);
-            var starting = tour.StartAsync();
-            await entered.Task.WaitAsync(Timeout);
-            await RenderFrameAsync(root);
-            var card = Descendants<Border>(GetSurface(tour)).Single(border => AutomationProperties.GetAutomationId(border) == "DaisyTourCard");
-            Assert.AreEqual(Visibility.Collapsed, card.Visibility);
-            tour.Skip();
-            Assert.IsTrue(token.IsCancellationRequested);
-            AssertClosed(tour);
-            release.TrySetResult();
-            await starting.WaitAsync(Timeout);
-            await ArrangeAsync(root);
-            AssertClosed(tour);
-            Assert.HasCount(1, closed);
-            Assert.AreEqual(DaisyTourCloseReason.Skipped, closed[0].Reason);
-            Assert.AreEqual("pending", closed[0].StepId);
         }
         finally { release.TrySetResult(); await CleanupAsync(root, tour); }
     }
@@ -781,41 +754,53 @@ public class Given_DaisyTour
     }
 
     [TestMethod]
-    public async Task When_TargetIsMissingHiddenOrPreparationFails_TheFailureIdentifiesTheStep()
+    public async Task When_TargetIsUnavailableOrPreparationFails_TheFailureIdentifiesTheStep()
     {
         var visible = CreateTarget();
         var detached = CreateTarget();
         var hidden = CreateTarget();
         hidden.Visibility = Visibility.Collapsed;
+        var foreign = CreateTarget();
+        var foreignRoot = new Grid { Children = { foreign } };
+        var foreignWindow = new Window { Content = foreignRoot };
         var tour = new DaisyTour();
         var root = CreateRoot(tour, visible, hidden);
         var closed = new List<DaisyTourClosedEventArgs>();
         tour.Closed += (_, args) => closed.Add(args);
+        Func<DaisyTourStep, CancellationToken, Task> failing = (_, _) => throw new InvalidOperationException("Preparation failed");
+        var cases = new (string Id, FrameworkElement? Target, Func<DaisyTourStep, CancellationToken, Task>? PrepareAsync)[]
+        {
+            ("missing", null, null), ("detached", detached, null), ("hidden", hidden, null),
+            ("foreign", foreign, null), ("failed-prepare", visible, failing)
+        };
         try
         {
+            foreignWindow.Activate();
+            await RuntimeTestHelpers.EnsureLoadedAsync(foreignRoot).WaitAsync(Timeout);
             await LoadAsync(root);
-            foreach (var target in new FrameworkElement?[] { null, detached, hidden })
+            Assert.AreNotSame(root.XamlRoot, foreign.XamlRoot, "The foreign target must belong to another window.");
+            foreach (var (id, target, prepare) in cases)
             {
-                tour.Steps.Clear();
-                tour.Steps.Add(new DaisyTourStep { Id = "unavailable", Target = target });
-                await tour.StartAsync().WaitAsync(Timeout);
-                AssertClosed(tour);
-                Assert.AreEqual(DaisyTourCloseReason.TargetUnavailable, closed[^1].Reason);
-                Assert.AreEqual("unavailable", closed[^1].StepId);
+                try
+                {
+                    tour.Steps.Clear();
+                    tour.Steps.Add(new DaisyTourStep { Id = id, Target = target, PrepareAsync = prepare });
+                    await tour.StartAsync().WaitAsync(Timeout);
+                    AssertClosed(tour);
+                    Assert.AreEqual(DaisyTourCloseReason.TargetUnavailable, closed[^1].Reason);
+                    Assert.AreEqual(id, closed[^1].StepId);
+                    Assert.AreSame(target, closed[^1].Target);
+                }
+                catch (Exception error) when (error is not AssertInconclusiveException) { throw CaseFailure(id, error); }
             }
-            tour.Steps.Clear();
-            tour.Steps.Add(new DaisyTourStep
-            {
-                Id = "failed-prepare", Target = visible,
-                PrepareAsync = (_, _) => throw new InvalidOperationException("Preparation failed")
-            });
-            await tour.StartAsync().WaitAsync(Timeout);
-            AssertClosed(tour);
-            Assert.AreEqual(DaisyTourCloseReason.TargetUnavailable, closed[^1].Reason);
-            Assert.AreEqual("failed-prepare", closed[^1].StepId);
-            Assert.HasCount(4, closed);
+            Assert.HasCount(cases.Length, closed);
         }
-        finally { await CleanupAsync(root, tour); }
+        finally
+        {
+            foreignWindow.Close();
+            RuntimeTestContext.Window?.Activate();
+            await CleanupAsync(root, tour);
+        }
     }
 
     [TestMethod]
@@ -840,38 +825,6 @@ public class Given_DaisyTour
             AssertTargetBounds(tour, target);
         }
         finally { await CleanupAsync(root, tour); }
-    }
-
-    [TestMethod]
-    public async Task When_TargetBelongsToAnotherWindow_ItIsReportedUnavailable()
-    {
-        var target = CreateTarget();
-        var foreignRoot = new Grid { Children = { target } };
-        var foreignWindow = new Window { Content = foreignRoot };
-        var tour = new DaisyTour();
-        tour.Steps.Add(new DaisyTourStep { Id = "foreign", Target = target });
-        var root = CreateRoot(tour);
-        DaisyTourClosedEventArgs? closed = null;
-        tour.Closed += (_, args) => closed = args;
-        try
-        {
-            foreignWindow.Activate();
-            await RuntimeTestHelpers.EnsureLoadedAsync(foreignRoot).WaitAsync(Timeout);
-            await LoadAsync(root);
-            Assert.AreNotSame(root.XamlRoot, target.XamlRoot);
-            await tour.StartAsync().WaitAsync(Timeout);
-            AssertClosed(tour);
-            Assert.IsNotNull(closed);
-            Assert.AreEqual(DaisyTourCloseReason.TargetUnavailable, closed.Reason);
-            Assert.AreEqual("foreign", closed.StepId);
-            Assert.AreSame(target, closed.Target);
-        }
-        finally
-        {
-            foreignWindow.Close();
-            RuntimeTestContext.Window?.Activate();
-            await CleanupAsync(root, tour);
-        }
     }
 
     [TestMethod]
@@ -919,31 +872,7 @@ public class Given_DaisyTour
     }
 
     [TestMethod]
-    public async Task When_ScrollingRevealsATarget_ItsHighlightFrameIsVisibleToo()
-    {
-        var target = CreateTarget();
-        target.Margin = new Thickness(24, 900, 0, 0);
-        var viewer = new ScrollViewer { Content = new Grid { Height = 1200, Children = { target } } };
-        var step = new DaisyTourStep { Id = "frame", Target = target };
-        var tour = new DaisyTour();
-        tour.Steps.Add(step);
-        var root = CreateRoot(tour, viewer);
-        try
-        {
-            await LoadAsync(root);
-            await tour.StartAsync().WaitAsync(Timeout);
-            AssertActive(tour, step, 0);
-            // The viewer ends at the root's edge, so a frame outside it would be cut off.
-            var margin = tour.HighlightPadding + 2;
-            var bounds = target.TransformToVisual(viewer).TransformBounds(new Rect(0, 0, target.ActualWidth, target.ActualHeight));
-            var frame = new Rect(bounds.X - margin, bounds.Y - margin, bounds.Width + 2 * margin, bounds.Height + 2 * margin);
-            AssertInViewport(frame, new Size(viewer.ActualWidth, viewer.ActualHeight), "The highlight frame");
-        }
-        finally { await CleanupAsync(root, tour); }
-    }
-
-    [TestMethod]
-    public async Task When_AnotherScrollMovesTheTargetAway_TheTourRevealsItAgain()
+    public async Task When_ScrollingRevealsATarget_ItsHighlightFrameIsVisibleAndStaysRevealedAfterAnotherScroll()
     {
         var target = CreateTarget();
         target.Margin = new Thickness(24, 900, 0, 0);
@@ -967,6 +896,7 @@ public class Given_DaisyTour
             await LoadAsync(root);
             await tour.StartAsync().WaitAsync(Timeout);
             AssertActive(tour, step, 0);
+            AssertFrameInViewer(tour, target, viewer, "The highlight frame after the first reveal");
             viewer.ViewChanged += viewChanged;
             // A page control bringing itself into view scrolls the target out of the viewport.
             Assert.IsTrue(viewer.ChangeView(null, 0, null, true));
@@ -975,11 +905,21 @@ public class Given_DaisyTour
             AssertActive(tour, step, 0);
             AssertFits(target, viewer);
             AssertTargetBounds(tour, target);
+            AssertFrameInViewer(tour, target, viewer, "The highlight frame after the second reveal");
         }
         finally
         {
             viewer.ViewChanged -= viewChanged;
             await CleanupAsync(root, tour);
+        }
+
+        // The viewer ends at the root's edge, so a frame outside it would be cut off.
+        static void AssertFrameInViewer(DaisyTour tour, FrameworkElement target, ScrollViewer viewer, string diagnostic)
+        {
+            var margin = tour.HighlightPadding + 2;
+            var bounds = target.TransformToVisual(viewer).TransformBounds(new Rect(0, 0, target.ActualWidth, target.ActualHeight));
+            var frame = new Rect(bounds.X - margin, bounds.Y - margin, bounds.Width + 2 * margin, bounds.Height + 2 * margin);
+            AssertInViewport(frame, new Size(viewer.ActualWidth, viewer.ActualHeight), diagnostic);
         }
     }
 
@@ -1060,26 +1000,30 @@ public class Given_DaisyTour
     }
 
     [TestMethod]
-    public async Task When_ArrowAnnotationRenders_NativePixelsContainItsStrokeAndFilledHead()
+    public async Task When_AnnotationRenders_NativePixelsContainItsStrokeAndFill()
     {
-        foreach (var preset in new[]
+        // Arrows have a filled head, lines only a stroke, and surfaces a stroked and filled body.
+        var cases = new (DaisyTourAnnotationKind Kind, DaisyTourAnnotationPreset Preset, DaisyTourStrokeStyle StrokeStyle)[]
         {
-            DaisyTourAnnotationPreset.ThinArrow, DaisyTourAnnotationPreset.ThickArrow,
-            DaisyTourAnnotationPreset.BlockArrow, DaisyTourAnnotationPreset.CurvedArrow,
-            DaisyTourAnnotationPreset.TwoEndedArrow
-        })
-            await VerifyAnnotationPixelsAsync(DaisyTourAnnotationKind.Arrow, preset);
-    }
-
-    [TestMethod]
-    public async Task When_LineAnnotationRenders_NativePixelsContainItsStroke()
-    {
-        foreach (var style in new[]
+            (DaisyTourAnnotationKind.Arrow, DaisyTourAnnotationPreset.ThinArrow, DaisyTourStrokeStyle.Default),
+            (DaisyTourAnnotationKind.Arrow, DaisyTourAnnotationPreset.ThickArrow, DaisyTourStrokeStyle.Default),
+            (DaisyTourAnnotationKind.Arrow, DaisyTourAnnotationPreset.BlockArrow, DaisyTourStrokeStyle.Default),
+            (DaisyTourAnnotationKind.Arrow, DaisyTourAnnotationPreset.CurvedArrow, DaisyTourStrokeStyle.Default),
+            (DaisyTourAnnotationKind.Arrow, DaisyTourAnnotationPreset.TwoEndedArrow, DaisyTourStrokeStyle.Default),
+            (DaisyTourAnnotationKind.Line, DaisyTourAnnotationPreset.Default, DaisyTourStrokeStyle.Solid),
+            (DaisyTourAnnotationKind.Line, DaisyTourAnnotationPreset.Default, DaisyTourStrokeStyle.Dotted),
+            (DaisyTourAnnotationKind.Line, DaisyTourAnnotationPreset.Default, DaisyTourStrokeStyle.Dashed),
+            (DaisyTourAnnotationKind.Line, DaisyTourAnnotationPreset.Default, DaisyTourStrokeStyle.DashDot),
+            (DaisyTourAnnotationKind.Line, DaisyTourAnnotationPreset.Default, DaisyTourStrokeStyle.Custom),
+            (DaisyTourAnnotationKind.Cloud, DaisyTourAnnotationPreset.Default, DaisyTourStrokeStyle.Default),
+            (DaisyTourAnnotationKind.SpeechBubble, DaisyTourAnnotationPreset.Default, DaisyTourStrokeStyle.Default),
+            (DaisyTourAnnotationKind.Custom, DaisyTourAnnotationPreset.Default, DaisyTourStrokeStyle.Default)
+        };
+        foreach (var (kind, preset, strokeStyle) in cases)
         {
-            DaisyTourStrokeStyle.Solid, DaisyTourStrokeStyle.Dotted, DaisyTourStrokeStyle.Dashed,
-            DaisyTourStrokeStyle.DashDot, DaisyTourStrokeStyle.Custom
-        })
-            await VerifyAnnotationPixelsAsync(DaisyTourAnnotationKind.Line, strokeStyle: style);
+            try { await VerifyAnnotationPixelsAsync(kind, preset, strokeStyle); }
+            catch (Exception error) when (error is not AssertInconclusiveException) { throw CaseFailure($"{kind}/{preset}/{strokeStyle}", error); }
+        }
     }
 
     [TestMethod]
@@ -1297,95 +1241,72 @@ public class Given_DaisyTour
     }
 
     [TestMethod]
-    public async Task When_CurveTargetsAWideControlBelowAndRight_ItDocksAtTheFacingSides()
+    public async Task When_ConnectorBendsBetweenItsAnchors_ItDocksAtTheFacingSidesAndDoesNotCrossItsEndpoints()
     {
         var root = new Canvas { Width = 600, Height = 400, Background = new SolidColorBrush(Colors.Black) };
         var presenter = new DaisyTourAnnotationPresenter { Width = 600, Height = 400 };
         root.Children.Add(presenter);
-        var source = new Rect(60, 40, 80, 40);
-        var target = new Rect(400, 300, 175, 28);
+        var wave = new PathGeometry();
+        var waveFigure = new PathFigure { StartPoint = new Point(0, 0) };
+        waveFigure.Segments.Add(new BezierSegment { Point1 = new Point(20, -30), Point2 = new Point(80, 30), Point3 = new Point(100, 0) });
+        wave.Figures.Add(waveFigure);
+        // Arrows to a wide control below and right: the horizontal distance dominates, so the course starts at the
+        // source's right side and ends at the target's left side.
+        var cases = new List<(string Name, DaisyTourAnnotation Annotation, Rect Source, Rect Target, (Point Start, Point Tip)? Docks)>();
+        foreach (var path in new[]
+        {
+            DaisyTourAnnotationPath.Straight, DaisyTourAnnotationPath.Elbow, DaisyTourAnnotationPath.Curved,
+            DaisyTourAnnotationPath.SCurve, DaisyTourAnnotationPath.Bezier, DaisyTourAnnotationPath.Custom
+        })
+        {
+            cases.Add(($"{path} arrow to a wide target", new DaisyTourAnnotation
+            {
+                Kind = DaisyTourAnnotationKind.Arrow, Path = path,
+                ControlPoint1X = 0.25, ControlPoint1Y = -0.25, ControlPoint2X = 0.75, ControlPoint2Y = 0.25,
+                Geometry = path == DaisyTourAnnotationPath.Custom ? wave : null
+            }, new Rect(60, 40, 80, 40), new Rect(400, 300, 175, 28), (new Point(140, 60), new Point(400, 314))));
+        }
+        // Lines that bend away from their anchors.
+        cases.Add(("Bezier line", new DaisyTourAnnotation
+        {
+            Kind = DaisyTourAnnotationKind.Line, Path = DaisyTourAnnotationPath.Bezier,
+            ControlPoint1X = 0.2, ControlPoint1Y = -0.6, ControlPoint2X = 0.8, ControlPoint2Y = 0.6
+        }, new Rect(80, 60, 120, 40), new Rect(400, 280, 120, 40), null));
+        cases.Add(("Curved line", new DaisyTourAnnotation { Kind = DaisyTourAnnotationKind.Line, Path = DaisyTourAnnotationPath.Curved, Curvature = -0.6 },
+            new Rect(80, 60, 120, 40), new Rect(400, 280, 120, 40), null));
+        cases.Add(("Elbow line", new DaisyTourAnnotation { Kind = DaisyTourAnnotationKind.Line, Path = DaisyTourAnnotationPath.Elbow },
+            new Rect(40, 60, 320, 40), new Rect(440, 300, 80, 40), null));
         try
         {
             await LoadAsync(root);
-            var wave = new PathGeometry();
-            var waveFigure = new PathFigure { StartPoint = new Point(0, 0) };
-            waveFigure.Segments.Add(new BezierSegment { Point1 = new Point(20, -30), Point2 = new Point(80, 30), Point3 = new Point(100, 0) });
-            wave.Figures.Add(waveFigure);
-            foreach (var path in new[]
+            foreach (var (name, annotation, source, target, docks) in cases)
             {
-                DaisyTourAnnotationPath.Straight, DaisyTourAnnotationPath.Elbow, DaisyTourAnnotationPath.Curved,
-                DaisyTourAnnotationPath.SCurve, DaisyTourAnnotationPath.Bezier, DaisyTourAnnotationPath.Custom
-            })
-            {
-                var annotation = new DaisyTourAnnotation
+                try
                 {
-                    Kind = DaisyTourAnnotationKind.Arrow, Path = path, StrokeThickness = 4,
-                    ControlPoint1X = 0.25, ControlPoint1Y = -0.25, ControlPoint2X = 0.75, ControlPoint2Y = 0.25,
-                    Geometry = path == DaisyTourAnnotationPath.Custom ? wave : null
-                };
-                presenter.Update(annotation, source, target,
-                    new SolidColorBrush(Colors.Red), new SolidColorBrush(Colors.Lime), new SolidColorBrush(Colors.White));
-                await ArrangeAsync(root);
-                // The arrowhead's tip is the course's end; a custom course is drawn through a geometry transform.
-                var tip = ((PathGeometry)((Path)presenter.Children[3]).Data).Figures.Single().StartPoint;
-                // The horizontal distance dominates: right side of the source, left side of the target.
-                Assert.AreEqual(400, tip.X, 0.001, $"{path}: end must dock at the target's left side");
-                Assert.AreEqual(314, tip.Y, 0.001, $"{path}: end must dock at the target's left side");
-                if (((Path)presenter.Children[1]).Data is PathGeometry body)
-                    Assert.AreEqual(new Point(140, 60), body.Figures.Single().StartPoint, $"{path}: start");
-                var bitmap = new RenderTargetBitmap();
-                await bitmap.RenderAsync(root, 600, 400).AsTask().WaitAsync(Timeout);
-                var pixels = (await bitmap.GetPixelsAsync()).ToArray();
-                foreach (var rect in new[] { source, target })
-                {
-                    var inside = new Rect(rect.X + 4, rect.Y + 4, rect.Width - 8, rect.Height - 8);
-                    Assert.AreEqual(0, CountRenderedColor(pixels, bitmap, inside, Colors.Red), $"{path}: the curve must not cross {rect}.");
+                    annotation.StrokeThickness = 4;
+                    presenter.Update(annotation, source, target,
+                        new SolidColorBrush(Colors.Red), new SolidColorBrush(Colors.Lime), new SolidColorBrush(Colors.White));
+                    await ArrangeAsync(root);
+                    if (docks is { } dock)
+                    {
+                        // The arrowhead's tip is the course's end; a custom course is drawn through a geometry transform.
+                        var tip = ((PathGeometry)((Path)presenter.Children[3]).Data).Figures.Single().StartPoint;
+                        Assert.AreEqual(dock.Tip.X, tip.X, 0.001, $"{name}: end must dock at the target's left side");
+                        Assert.AreEqual(dock.Tip.Y, tip.Y, 0.001, $"{name}: end must dock at the target's left side");
+                        if (((Path)presenter.Children[1]).Data is PathGeometry body)
+                            Assert.AreEqual(dock.Start, body.Figures.Single().StartPoint, $"{name}: start must dock at the source's right side");
+                    }
+                    var bitmap = new RenderTargetBitmap();
+                    await bitmap.RenderAsync(root, 600, 400).AsTask().WaitAsync(Timeout);
+                    var pixels = (await bitmap.GetPixelsAsync()).ToArray();
+                    Assert.IsTrue(CountRenderedColor(pixels, bitmap, new Rect(0, 0, 600, 400), Colors.Red) >= 100, $"{name}: the connector must render.");
+                    foreach (var (part, rect) in new[] { ("source", source), ("target", target) })
+                    {
+                        var inside = new Rect(rect.X + 4, rect.Y + 4, rect.Width - 8, rect.Height - 8);
+                        Assert.AreEqual(0, CountRenderedColor(pixels, bitmap, inside, Colors.Red), $"{name}: the connector must not cross its {part} element.");
+                    }
                 }
-            }
-        }
-        finally
-        {
-            RuntimeTestHelpers.GetHostPanel().Children.Remove(root);
-            await ArrangeAsync(root);
-        }
-    }
-
-    [TestMethod]
-    public async Task When_ConnectorBendsAwayFromItsAnchors_ItDoesNotCrossItsOwnEndpoints()
-    {
-        var root = new Canvas { Width = 600, Height = 400, Background = new SolidColorBrush(Colors.Black) };
-        var presenter = new DaisyTourAnnotationPresenter { Width = 600, Height = 400 };
-        root.Children.Add(presenter);
-        var cases = new (string Name, DaisyTourAnnotation Annotation, Rect Source, Rect Target)[]
-        {
-            ("Bezier", new DaisyTourAnnotation
-            {
-                Path = DaisyTourAnnotationPath.Bezier, ControlPoint1X = 0.2, ControlPoint1Y = -0.6, ControlPoint2X = 0.8, ControlPoint2Y = 0.6
-            }, new Rect(80, 60, 120, 40), new Rect(400, 280, 120, 40)),
-            ("Curved", new DaisyTourAnnotation { Path = DaisyTourAnnotationPath.Curved, Curvature = -0.6 },
-                new Rect(80, 60, 120, 40), new Rect(400, 280, 120, 40)),
-            ("Elbow", new DaisyTourAnnotation { Path = DaisyTourAnnotationPath.Elbow },
-                new Rect(40, 60, 320, 40), new Rect(440, 300, 80, 40))
-        };
-        try
-        {
-            await LoadAsync(root);
-            foreach (var (name, annotation, source, target) in cases)
-            {
-                annotation.Kind = DaisyTourAnnotationKind.Line;
-                annotation.StrokeThickness = 4;
-                presenter.Update(annotation, source, target,
-                    new SolidColorBrush(Colors.Red), new SolidColorBrush(Colors.Lime), new SolidColorBrush(Colors.White));
-                await ArrangeAsync(root);
-                var bitmap = new RenderTargetBitmap();
-                await bitmap.RenderAsync(root, 600, 400).AsTask().WaitAsync(Timeout);
-                var pixels = (await bitmap.GetPixelsAsync()).ToArray();
-                Assert.IsTrue(CountRenderedColor(pixels, bitmap, new Rect(0, 0, 600, 400), Colors.Red) >= 100, $"{name}: the connector must render.");
-                foreach (var (part, rect) in new[] { ("source", source), ("target", target) })
-                {
-                    var inside = new Rect(rect.X + 4, rect.Y + 4, rect.Width - 8, rect.Height - 8);
-                    Assert.AreEqual(0, CountRenderedColor(pixels, bitmap, inside, Colors.Red), $"{name}: the connector must not cross its {part} element.");
-                }
+                catch (Exception error) when (error is not AssertInconclusiveException) { throw CaseFailure(name, error); }
             }
         }
         finally
@@ -1536,18 +1457,6 @@ public class Given_DaisyTour
         }
         finally { await CleanupAsync(root, tour); }
     }
-
-    [TestMethod]
-    public Task When_CloudAnnotationRenders_NativePixelsContainItsStrokeAndFill() =>
-        VerifyAnnotationPixelsAsync(DaisyTourAnnotationKind.Cloud);
-
-    [TestMethod]
-    public Task When_SpeechBubbleAnnotationRenders_NativePixelsContainItsStrokeAndFill() =>
-        VerifyAnnotationPixelsAsync(DaisyTourAnnotationKind.SpeechBubble);
-
-    [TestMethod]
-    public Task When_CustomAnnotationRenders_NativePixelsContainItsStrokeAndFill() =>
-        VerifyAnnotationPixelsAsync(DaisyTourAnnotationKind.Custom);
 
     [TestMethod]
     public void When_ConnectorBoundsChange_RetainedPathsFollowBothAnchorsAndStyleOverrides()
@@ -2377,8 +2286,7 @@ public class Given_DaisyTour
     }
 
     private static async Task VerifyAnnotationPixelsAsync(DaisyTourAnnotationKind kind,
-        DaisyTourAnnotationPreset preset = DaisyTourAnnotationPreset.Default,
-        DaisyTourStrokeStyle strokeStyle = DaisyTourStrokeStyle.Default)
+        DaisyTourAnnotationPreset preset, DaisyTourStrokeStyle strokeStyle)
     {
         var root = new Canvas { Width = 600, Height = 400, Background = new SolidColorBrush(Colors.Black) };
         var calibration = new Border { Width = 20, Height = 20, Background = new SolidColorBrush(Colors.Blue) };
@@ -2682,6 +2590,9 @@ public class Given_DaisyTour
     }
 
     private static TaskCompletionSource NewCompletion() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    // The runner has no data rows, so a case-table failure names its case in the message.
+    private static AssertFailedException CaseFailure(string name, Exception error) => new($"{name}: {error.Message}", error);
 
     private static async Task LoadAsync(FrameworkElement root)
     {

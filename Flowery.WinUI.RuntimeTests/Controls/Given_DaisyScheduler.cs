@@ -31,35 +31,59 @@ public sealed partial class Given_DaisyScheduler
         [SchedulerView.Day, SchedulerView.Week, SchedulerView.Month, SchedulerView.Agenda, SchedulerView.Planner, SchedulerView.Timeline];
 
     [TestMethod]
-    public async Task When_EveryViewRendersHostAppointments_SelectionWorks()
+    public async Task When_EveryViewRendersHostAppointments_SelectionWorksWithoutMovingTheFrame()
     {
         foreach (var view in ListViews)
         {
+            var label = view.ToString();
             var scope = await SchedulerScope.CreateAsync(view);
             var block = scope.Frame(scope.Appointment);
-            Assert.IsTrue(block.ActualWidth > 0, view.ToString());
-            Assert.IsTrue(block.ActualHeight > 0, view.ToString());
+            Assert.IsTrue(block.ActualWidth > 0, label);
+            Assert.IsTrue(block.ActualHeight > 0, label);
+            var content = (FrameworkElement)((Panel)block.Child).Children[0];
+            var size = new Size(block.ActualWidth, block.ActualHeight);
+            var position = content.TransformToVisual(scope.Scheduler).TransformPoint(default);
             await scope.ClickAsync(block);
-            Assert.AreSame(scope.Appointment, scope.Scheduler.SelectedAppointment, view.ToString());
-            Assert.HasCount(1, scope.Scheduler.SelectedAppointments, view.ToString());
+            Assert.AreSame(scope.Appointment, scope.Scheduler.SelectedAppointment, label);
+            Assert.HasCount(1, scope.Scheduler.SelectedAppointments, label);
+            // The selection ring lies over the frame, so selecting neither rebuilds nor moves the appointment.
+            Assert.AreSame(block, scope.Frame(scope.Appointment), label);
+            Assert.AreEqual(size, new Size(block.ActualWidth, block.ActualHeight), label);
+            Assert.AreEqual(position, content.TransformToVisual(scope.Scheduler).TransformPoint(default), label);
         }
     }
 
     [TestMethod]
     public async Task When_DragMoving_ReportsSnappedProposalWithoutMutatingHostData()
     {
-        var scope = await SchedulerScope.CreateAsync(SchedulerView.Day);
-        AppointmentMoveArgs? request = null;
-        scope.Scheduler.AppointmentMoveRequested += (_, args) => request = args;
-        var block = scope.Frame(scope.Appointment);
-        var origin = scope.Point(block, block.ActualWidth / 2, block.ActualHeight / 2);
-        await scope.DragAsync(block, origin, Offset(origin, 0, 48));
-        Assert.IsNotNull(request);
-        Assert.AreSame(scope.Appointment, request.Appointment);
-        Assert.AreEqual(Monday.AddHours(10), request.NewStart);
-        Assert.AreEqual(Monday.AddHours(11), request.NewEnd);
-        Assert.AreEqual(Monday.AddHours(9), scope.Appointment.Start);
-        Assert.AreEqual(Monday.AddHours(10), scope.Appointment.End);
+        // A later occurrence of a daily series moves the whole series by the same delta.
+        foreach (var (label, daily, end, dayOffset, newStart, newEnd) in new[]
+                 {
+                     ("single", false, Monday.AddHours(10), 0, Monday.AddHours(10), Monday.AddHours(11)),
+                     ("later daily occurrence", true, Monday.AddDays(2).AddHours(10), 2, Monday.AddHours(10), Monday.AddDays(2).AddHours(11))
+                 })
+        {
+            var scope = await SchedulerScope.CreateAsync(SchedulerView.Day);
+            if (daily)
+            {
+                scope.Appointment.SpanMode = AppointmentSpanMode.Daily;
+                scope.Appointment.End = end;
+                scope.Scheduler.SelectedDate = new DateTimeOffset(Monday.AddDays(dayOffset));
+                scope.Scheduler.Appointments = new[] { scope.Appointment };
+                await scope.LayoutAsync();
+            }
+            AppointmentMoveArgs? request = null;
+            scope.Scheduler.AppointmentMoveRequested += (_, args) => request = args;
+            var block = scope.Frame(scope.Appointment);
+            var origin = scope.Point(block, block.ActualWidth / 2, block.ActualHeight / 2);
+            await scope.DragAsync(block, origin, Offset(origin, 0, 48));
+            Assert.IsNotNull(request, label);
+            Assert.AreSame(scope.Appointment, request.Appointment, label);
+            Assert.AreEqual(newStart, request.NewStart, label);
+            Assert.AreEqual(newEnd, request.NewEnd, label);
+            Assert.AreEqual(Monday.AddHours(9), scope.Appointment.Start, label);
+            Assert.AreEqual(end, scope.Appointment.End, label);
+        }
     }
 
     [TestMethod]
@@ -168,25 +192,31 @@ public sealed partial class Given_DaisyScheduler
     }
 
     [TestMethod]
-    public async Task When_GlobalSizeChanges_FontsFollowAndAnExplicitSizeIsKept()
+    public async Task When_SizeChanges_FontsAndCornerRadiusFollowAndHostValuesAreKept()
     {
         var previous = FlowerySizeManager.CurrentSize;
         var scope = await SchedulerScope.CreateAsync(SchedulerView.Month);
         try
         {
+            var medium = scope.Scheduler.CornerRadius;
             scope.Scheduler.ClearValue(DaisyScheduler.SizeProperty);
             FlowerySizeManager.ApplySize(DaisySize.ExtraLarge);
             await scope.LayoutAsync();
             Assert.AreEqual(DaisySize.Auto, scope.Scheduler.Size);
             Assert.AreEqual(DaisySize.ExtraLarge, scope.Scheduler.ResolvedSize);
             Assert.AreEqual(20, scope.Scheduler.FontSize);
+            Assert.AreEqual(DaisyResourceLookup.GetCornerRadius("DaisySizeExtraLargeCornerRadius"), scope.Scheduler.CornerRadius);
+            Assert.AreNotEqual(medium, scope.Scheduler.CornerRadius);
             foreach (var button in Descendants<DaisyButton>(scope.Scheduler))
                 Assert.AreEqual(DaisySize.ExtraLarge, button.ResolvedSize);
+            // An explicit size and a corner radius the host set win over the global size.
+            scope.Scheduler.CornerRadius = new CornerRadius(3);
             scope.Scheduler.Size = DaisySize.Small;
             FlowerySizeManager.ApplySize(DaisySize.ExtraSmall);
             await scope.LayoutAsync();
             Assert.AreEqual(DaisySize.Small, scope.Scheduler.ResolvedSize);
             Assert.AreEqual(12, scope.Scheduler.FontSize);
+            Assert.AreEqual(new CornerRadius(3), scope.Scheduler.CornerRadius);
         }
         finally { FlowerySizeManager.ApplySize(previous); }
     }
@@ -287,14 +317,15 @@ public sealed partial class Given_DaisyScheduler
     }
 
     [TestMethod]
-    public async Task When_TooltipIsShown_ItsTextInheritsTheTooltipPalette()
+    public async Task When_TooltipIsShown_ItsTextInheritsTheTooltipPaletteAndAHostStyleIsKept()
     {
         var previous = DaisyThemeManager.CurrentThemeName;
         try
         {
+            SchedulerScope? scope = null;
             foreach (var theme in new[] { "Corporate", "Light", "Dark", "Coffee" })
             {
-                var scope = await SchedulerScope.CreateAsync(SchedulerView.Planner);
+                scope = await SchedulerScope.CreateAsync(SchedulerView.Planner);
                 Assert.IsTrue(DaisyThemeManager.ApplyTheme(theme));
                 scope.Appointment.Description = "Appointment note";
                 scope.Appointment.Memo = "Internal memo";
@@ -312,6 +343,12 @@ public sealed partial class Given_DaisyScheduler
                 foreach (var label in content.Children.OfType<TextBlock>())
                     Assert.AreEqual(DependencyProperty.UnsetValue, label.ReadLocalValue(TextBlock.ForegroundProperty), theme + ": " + label.Text);
             }
+
+            // A tooltip the host supplies keeps its own style.
+            var hostStyle = new Style(typeof(ToolTip));
+            scope!.Scheduler.AppointmentTooltipRenderer = _ => new ToolTip { Style = hostStyle, Content = "Host" };
+            await scope.LayoutAsync();
+            Assert.AreSame(hostStyle, ((ToolTip)ToolTipService.GetToolTip(scope.Frame(scope.Appointment))).Style);
         }
         finally { DaisyThemeManager.ApplyTheme(previous ?? "Light"); }
     }
@@ -447,25 +484,22 @@ public sealed partial class Given_DaisyScheduler
     }
 
     [TestMethod]
-    public void When_ExternalDragDataIsSet_TheTypedSourceItemIsReturned()
+    public void When_ExternalDragDataIsSet_TheTypedItemIsReturnedAndSurvivesACollection()
     {
         var item = new Droppable();
         var package = new DataPackage();
         ExternalDropHandler.SetData(package, item);
         Assert.AreSame(item, ExternalDropHandler.TryGetItem(package.GetView()));
         Assert.IsNull(ExternalDropHandler.TryGetItem(new DataPackage().GetView()));
-    }
 
-    [TestMethod]
-    public void When_OnlyTheDragPackageReferencesTheItem_ItSurvivesACollectionAndKeepsTheHostOperation()
-    {
-        var package = new DataPackage { RequestedOperation = DataPackageOperation.Move };
-        SetTemporaryItem(package);
+        // When only the drag package references the item, it survives a collection and the host operation is kept.
+        var temporary = new DataPackage { RequestedOperation = DataPackageOperation.Move };
+        SetTemporaryItem(temporary);
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
-        Assert.AreEqual("Temporary", ExternalDropHandler.TryGetItem(package.GetView())?.Subject);
-        Assert.AreEqual(DataPackageOperation.Move | DataPackageOperation.Copy, package.RequestedOperation);
+        Assert.AreEqual("Temporary", ExternalDropHandler.TryGetItem(temporary.GetView())?.Subject);
+        Assert.AreEqual(DataPackageOperation.Move | DataPackageOperation.Copy, temporary.RequestedOperation);
     }
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]

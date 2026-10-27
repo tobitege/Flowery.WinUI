@@ -538,44 +538,53 @@ public class Given_HighContrast
     }
 
     [TestMethod]
-    public void When_AContrastHandlerThrows_LaterHandlersStillHearTheChange()
+    public void When_AnAppearanceEventHandlerThrows_LaterHandlersStillHearTheChange()
     {
-        var reached = false;
-        EventHandler throwing = (_, _) => throw new InvalidOperationException("Simulated failing subscriber");
-        EventHandler later = (_, _) => reached = true;
-        DaisySystemAppearance.ColorsChanged += throwing;
-        DaisySystemAppearance.ColorsChanged += later;
-        try
+        var originalTheme = DaisyThemeManager.CurrentThemeName ?? DaisyThemeManager.BaseThemeName;
+        // Subscribe adds a throwing handler, then one that reports what it heard, and returns the unsubscribe action.
+        var cases = new (string Name, Func<Action<string>, Action> Subscribe, Action Raise, string Expected, Action Restore)[]
         {
-            DaisySystemAppearance.RaiseColorsChanged();
-            Assert.IsTrue(reached, "A handler subscribed after a failing one still hears the contrast change.");
-        }
-        finally
-        {
-            DaisySystemAppearance.ColorsChanged -= throwing;
-            DaisySystemAppearance.ColorsChanged -= later;
-        }
-    }
+            ("ColorsChanged", static report =>
+            {
+                EventHandler throwing = static (_, _) => throw new InvalidOperationException("Simulated failing subscriber");
+                EventHandler later = (_, _) => report("ColorsChanged");
+                DaisySystemAppearance.ColorsChanged += throwing;
+                DaisySystemAppearance.ColorsChanged += later;
+                return () =>
+                {
+                    DaisySystemAppearance.ColorsChanged -= throwing;
+                    DaisySystemAppearance.ColorsChanged -= later;
+                };
+            }, static () => DaisySystemAppearance.RaiseColorsChanged(), "ColorsChanged", static () => { }),
+            ("ThemeChanged", static report =>
+            {
+                EventHandler<string> throwing = static (_, _) => throw new InvalidOperationException("Simulated failing subscriber");
+                EventHandler<string> later = (_, theme) => report(theme);
+                DaisyThemeManager.ThemeChanged += throwing;
+                DaisyThemeManager.ThemeChanged += later;
+                return () =>
+                {
+                    DaisyThemeManager.ThemeChanged -= throwing;
+                    DaisyThemeManager.ThemeChanged -= later;
+                };
+            }, () => DaisyThemeManager.SetCurrentTheme(originalTheme + "-test"), originalTheme + "-test",
+                () => DaisyThemeManager.SetCurrentTheme(originalTheme))
+        };
 
-    [TestMethod]
-    public void When_AThemeChangedHandlerThrows_LaterHandlersStillHearTheChange()
-    {
-        var original = DaisyThemeManager.CurrentThemeName ?? DaisyThemeManager.BaseThemeName;
-        string? reached = null;
-        EventHandler<string> throwing = (_, _) => throw new InvalidOperationException("Simulated failing subscriber");
-        EventHandler<string> later = (_, name) => reached = name;
-        DaisyThemeManager.ThemeChanged += throwing;
-        DaisyThemeManager.ThemeChanged += later;
-        try
+        foreach (var (name, subscribe, raise, expected, restore) in cases)
         {
-            DaisyThemeManager.SetCurrentTheme(original + "-test");
-            Assert.AreEqual(original + "-test", reached, "A handler subscribed after a failing one still hears the theme change.");
-        }
-        finally
-        {
-            DaisyThemeManager.ThemeChanged -= throwing;
-            DaisyThemeManager.ThemeChanged -= later;
-            DaisyThemeManager.SetCurrentTheme(original);
+            string? reached = null;
+            var unsubscribe = subscribe(value => reached = value);
+            try
+            {
+                raise();
+                Assert.AreEqual(expected, reached, $"{name}: a handler subscribed after a failing one still hears the change.");
+            }
+            finally
+            {
+                unsubscribe();
+                restore();
+            }
         }
     }
 

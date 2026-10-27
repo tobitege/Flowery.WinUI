@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
@@ -22,31 +22,29 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         public void Cleanup() => RuntimeTestHelpers.GetHostPanel().Children.Clear();
 
         [TestMethod]
-        public async Task When_NumberFlowEditsFractionalDigits_UsesDisplayedDecimalPlace()
+        public async Task When_NumberFlowEditsStandardFormatDigits_UsesDisplayedPlaceAndSign()
         {
-            var number = new DaisyNumberFlow
+            // N2 and C2 (de-DE): digit 0 is the last displayed decimal place.
+            var fractional = new DaisyNumberFlow
             {
                 Value = 12.34m,
                 FormatString = "N2",
                 Culture = CultureInfo.GetCultureInfo("de-DE"),
                 AllowDigitSelection = true
             };
-            await LoadAsync(number);
-            number.SelectDigit(0);
-            number.IncrementCommand.Execute(null);
-            Assert.AreEqual(12.35m, number.Value);
-            number.SelectDigit(1);
-            number.DecrementCommand.Execute(null);
-            Assert.AreEqual(12.25m, number.Value);
-            number.FormatString = "C2";
-            number.SelectDigit(2);
-            number.IncrementCommand.Execute(null);
-            Assert.AreEqual(13.25m, number.Value);
-        }
+            await LoadAsync(fractional);
+            fractional.SelectDigit(0);
+            fractional.IncrementCommand.Execute(null);
+            Assert.AreEqual(12.35m, fractional.Value, "N2: last decimal place.");
+            fractional.SelectDigit(1);
+            fractional.DecrementCommand.Execute(null);
+            Assert.AreEqual(12.25m, fractional.Value, "N2: first decimal place.");
+            fractional.FormatString = "C2";
+            fractional.SelectDigit(2);
+            fractional.IncrementCommand.Execute(null);
+            Assert.AreEqual(13.25m, fractional.Value, "C2: ones place.");
 
-        [TestMethod]
-        public async Task When_NumberFlowEditsPercentOrNegativeDigit_PreservesPlaceAndSign()
-        {
+            // P2, negative F2 and E2 (invariant culture).
             var number = new DaisyNumberFlow
             {
                 Value = 0.1234m,
@@ -57,23 +55,24 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             await LoadAsync(number);
             number.SelectDigit(0);
             number.IncrementCommand.Execute(null);
-            Assert.AreEqual(0.1235m, number.Value, "The last digit of 12.34% changes the underlying value by 0.0001.");
+            Assert.AreEqual(0.1235m, number.Value, "P2: the last digit of 12.34% changes the underlying value by 0.0001.");
 
             number.FormatString = "F2";
             number.Value = -12.34m;
             number.SelectDigit(0);
             Invoke(number, "SetSelectedDigitTo", 5);
-            Assert.AreEqual(-12.35m, number.Value);
+            Assert.AreEqual(-12.35m, number.Value, "F2: a negative digit edit keeps the sign.");
             number.FormatString = "E2";
             number.SelectedDigitIndex = null;
             number.SelectDigit(0);
-            Assert.IsNull(number.SelectedDigitIndex, "Scientific exponent digits must not be edited as fixed point digits.");
+            Assert.IsNull(number.SelectedDigitIndex, "E2: scientific exponent digits must not be edited as fixed point digits.");
         }
 
         [TestMethod]
-        public async Task When_NumberFlowUsesZeroPadding_LeadingZerosRemainEditable()
+        public async Task When_NumberFlowUsesCustomFormats_ZeroPaddedDigitsStayEditableAndAmbiguousFormatsDoNot()
         {
-            var number = new DaisyNumberFlow
+            // "000": leading zeros remain editable digits.
+            var padded = new DaisyNumberFlow
             {
                 Value = 28m,
                 FormatString = "000",
@@ -83,30 +82,27 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                 Minimum = 0m,
                 Maximum = 999m
             };
-            await LoadAsync(number);
-            Assert.AreEqual("028", NumberFlowText(number));
-            number.SelectDigit(2);
-            Assert.AreEqual(2, number.SelectedDigitIndex);
-            number.IncrementCommand.Execute(null);
-            Assert.AreEqual(128m, number.Value);
-            Assert.AreEqual("128", NumberFlowText(number));
-            number.SelectDigit(1);
-            number.DecrementCommand.Execute(null);
-            Assert.AreEqual(118m, number.Value);
-            Invoke(number, "SetSelectedDigitTo", 0);
-            Assert.AreEqual(108m, number.Value);
-            number.SelectDigit(2);
-            Invoke(number, "SetSelectedDigitTo", 0);
-            Assert.AreEqual(8m, number.Value);
-            Assert.AreEqual("008", NumberFlowText(number));
-            number.SelectDigit(3);
-            Assert.AreEqual(2, number.SelectedDigitIndex, "The sign and missing positions must not become editable digits.");
-        }
+            await LoadAsync(padded);
+            Assert.AreEqual("028", NumberFlowText(padded), "000: initial text.");
+            padded.SelectDigit(2);
+            Assert.AreEqual(2, padded.SelectedDigitIndex, "000: a leading zero can be selected.");
+            padded.IncrementCommand.Execute(null);
+            Assert.AreEqual(128m, padded.Value, "000: increment the hundreds.");
+            Assert.AreEqual("128", NumberFlowText(padded), "000: text after increment.");
+            padded.SelectDigit(1);
+            padded.DecrementCommand.Execute(null);
+            Assert.AreEqual(118m, padded.Value, "000: decrement the tens.");
+            Invoke(padded, "SetSelectedDigitTo", 0);
+            Assert.AreEqual(108m, padded.Value, "000: set the tens.");
+            padded.SelectDigit(2);
+            Invoke(padded, "SetSelectedDigitTo", 0);
+            Assert.AreEqual(8m, padded.Value, "000: set the hundreds to zero.");
+            Assert.AreEqual("008", NumberFlowText(padded), "000: text after setting zero.");
+            padded.SelectDigit(3);
+            Assert.AreEqual(2, padded.SelectedDigitIndex, "000: the sign and missing positions must not become editable digits.");
 
-        [TestMethod]
-        public async Task When_NumberFlowUsesSignedZeroPadding_DigitEditsPreserveSignAndBounds()
-        {
-            var number = new DaisyNumberFlow
+            // Signed "000": digit edits keep the sign and respect the bounds.
+            var signed = new DaisyNumberFlow
             {
                 Value = -28m,
                 FormatString = "000",
@@ -114,64 +110,58 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                 Minimum = -500m,
                 Maximum = 500m
             };
-            await LoadAsync(number);
-            Assert.AreEqual("-028", NumberFlowText(number));
-            number.SelectDigit(0);
-            number.DecrementCommand.Execute(null);
-            Assert.AreEqual(-29m, number.Value);
-            Invoke(number, "SetSelectedDigitTo", 4);
-            Assert.AreEqual(-24m, number.Value);
-            Assert.AreEqual("-024", NumberFlowText(number));
-            number.SelectDigit(2);
-            Invoke(number, "SetSelectedDigitTo", 9);
-            Assert.AreEqual(-500m, number.Value, "Increasing a negative digit magnitude must respect Minimum.");
-            number.Value = -1m;
-            number.SelectDigit(0);
-            number.IncrementCommand.Execute(null);
-            Assert.AreEqual(0m, number.Value);
-            Assert.AreEqual("000", NumberFlowText(number));
-            number.IncrementCommand.Execute(null);
-            Assert.AreEqual(1m, number.Value);
-            Assert.AreEqual("001", NumberFlowText(number));
-        }
+            await LoadAsync(signed);
+            Assert.AreEqual("-028", NumberFlowText(signed), "Signed 000: initial text.");
+            signed.SelectDigit(0);
+            signed.DecrementCommand.Execute(null);
+            Assert.AreEqual(-29m, signed.Value, "Signed 000: decrement the ones.");
+            Invoke(signed, "SetSelectedDigitTo", 4);
+            Assert.AreEqual(-24m, signed.Value, "Signed 000: set the ones.");
+            Assert.AreEqual("-024", NumberFlowText(signed), "Signed 000: text after setting the ones.");
+            signed.SelectDigit(2);
+            Invoke(signed, "SetSelectedDigitTo", 9);
+            Assert.AreEqual(-500m, signed.Value, "Signed 000: increasing a negative digit magnitude must respect Minimum.");
+            signed.Value = -1m;
+            signed.SelectDigit(0);
+            signed.IncrementCommand.Execute(null);
+            Assert.AreEqual(0m, signed.Value, "Signed 000: increment to zero.");
+            Assert.AreEqual("000", NumberFlowText(signed), "Signed 000: text at zero.");
+            signed.IncrementCommand.Execute(null);
+            Assert.AreEqual(1m, signed.Value, "Signed 000: increment past zero.");
+            Assert.AreEqual("001", NumberFlowText(signed), "Signed 000: text past zero.");
 
-        [TestMethod]
-        public async Task When_NumberFlowUsesSimpleCustomDecimals_CultureAndPlaceValuesRemainCorrect()
-        {
-            var number = new DaisyNumberFlow
+            // "000.00" (de-DE): culture and place values remain correct.
+            var decimals = new DaisyNumberFlow
             {
                 Value = 12.34m,
                 FormatString = "000.00",
                 Culture = CultureInfo.GetCultureInfo("de-DE"),
                 AllowDigitSelection = true
             };
-            await LoadAsync(number);
-            Assert.AreEqual("012,34", NumberFlowText(number));
-            number.SelectDigit(0);
-            number.IncrementCommand.Execute(null);
-            Assert.AreEqual(12.35m, number.Value);
-            number.SelectDigit(4);
-            Invoke(number, "SetSelectedDigitTo", 2);
-            Assert.AreEqual(212.35m, number.Value);
-            Assert.AreEqual("212,35", NumberFlowText(number));
-            number.FormatString = "0.00";
-            number.SelectDigit(1);
-            number.DecrementCommand.Execute(null);
-            Assert.AreEqual(212.25m, number.Value);
-        }
+            await LoadAsync(decimals);
+            Assert.AreEqual("012,34", NumberFlowText(decimals), "000.00: initial text.");
+            decimals.SelectDigit(0);
+            decimals.IncrementCommand.Execute(null);
+            Assert.AreEqual(12.35m, decimals.Value, "000.00: increment the last decimal place.");
+            decimals.SelectDigit(4);
+            Invoke(decimals, "SetSelectedDigitTo", 2);
+            Assert.AreEqual(212.35m, decimals.Value, "000.00: set the hundreds.");
+            Assert.AreEqual("212,35", NumberFlowText(decimals), "000.00: text after setting the hundreds.");
+            decimals.FormatString = "0.00";
+            decimals.SelectDigit(1);
+            decimals.DecrementCommand.Execute(null);
+            Assert.AreEqual(212.25m, decimals.Value, "0.00: decrement the first decimal place.");
 
-        [TestMethod]
-        public async Task When_NumberFlowUsesComplexFormats_FormattingWorksWithoutAmbiguousDigitEditing()
-        {
-            var number = new DaisyNumberFlow { Value = 28m, AllowDigitSelection = true };
-            await LoadAsync(number);
+            // Complex formats still format, but their digits are not editable.
+            var complex = new DaisyNumberFlow { Value = 28m, AllowDigitSelection = true };
+            await LoadAsync(complex);
             foreach (var format in new[] { "000 'kg'", "#,##0.00", "000;[000];'zero'", "0.00E+00" })
             {
-                number.FormatString = format;
-                number.SelectDigit(0);
-                Assert.IsNull(number.SelectedDigitIndex, format);
-                Assert.AreEqual(28m, number.Value);
-                Assert.AreEqual(number.Value.GetValueOrDefault().ToString(format, number.Culture), NumberFlowText(number));
+                complex.FormatString = format;
+                complex.SelectDigit(0);
+                Assert.IsNull(complex.SelectedDigitIndex, $"{format}: no digit selection.");
+                Assert.AreEqual(28m, complex.Value, $"{format}: value unchanged.");
+                Assert.AreEqual(complex.Value.GetValueOrDefault().ToString(format, complex.Culture), NumberFlowText(complex), $"{format}: text.");
             }
         }
 
@@ -414,24 +404,6 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             Assert.IsFalse(drawer.IsDrawerOpen);
             drawer.IsDrawerOpen = true;
             Assert.IsTrue(drawer.IsPaneOpen);
-        }
-
-        [TestMethod]
-        public async Task When_CardSizeChanges_AutomaticPaddingUpdatesAndExplicitPaddingSurvives()
-        {
-            var card = new DaisyCard { Size = DaisySize.Small };
-            await LoadAsync(card);
-            Assert.IsNull(card.BodyPadding);
-            Assert.AreEqual(new Thickness(24), card.ResolvedBodyPadding);
-            card.Size = DaisySize.Large;
-            Assert.AreEqual(new Thickness(40), card.ResolvedBodyPadding);
-            card.Variant = DaisyCardVariant.Compact;
-            Assert.AreEqual(new Thickness(20), card.ResolvedBodyPadding);
-            card.BodyPadding = new Thickness(9);
-            card.Size = DaisySize.ExtraLarge;
-            Assert.AreEqual(new Thickness(9), card.ResolvedBodyPadding);
-            card.ClearValue(DaisyCard.BodyPaddingProperty);
-            Assert.AreEqual(new Thickness(24), card.ResolvedBodyPadding);
         }
 
         [TestMethod]

@@ -15,7 +15,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls;
 public class Given_GalleryHeaderLayout
 {
     [TestMethod]
-    public async Task When_GalleryWidthChanges_HeaderContentFitsAndWideLayoutReturns()
+    public async Task When_GalleryWidthChanges_HeaderFitsAndCollapsedStateSurvives()
     {
         var previousIntensity = DaisyBaseContentControl.GlobalNeumorphicIntensity;
         var view = new MainView { Width = 900, Height = 480 };
@@ -61,23 +61,8 @@ public class Given_GalleryHeaderLayout
                 AssertFits(license, credits);
                 AssertFits(title, header);
             }
-        }
-        finally
-        {
-            await Unload(view);
-            DaisyBaseContentControl.GlobalNeumorphicIntensity = previousIntensity;
-        }
-    }
 
-    [TestMethod]
-    public async Task When_CollapsedHeaderResizes_ItStaysCollapsedAndRestoresTheCorrectTitleSize()
-    {
-        var previousIntensity = DaisyBaseContentControl.GlobalNeumorphicIntensity;
-        var view = new MainView { Width = 900, Height = 480 };
-        try
-        {
-            await Load(view);
-            var title = Find<TextBlock>(view, "HeaderTitle");
+            // A collapsed header stays collapsed while narrowing and restores the title size of the current width.
             var subtitle = Find<Grid>(view, "SubtitleRow");
             var collapse = typeof(MainView).GetMethod("SetHeaderCollapsed", BindingFlags.Instance | BindingFlags.NonPublic)!;
             collapse.Invoke(view, new object[] { true });
