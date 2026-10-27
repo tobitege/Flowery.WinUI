@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -26,7 +26,7 @@ namespace Flowery.Controls
     /// Swaps a single palette ResourceDictionary into Application.Resources.MergedDictionaries
     /// and raises ThemeChanged.
     /// </summary>
-    public static class DaisyThemeManager
+    public static partial class DaisyThemeManager
     {
         private sealed class ThemeDefinition(DaisyThemeInfo info, Func<ResourceDictionary> paletteFactory)
         {
@@ -443,10 +443,21 @@ namespace Flowery.Controls
             // Use custom applicator if set
             if (CustomThemeApplicator != null)
             {
+                var wasCurrent = string.Equals(_currentThemeName, def.Info.Name, StringComparison.OrdinalIgnoreCase);
+                // The applicator and the override see the theme's own colors, not those of the previous override.
+                RestoreCustomThemeColors();
                 var result = CustomThemeApplicator(themeName);
-                if (result)
+                if (result && !wasCurrent)
                 {
                     SetCurrentTheme(def.Info.Name);
+                }
+                else
+                {
+                    // Applied again, such as for a new BaseOverride, which SetCurrentTheme would skip; or not applied,
+                    // which keeps the override of the current theme.
+                    ApplyCustomBaseOverride();
+                    if (result)
+                        FloweryEventRaiser.Raise(ThemeChanged, null, def.Info.Name, nameof(ThemeChanged));
                 }
                 return result;
             }
@@ -459,11 +470,17 @@ namespace Flowery.Controls
 
             // Ensure token defaults are present (apps can override by defining the keys first).
             DaisyTokenDefaults.EnsureDefaults(app.Resources);
+            // A fresh palette sets every color and light or dark, also where a custom applicator had an override.
+            _customThemeColors = null;
+            _customBaseOverrideApplied = false;
 
             try
             {
                 var newPalette = def.PaletteFactory();
                 EnsureDerivedPaletteKeys(newPalette, app.Resources);
+                // From the theme's own colors, and before the contrast palette, so a Windows contrast theme still wins.
+                if (_baseOverride is { } baseOverride)
+                    AddBaseOverride(newPalette, newPalette, baseOverride);
                 DaisySystemAppearance.ApplyContrastPalette(newPalette);
                 if (_currentPalette == null)
                 {
@@ -488,8 +505,9 @@ namespace Flowery.Controls
                 // and only mutate their Color values on each apply.
                 ApplyPaletteToApplicationResources(app.Resources, newPalette);
 
-                // Update neumorphic shadow colors based on theme
-                UpdateNeumorphicShadowColors(app.Resources, def.Info.IsDark);
+                // Update neumorphic shadow colors based on theme; a base override decides light or dark by its luminance.
+                var isDark = IsDarkWithOverride(def.Info.IsDark);
+                UpdateNeumorphicShadowColors(app.Resources, isDark);
 
                 // Optional WinUI mappings:
                 // Updating optional WinUI resource mappings can throw COMException during initialization.
@@ -500,7 +518,7 @@ namespace Flowery.Controls
                 // NOTE: We'll avoid overriding WinUI system foreground keys here, since those were the primary
                 // suspects for COMException and they aren't needed for Daisy-styled controls.
 
-                TrySetRequestedTheme(app, def.Info.IsDark ? ApplicationTheme.Dark : ApplicationTheme.Light);
+                TrySetRequestedTheme(app, isDark ? ApplicationTheme.Dark : ApplicationTheme.Light);
 
                 FloweryEventRaiser.Raise(ThemeChanged, null, def.Info.Name, nameof(ThemeChanged));
                 return true;
@@ -646,35 +664,30 @@ namespace Flowery.Controls
                 // Prefer the Color entry (value type) as source-of-truth.
                 if (palette.TryGetValue(colorKey, out var colorObj) && colorObj is Windows.UI.Color color)
                 {
-                    appResources[colorKey] = color;
-
-                    if (DaisyResourceLookup.TryGetResource(appResources, brushKey, out var existingBrushObj)
-                        && existingBrushObj is SolidColorBrush existingBrush)
-                    {
-                        existingBrush.Color = color;
-                    }
-                    else
-                    {
-                        appResources[brushKey] = new SolidColorBrush(color);
-                    }
-
+                    PublishColor(appResources, prefix, color);
                     continue;
                 }
 
                 // Fallback: if only a brush exists in the palette, clone/mutate from it.
                 if (palette.TryGetValue(brushKey, out var brushObj) && brushObj is SolidColorBrush paletteBrush)
                 {
-                    appResources[colorKey] = paletteBrush.Color;
-                    if (DaisyResourceLookup.TryGetResource(appResources, brushKey, out var existingBrushObj)
-                        && existingBrushObj is SolidColorBrush existingBrush)
-                    {
-                        existingBrush.Color = paletteBrush.Color;
-                    }
-                    else
-                    {
-                        appResources[brushKey] = new SolidColorBrush(paletteBrush.Color);
-                    }
+                    PublishColor(appResources, prefix, paletteBrush.Color);
                 }
+            }
+        }
+
+        // Sets a color and the color of its stable brush in the application resources.
+        private static void PublishColor(ResourceDictionary appResources, string prefix, Windows.UI.Color color)
+        {
+            appResources[prefix + "Color"] = color;
+            if (DaisyResourceLookup.TryGetResource(appResources, prefix + "Brush", out var existingBrushObj)
+                && existingBrushObj is SolidColorBrush existingBrush)
+            {
+                existingBrush.Color = color;
+            }
+            else
+            {
+                appResources[prefix + "Brush"] = new SolidColorBrush(color);
             }
         }
 
@@ -728,16 +741,24 @@ namespace Flowery.Controls
                 return;
 
             _currentThemeName = themeName;
+            // A base override decides light or dark, also for a theme that a CustomThemeApplicator applied.
+            if (CustomThemeApplicator != null)
+                ApplyCustomBaseOverride();
             FloweryEventRaiser.Raise(ThemeChanged, null, themeName, nameof(ThemeChanged));
         }
 
         /// <summary>
-        /// Check if a theme is a dark theme.
+        /// Check if a theme is a dark theme. For the current theme under a <see cref="BaseOverride"/>, the luminance of
+        /// the override decides; <see cref="GetThemeInfo"/> keeps the kind of the theme as defined.
         /// </summary>
         public static bool IsDarkTheme(string themeName)
         {
             var info = GetThemeInfo(themeName);
-            return info?.IsDark ?? false;
+            if (info == null)
+                return false;
+            return string.Equals(info.Name, _currentThemeName, StringComparison.OrdinalIgnoreCase)
+                ? IsDarkWithOverride(info.IsDark)
+                : info.IsDark;
         }
 
         /// <summary>

@@ -7,7 +7,6 @@ using Flowery.WinUI.Kanban.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Media;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Flowery.WinUI.RuntimeTests.Controls
@@ -31,14 +30,14 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             bool[] Selected() => tasks.Select(static task => task.IsSelected).ToArray();
 
             // A press on a card or a control is no free place of the board.
-            var column = Descendants<FlowKanbanColumn>(kanban).First();
+            var column = RuntimeTestHelpers.Descendants<FlowKanbanColumn>(kanban).First();
             Assert.IsTrue(kanban.IsFreePlace(column));
             Assert.IsFalse(kanban.IsFreePlace(cards[0]));
-            Assert.IsFalse(kanban.IsFreePlace(Descendants<TextBlock>(cards[0]).First()));
-            Assert.IsFalse(kanban.IsFreePlace(Descendants<ButtonBase>(column).First()));
+            Assert.IsFalse(kanban.IsFreePlace(RuntimeTestHelpers.Descendants<TextBlock>(cards[0]).First()));
+            Assert.IsFalse(kanban.IsFreePlace(RuntimeTestHelpers.Descendants<ButtonBase>(column).First()));
             Assert.IsFalse(kanban.IsFreePlace(null));
             // On touch a tap on a column header shows its buttons.
-            Assert.IsFalse(kanban.IsFreePlace(Descendants<FrameworkElement>(column).First(static element => element.Name == "PART_ColumnHeaderGrid")));
+            Assert.IsFalse(kanban.IsFreePlace(RuntimeTestHelpers.Descendants<FrameworkElement>(column).First(static element => element.Name == "PART_ColumnHeaderGrid")));
 
             Assert.IsTrue(cards[0].TapTask());
             CollectionAssert.AreEqual(new[] { tasks[0] }, edits);
@@ -63,6 +62,31 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         }
 
         [TestMethod]
+        public async Task When_ACardIsTappedBeforeItsLoadedHandlerRan_ItJoinsTheSelection()
+        {
+            var selected = new FlowTask { Title = "Selected" };
+            var kanban = await CreateBoardAsync(new[] { selected });
+            Assert.IsTrue(CardOf(kanban, selected).HoldTask());
+            await RuntimeTestHelpers.CompleteLayoutAsync(kanban);
+            var edits = new List<FlowTask>();
+
+            // The layout realizes the new card, and WinUI raises its Loaded later. A touch can reach the card in between,
+            // such as on a card that a long column realizes while it scrolls.
+            var task = new FlowTask { Title = "Task" };
+            kanban.Board.Columns[0].Tasks.Insert(0, task);
+            kanban.UpdateLayout();
+            var card = CardOf(kanban, task);
+            Assert.IsNull(card.LoadedBoard, "the card already ran its Loaded handler");
+            card.EditCommand = new EditCounter(edits);
+
+            Assert.IsTrue(card.TapTask());
+
+            Assert.IsTrue(task.IsSelected);
+            Assert.IsTrue(selected.IsSelected);
+            Assert.IsEmpty(edits);
+        }
+
+        [TestMethod]
         public async Task When_ARealFingerTapsHoldsAndSwipes_WinUIDeliversTheTouchModel()
         {
             var tasks = new[] { new FlowTask { Title = "A" }, new FlowTask { Title = "B" } };
@@ -84,7 +108,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             Assert.HasCount(1, edits, "hold");
 
             // A tap on a free place of the board clears the selection.
-            var doingColumn = Descendants<FlowKanbanColumn>(kanban).Single(column => ReferenceEquals(column.ColumnData, doing));
+            var doingColumn = RuntimeTestHelpers.Descendants<FlowKanbanColumn>(kanban).Single(column => ReferenceEquals(column.ColumnData, doing));
             await TouchInjection.TapAsync(doingColumn, new Windows.Foundation.Point(doingColumn.ActualWidth / 2, doingColumn.ActualHeight * 2 / 3));
             Assert.IsFalse(tasks[0].IsSelected, "free tap");
 
@@ -107,7 +131,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             var kanban = await CreateBoardAsync(new[] { task }, 0, doing);
             var card = CardOf(kanban, task);
             var middle = new Windows.Foundation.Point(card.ActualWidth / 2, card.ActualHeight / 2);
-            var doingColumn = Descendants<FlowKanbanColumn>(kanban).Single(column => ReferenceEquals(column.ColumnData, doing));
+            var doingColumn = RuntimeTestHelpers.Descendants<FlowKanbanColumn>(kanban).Single(column => ReferenceEquals(column.ColumnData, doing));
             var target = card.TransformToVisual(doingColumn).Inverse.TransformPoint(
                 new Windows.Foundation.Point(doingColumn.ActualWidth / 2, doingColumn.ActualHeight / 3));
 
@@ -141,31 +165,19 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             // With no saved boards, OnKanbanLoaded switches to the Home view, which hides the columns.
             kanban.CurrentView = FlowKanbanView.Board;
             // The columns realize their cards over several layout passes.
-            bool Realized() => tasks.All(task => Descendants<FlowTaskCard>(kanban).Any(card => ReferenceEquals(card.Task, task)));
+            bool Realized() => tasks.All(task => RuntimeTestHelpers.Descendants<FlowTaskCard>(kanban).Any(card => ReferenceEquals(card.Task, task)));
             for (var pass = 0; pass < 50 && !Realized(); pass++)
                 await RuntimeTestHelpers.CompleteLayoutAsync(kanban);
             Assert.IsTrue(Realized(), "realized cards");
-            // A card finds its board in its Loaded handler, which WinUI can raise after the card is in the tree;
-            // until then a tap cannot see the board's selection.
+            // WinUI can raise a card's Loaded after the card is in the tree. A tap looks the board up itself, but the other
+            // work of the Loaded handler has not run yet, so a test taps a card only once it found its board there.
             await RuntimeTestHelpers.WaitUntilAsync(
                 () => tasks.All(task => ReferenceEquals(CardOf(kanban, task).LoadedBoard, kanban)), "the cards know their board");
             return kanban;
         }
 
         private static FlowTaskCard CardOf(FlowKanban kanban, FlowTask task) =>
-            Descendants<FlowTaskCard>(kanban).Single(card => ReferenceEquals(card.Task, task));
-
-        private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
-        {
-            for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
-            {
-                var child = VisualTreeHelper.GetChild(root, index);
-                if (child is T match)
-                    yield return match;
-                foreach (var descendant in Descendants<T>(child))
-                    yield return descendant;
-            }
-        }
+            RuntimeTestHelpers.Descendants<FlowTaskCard>(kanban).Single(card => ReferenceEquals(card.Task, task));
 
         private sealed class EditCounter(List<FlowTask> edits) : ICommand
         {

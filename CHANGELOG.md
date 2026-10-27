@@ -6,6 +6,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.0] - 2026-10-27
+
+### Added
+
+- `DaisyThemeManager.BaseOverride`, as in Flowery.NET: a base color that replaces `Base100` of every theme at run time and stays across theme switches, which spares palettes that differ only in their base colors. Light or dark follows from its luminance, and with it `IsCurrentThemeDark`, `IsDarkTheme` of the current theme and the neumorphic shadow colors. `Base200`, `Base300` and `BaseContent` keep the contrast ratio and the side their own theme gives them, `BaseContent` at least 4.5:1; the border, the combo box highlight and the muted, subtle and disabled text follow. The text colors of the accents and the link move to 4.5:1 against the new base, and the accent surfaces stay. A theme that a `CustomThemeApplicator` applies takes the override from the colors it put in place. A Windows contrast theme wins over the override. `BaseOverrideChanged` reports a change, which also raises `ThemeChanged` with the current theme.
+- `DaisyThemeManager.IsCurrentThemeDark`, and `FindContrastGaps()` with `DaisyContrastGap`: the color pairs of the theme as drawn below the WCAG contrast, from the base text on the three base colors to the text on each accent surface.
+- `FloweryColorHelpers.GetRelativeLuminance`, `GetContrastRatio`, `EnsureContrast` and `Composite` for the WCAG 2 contrast, as in Flowery.NET.
+- Gallery: the sidebar offers the base color below the size, as a color button with a reset ("Base Color" in all twelve languages). The Gallery saves it next to the theme and restores it at startup.
+
+### Changed
+
+- `DaisyThemeSwap` goes by the theme as defined, so under a light base on a dark theme it still swaps to the light theme.
+- `DaisyPatternedCard` picks its white or black pattern images by the theme as drawn (`IsCurrentThemeDark`). Before, a fixed list of dark theme names decided, which left out dark themes such as Abyss, Black and Smooth.
+
+### Fixed
+
+- Kanban, as in Flowery.NET: a tap on a card decides whether cards are selected through the board it finds at the tap. The card looked its board up in its `Loaded` handler, which WinUI raises after the card is in the tree, so a touch on a card realized just then, such as while a long column scrolls, opened its editor while other cards were selected.
+- Kanban, as in Flowery.NET: an edit that still waits for its auto-save is saved at once when the board unloads, before the home view clears the last board ID, and while its window closes. WinUI unloads the board of a closed window only later, and closing the last window ends the app before that. The same happens before a board loads, so reopening the open board shows the edit, and before `Board` or `BoardStore` changes: the edit is saved on the board it was made on and into the store it was meant for, and a replaced board does not become the last board. Deleting the open board drops its waiting edit instead of saving the board back. Before, the timer kept running and later saved whatever board was open then into the store and state storage current then, and set the last board ID again.
+
 ## [1.11.0] - 2026-10-27
 
 ### Added

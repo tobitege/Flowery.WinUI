@@ -35,7 +35,7 @@ Optional packages add the Kanban board and Win2D graphics.
 
 ## Features
 
-- **Themes.** 53 built-in themes, switchable at runtime: 36 inspired by DaisyUI and 17 from Happy Hues. 96 industry palettes and your own custom palettes can be registered as well. Windows contrast themes are supported with live system colors.
+- **Themes.** 53 built-in themes, switchable at runtime: 36 inspired by DaisyUI and 17 from Happy Hues. 96 industry palettes and your own custom palettes can be registered as well. A base color set at run time gives any theme another base, with the other base colors and the text keeping their contrast. Windows contrast themes are supported with live system colors.
 - **Design tokens.** Colors, brushes, spacing and typography come from design tokens that a host app can override in its resources.
 - **Sizing.** Five size tiers from ExtraSmall to ExtraLarge. A control defaults to `Auto` and follows its container or the global size, which the user can change at runtime.
 - **Controls.** Input, selection, navigation, popup, dialog, layout, data display and feedback controls, plus a color picker suite, weather widgets and a date timeline.

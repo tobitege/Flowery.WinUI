@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Flowery.Controls;
@@ -43,7 +43,8 @@ namespace Flowery.WinUI.Gallery
                         new() { Id = "welcome", Name = "Sidebar_Welcome", TabHeader = "Sidebar_Home" },
                         new GalleryThemeSelectorItem { Id = "theme", Name = "Sidebar_Theme", TabHeader = "Sidebar_Home" },
                         new GalleryLanguageSelectorItem { Id = "language", Name = "Sidebar_Language", TabHeader = "Sidebar_Home" },
-                        new GallerySizeSelectorItem { Id = "size", Name = "Sidebar_Size", TabHeader = "Sidebar_Home" }
+                        new GallerySizeSelectorItem { Id = "size", Name = "Sidebar_Size", TabHeader = "Sidebar_Home" },
+                        new GalleryBaseColorSelectorItem { Id = "base-color", Name = "Sidebar_BaseColor", TabHeader = "Sidebar_Home" }
                     }
                 },
                 // Alphabetically sorted categories

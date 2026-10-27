@@ -1,7 +1,8 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using Flowery.Controls;
+using Flowery.Helpers;
 using Flowery.Services;
 
 namespace Flowery.WinUI.Gallery
@@ -16,6 +17,7 @@ namespace Flowery.WinUI.Gallery
         private const string ThemeKey = "theme";
         private const string LanguageKey = "language";
         private const string SizeKey = "size";
+        private const string BaseColorKey = "base-color";
         private const string WindowKey = "window";
         private const string CarouselKey = "carousel.settings";
         private const string CarouselTextFillKey = "carousel.textfill";
@@ -109,6 +111,24 @@ namespace Flowery.WinUI.Gallery
         public static void SaveGlobalSize(DaisySize size)
         {
             StateStorageProvider.Instance.SaveLines(SizeKey, (string[])[size.ToString()]);
+        }
+
+        /// <summary>
+        /// The base color chosen in the sidebar for <see cref="DaisyThemeManager.BaseOverride"/>, or null for the base of
+        /// the theme.
+        /// </summary>
+        public static Windows.UI.Color? LoadBaseColor()
+        {
+            var lines = StateStorageProvider.Instance.LoadLines(BaseColorKey);
+            return lines.Count > 0 && FloweryColorHelpers.TryParseColor(lines[0], out var color) ? color : null;
+        }
+
+        public static void SaveBaseColor(Windows.UI.Color? color)
+        {
+            if (color is { } value)
+                StateStorageProvider.Instance.SaveLines(BaseColorKey, (string[])[FloweryColorHelpers.ColorToHex(value, includeAlpha: false)]);
+            else
+                StateStorageProvider.Instance.Delete(BaseColorKey);
         }
 
         /// <summary>

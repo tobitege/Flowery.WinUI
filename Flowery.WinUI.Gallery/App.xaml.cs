@@ -345,6 +345,11 @@ namespace Flowery.WinUI.Gallery
             FloweryLocalization.CultureChanged += (_, cultureName) =>
                 GallerySettings.SaveLanguage(cultureName);
 
+            // The base color chosen in the sidebar, set before the theme so the theme is applied once with it.
+            DaisyThemeManager.BaseOverride = GallerySettings.LoadBaseColor();
+            DaisyThemeManager.BaseOverrideChanged += (_, _) =>
+                GallerySettings.SaveBaseColor(DaisyThemeManager.BaseOverride);
+
             var savedTheme = GallerySettings.Load() ?? "Dark";
             DaisyThemeManager.ApplyTheme(savedTheme);
             DaisyThemeManager.ThemeChanged += (_, name) =>

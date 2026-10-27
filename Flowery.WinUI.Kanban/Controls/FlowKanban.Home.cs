@@ -344,6 +344,8 @@ namespace Flowery.WinUI.Kanban.Controls
 
                 if (string.Equals(Board.Id, boardId, StringComparison.Ordinal))
                 {
+                    // An edit still waiting for its auto-save belongs to the deleted board; saving it would bring it back.
+                    StopAutoSaveTimer();
                     Board = new FlowKanbanData();
                 }
 
@@ -495,6 +497,8 @@ namespace Flowery.WinUI.Kanban.Controls
             if (string.IsNullOrWhiteSpace(boardId))
                 return (false, null);
 
+            // Before the read, so reopening the open board loads its waiting edit too.
+            FlushAutoSave();
             FlowKanbanData? data = null;
             Exception? error = null;
 

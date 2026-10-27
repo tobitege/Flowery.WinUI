@@ -170,6 +170,8 @@
   "Sidebar_Language": "Idioma",
   "Sidebar_Size": "Tamaño",
   "Sidebar_Neumorphic": "Neumorphic?",
+  "Sidebar_BaseColor": "Color base",
+  "Sidebar_BaseColorReset": "Restablecer",
   "Sidebar_Scaling": "Escalado",
   "Sidebar_Actions": "Acciones",
   "Sidebar_Button": "Button",
