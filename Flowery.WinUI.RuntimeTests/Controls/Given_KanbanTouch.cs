@@ -145,6 +145,10 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             for (var pass = 0; pass < 50 && !Realized(); pass++)
                 await RuntimeTestHelpers.CompleteLayoutAsync(kanban);
             Assert.IsTrue(Realized(), "realized cards");
+            // A card finds its board in its Loaded handler, which WinUI can raise after the card is in the tree;
+            // until then a tap cannot see the board's selection.
+            await RuntimeTestHelpers.WaitUntilAsync(
+                () => tasks.All(task => ReferenceEquals(CardOf(kanban, task).LoadedBoard, kanban)), "the cards know their board");
             return kanban;
         }
 
