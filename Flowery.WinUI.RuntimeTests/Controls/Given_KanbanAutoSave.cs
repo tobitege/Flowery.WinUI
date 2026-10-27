@@ -44,7 +44,8 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                             kanban.CurrentView = FlowKanbanView.Home;
                         Assert.IsTrue(timer?.IsRunning, "the edit did not start an auto-save");
                         Assert.IsEmpty(store.SavedBoards);
-                        Assert.AreEqual(boardId ?? edited.Id, edited.Id, "the board got its ID before the flush");
+                        if (boardId is not null)
+                            Assert.AreEqual(boardId, edited.Id, "the board got its ID before the flush");
 
                         await RuntimeTestHelpers.DetachFromHostAsync(kanban);
 
@@ -119,7 +120,8 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                         edited.Title = "Edited";
                         var timer = AutoSaveTimer(kanban);
                         Assert.IsTrue(timer?.IsRunning, "the edit did not start an auto-save");
-                        Assert.AreEqual(boardId ?? edited.Id, edited.Id, "the board got its ID before the flush");
+                        if (boardId is not null)
+                            Assert.AreEqual(boardId, edited.Id, "the board got its ID before the flush");
 
                         var otherStore = new CountingBoardStore();
                         if (replaceStore)
