@@ -1,9 +1,8 @@
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Flowery.Controls.ColorPicker;
 using Flowery.Helpers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Windows.UI;
-using Colors = Microsoft.UI.Colors;
 
 namespace Flowery.WinUI.RuntimeTests.Controls
 {
@@ -11,43 +10,37 @@ namespace Flowery.WinUI.RuntimeTests.Controls
     public class Given_ColorPickerBehavior
     {
         [TestMethod]
-        public void When_ColorEditor_ColorChanges_ComponentsSync()
+        public void When_ColorEditorColorIsAssigned_ComponentsAndHexFollow()
         {
-            var editor = new DaisyColorEditor();
-            var color = Color.FromArgb(128, 10, 20, 30);
-
-            editor.Color = color;
-
-            Assert.AreEqual((byte)10, editor.Red);
-            Assert.AreEqual((byte)20, editor.Green);
-            Assert.AreEqual((byte)30, editor.Blue);
-            Assert.AreEqual((byte)128, editor.Alpha);
-            Assert.AreEqual(FloweryColorHelpers.ColorToHex(color, includeAlpha: true), editor.HexValue);
-        }
-
-        [TestMethod]
-        public void When_ColorEditor_AlphaHidden_HexUsesRgb()
-        {
-            var editor = new DaisyColorEditor
+            // Every assignment raises ColorChanged once: the handlers lock out the nested component updates
+            // (DaisyColorEditor.HandleColorChanged and HandleHslColorChanged).
+            var cases = new (string Name, bool ShowAlpha, Action<DaisyColorEditor, Color> Assign, Color Expected, string ExpectedHex)[]
             {
-                ShowAlphaChannel = false,
-                Color = Color.FromArgb(255, 10, 20, 30)
+                ("Color", true, static (editor, color) => editor.Color = color, Color.FromArgb(128, 10, 20, 30),
+                    FloweryColorHelpers.ColorToHex(Color.FromArgb(128, 10, 20, 30), includeAlpha: true)),
+                ("HslColor", true, static (editor, color) => editor.HslColor = new HslColor(color), Color.FromArgb(128, 0, 255, 0), "#8000FF00"),
+                ("Alpha hidden", false, static (editor, color) => editor.Color = color, Color.FromArgb(255, 10, 20, 30), "#0A141E")
             };
 
-            Assert.IsTrue(editor.HexValue.StartsWith("#", System.StringComparison.Ordinal));
-            Assert.AreEqual("#0A141E", editor.HexValue);
+            foreach (var (name, showAlpha, assign, expected, expectedHex) in cases)
+                RuntimeTestHelpers.RunCase(name, () => AssertAssignment(showAlpha, assign, expected, expectedHex));
         }
 
-        [TestMethod]
-        public void When_ColorSlider_ChannelChanges_UpdatesRange()
+        private static void AssertAssignment(bool showAlpha, Action<DaisyColorEditor, Color> assign, Color expected, string expectedHex)
         {
-            var slider = new DaisyColorSlider
-            {
-                Channel = ColorSliderChannel.Hue
-            };
+            var editor = new DaisyColorEditor { ShowAlphaChannel = showAlpha };
+            var count = 0;
+            editor.ColorChanged += (_, _) => count++;
 
-            Assert.AreEqual(0, slider.Minimum);
-            Assert.AreEqual(359, slider.Maximum);
+            assign(editor, expected);
+
+            Assert.AreEqual(expected, editor.Color, "Color");
+            Assert.AreEqual(expected.R, editor.Red, "Red");
+            Assert.AreEqual(expected.G, editor.Green, "Green");
+            Assert.AreEqual(expected.B, editor.Blue, "Blue");
+            Assert.AreEqual(expected.A, editor.Alpha, "Alpha");
+            Assert.AreEqual(expectedHex, editor.HexValue, "HexValue");
+            Assert.AreEqual(1, count, "ColorChanged count");
         }
 
         [TestMethod]
@@ -67,33 +60,6 @@ namespace Flowery.WinUI.RuntimeTests.Controls
 
             var expected = hsl.ToRgbColor();
             Assert.AreEqual(expected, wheel.Color);
-        }
-
-        [TestMethod]
-        public void When_ColorGrid_SelectionChanges_ColorAndIndexSync()
-        {
-            var palette = ColorCollection.CreateGrayscale(2);
-            var grid = new DaisyColorGrid
-            {
-                Palette = palette,
-                ShowCustomColors = false
-            };
-
-            grid.Color = palette[1];
-            Assert.AreEqual(1, grid.ColorIndex);
-
-            grid.ColorIndex = 0;
-            Assert.AreEqual(palette[0], grid.Color);
-        }
-
-        [TestMethod]
-        public void When_ScreenColorPicker_Constructed_DefaultsHold()
-        {
-            var picker = new DaisyScreenColorPicker();
-
-            Assert.AreEqual(Colors.Black, picker.Color);
-            Assert.IsFalse(picker.IsCapturing);
-            Assert.IsNotNull(picker.Content);
         }
     }
 }

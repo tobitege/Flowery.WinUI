@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -15,27 +15,30 @@ namespace Flowery.WinUI.RuntimeTests.Controls
     public class Given_ThemeManager
     {
         [TestMethod]
-        public void When_TryCreatePalette_UsesRegisteredFactory()
+        public void When_TryCreatePalette_ResultFollowsTheRegisteredFactory()
         {
             var expected = new ResourceDictionary();
             DaisyThemeManager.RegisterTheme(new DaisyThemeInfo("FactoryAccessorTheme", true), () => expected);
-
-            Assert.IsNotNull(DaisyThemeManager.GetPaletteFactory("FactoryAccessorTheme"));
-            Assert.IsTrue(DaisyThemeManager.TryCreatePalette("FactoryAccessorTheme", out var palette));
-            Assert.AreSame(expected, palette);
-            Assert.IsFalse(DaisyThemeManager.TryCreatePalette("ThemeThatDoesNotExist", out var missing));
-            Assert.IsNull(missing);
-        }
-
-        [TestMethod]
-        public void When_TryCreatePalette_FactoryThrows_ReturnsFalse()
-        {
             DaisyThemeManager.RegisterTheme(
                 new DaisyThemeInfo("ThrowingFactoryTheme", false),
                 () => throw new InvalidOperationException("broken palette"));
 
-            Assert.IsFalse(DaisyThemeManager.TryCreatePalette("ThrowingFactoryTheme", out var palette));
-            Assert.IsNull(palette);
+            var cases = new (string Name, string Theme, bool HasFactory, ResourceDictionary? Expected)[]
+            {
+                ("Registered", "FactoryAccessorTheme", true, expected),
+                ("Missing", "ThemeThatDoesNotExist", false, null),
+                ("Throwing", "ThrowingFactoryTheme", true, null)
+            };
+
+            foreach (var (name, theme, hasFactory, expectedPalette) in cases)
+                RuntimeTestHelpers.RunCase(name, () => AssertPaletteLookup(theme, hasFactory, expectedPalette));
+        }
+
+        private static void AssertPaletteLookup(string theme, bool hasFactory, ResourceDictionary? expectedPalette)
+        {
+            Assert.AreEqual(hasFactory, DaisyThemeManager.GetPaletteFactory(theme) != null, "factory lookup");
+            Assert.AreEqual(expectedPalette != null, DaisyThemeManager.TryCreatePalette(theme, out var palette), "TryCreatePalette result");
+            Assert.AreSame(expectedPalette, palette, "palette");
         }
 
         [TestMethod]

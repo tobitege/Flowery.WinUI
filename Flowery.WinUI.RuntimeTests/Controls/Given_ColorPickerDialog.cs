@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Flowery.Controls.ColorPicker;
@@ -13,31 +13,41 @@ namespace Flowery.WinUI.RuntimeTests.Controls
     [TestClass]
     public class Given_ColorPickerDialog
     {
+        // The longest a dialog may take to load or to complete ShowAsync once it is closed.
+        private static readonly TimeSpan ResultTimeout = TimeSpan.FromSeconds(5);
+
         [TestMethod]
-        public async Task When_Cancelled_ReturnsNull()
+        public async Task When_ClosedWithoutConfirm_ShowAsyncReturnsNull()
         {
-            var dialog = new DaisyColorPickerDialog { Color = Colors.Red, OriginalColor = Colors.Red };
-            var task = dialog.ShowAsync(XamlRootOfHost());
-            await Task.Delay(100);
+            var cases = new (string Name, Action<DaisyColorPickerDialog> Close)[]
+            {
+                ("Cancel", static dialog => dialog.Cancel()),
+                ("Modal close", static dialog => dialog.IsOpen = false) // what Escape and outside clicks do
+            };
 
-            Assert.IsTrue(dialog.IsOpen);
-            dialog.Cancel();
-
-            Assert.IsNull(await task);
-            Assert.IsFalse(dialog.IsOpen);
-            Assert.IsNull(dialog.Parent, "The dialog must be removed from the dialog host.");
+            foreach (var (name, close) in cases)
+                await RuntimeTestHelpers.RunCaseAsync(name, () => CloseWithoutConfirmAsync(close));
         }
 
-        [TestMethod]
-        public async Task When_ClosedByModal_CountsAsCancel()
+        private static async Task CloseWithoutConfirmAsync(Action<DaisyColorPickerDialog> close)
         {
-            var dialog = new DaisyColorPickerDialog { Color = Colors.Red };
-            var task = dialog.ShowAsync(XamlRootOfHost());
-            await Task.Delay(100);
+            var dialog = new DaisyColorPickerDialog { Color = Colors.Red, OriginalColor = Colors.Red };
+            try
+            {
+                // ShowAsync opens the dialog synchronously (DaisyColorPickerDialog.ShowAsync sets IsOpen).
+                var task = dialog.ShowAsync(XamlRootOfHost());
+                Assert.IsTrue(dialog.IsOpen, "The dialog is open after ShowAsync.");
+                close(dialog);
 
-            dialog.IsOpen = false; // what Escape and outside clicks do
-
-            Assert.IsNull(await task);
+                Assert.IsNull(await task.WaitAsync(ResultTimeout), "ShowAsync returns no color.");
+                Assert.IsFalse(dialog.IsOpen, "The dialog is closed.");
+                Assert.IsNull(dialog.Parent, "The dialog must be removed from the dialog host.");
+            }
+            finally
+            {
+                // Finish runs once (DaisyColorPickerDialog._isClosing), so this only closes a dialog a failure left open.
+                dialog.Cancel();
+            }
         }
 
         [TestMethod]
@@ -66,7 +76,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             finally
             {
                 dialog.Cancel();
-                await task;
+                await task.WaitAsync(ResultTimeout);
             }
         }
 
@@ -90,7 +100,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             finally
             {
                 dialog.Cancel();
-                await task;
+                await task.WaitAsync(ResultTimeout);
             }
         }
 
@@ -102,19 +112,27 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             Color? preview = null;
             dialog.PreviewColorChanged += (_, e) => preview = e.Color;
             var task = dialog.ShowAsync(XamlRootOfHost());
-            await Task.Delay(100);
+            try
+            {
+                await RuntimeTestHelpers.EnsureLoadedAsync(dialog).WaitAsync(ResultTimeout);
 
-            var editor = Descendants<DaisyColorEditor>(dialog).Single();
-            editor.HexValue = "#00FF00";
+                var editor = Descendants<DaisyColorEditor>(dialog).Single();
+                editor.HexValue = "#00FF00";
 
-            var expected = Color.FromArgb(255, 0, 255, 0);
-            Assert.AreEqual(expected, dialog.Color);
-            Assert.AreEqual(expected, preview);
-            Assert.IsTrue(dialog.CanUndo, "Editor input is recorded in the history.");
+                var expected = Color.FromArgb(255, 0, 255, 0);
+                Assert.AreEqual(expected, dialog.Color);
+                Assert.AreEqual(expected, preview);
+                Assert.IsTrue(dialog.CanUndo, "Editor input is recorded in the history.");
 
-            dialog.Confirm();
-            Assert.AreEqual(expected, await task);
-            Assert.IsTrue(customColors.Contains(expected), "OK adds the color to the custom colors.");
+                dialog.Confirm();
+                Assert.AreEqual(expected, await task.WaitAsync(ResultTimeout));
+                Assert.IsTrue(customColors.Contains(expected), "OK adds the color to the custom colors.");
+            }
+            finally
+            {
+                // Finish runs once (DaisyColorPickerDialog._isClosing), so this only closes a dialog a failure left open.
+                dialog.Cancel();
+            }
         }
 
         [TestMethod]

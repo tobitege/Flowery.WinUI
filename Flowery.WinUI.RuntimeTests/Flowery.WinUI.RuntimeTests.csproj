@@ -18,6 +18,5 @@
     <ProjectReference Include="..\Flowery.WinUI.Kanban\Flowery.WinUI.Kanban.csproj" />
     <ProjectReference Include="..\Flowery.WinUI.Win2D\Flowery.WinUI.Win2D.csproj" />
     <ProjectReference Include="..\Flowery.WinUI.Gallery.Core\Flowery.WinUI.Gallery.Core.csproj" />
-    <Compile Include="..\Flowery.WinUI.UnitTests\Controls\*.cs" Link="Controls\%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

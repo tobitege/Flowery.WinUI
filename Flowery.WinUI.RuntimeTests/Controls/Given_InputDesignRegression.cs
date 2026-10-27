@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Flowery.Controls;
 using Flowery.Enums;
 using Flowery.Localization;
+using Flowery.Theming;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -23,19 +24,17 @@ public partial class Given_InputDesignRegression
     public async Task When_PasswordReloads_LabelAndSizeStillUpdate()
     {
         var control = new DaisyPasswordBox { Label = "Original", IsRequired = true, HintText = "Hint", HelperText = "Help" };
-        RuntimeTestHelpers.AttachToHost(control);
-        await RuntimeTestHelpers.EnsureLoadedAsync(control);
-        await DetachAsync(control);
-        RuntimeTestHelpers.AttachToHost(control);
-        await RuntimeTestHelpers.EnsureLoadedAsync(control);
+        await ReloadAsync(control);
         control.Label = "Updated";
         control.Size = DaisySize.Large;
         control.Padding = new Thickness(9);
         var input = Descendants(control).OfType<PasswordBox>().Single();
-        Assert.AreEqual("Updated", (AutomationProperties.GetLabeledBy(input) as TextBlock)?.Text);
-        Assert.IsTrue(AutomationProperties.GetIsRequiredForForm(input));
-        Assert.AreEqual("Hint Help", AutomationProperties.GetHelpText(input));
-        Assert.AreEqual(new Thickness(9), input.Padding);
+        Assert.AreEqual("Updated", (AutomationProperties.GetLabeledBy(input) as TextBlock)?.Text, "Password label.");
+        Assert.IsTrue(AutomationProperties.GetIsRequiredForForm(input), "Password required state.");
+        Assert.AreEqual("Hint Help", AutomationProperties.GetHelpText(input), "Password help text.");
+        Assert.AreEqual(new Thickness(9), input.Padding, "Password padding.");
+        Assert.AreEqual(DaisyResourceLookup.GetSizeDouble(Application.Current.Resources, "DaisySize", DaisySize.Large, "FontSize",
+            DaisyResourceLookup.GetDefaultFontSize(DaisySize.Large)), input.FontSize, "Password size.");
     }
 
     [TestMethod]
@@ -195,17 +194,13 @@ public partial class Given_InputDesignRegression
     public async Task When_InputReloads_PaddingAndAccessibleLabelStillFollow()
     {
         var control = new DaisyInput { Label = "Field", IsRequired = true };
-        RuntimeTestHelpers.AttachToHost(control);
-        await RuntimeTestHelpers.EnsureLoadedAsync(control);
-        await DetachAsync(control);
-        RuntimeTestHelpers.AttachToHost(control);
-        await RuntimeTestHelpers.EnsureLoadedAsync(control);
+        await ReloadAsync(control);
         control.Padding = new Thickness(7);
         var input = Descendants(control).OfType<TextBox>().Single();
-        Assert.AreEqual(new Thickness(7), input.Padding);
-        Assert.AreEqual("Field", (AutomationProperties.GetLabeledBy(input) as TextBlock)?.Text);
+        Assert.AreEqual(new Thickness(7), input.Padding, "Input padding.");
+        Assert.AreEqual("Field", (AutomationProperties.GetLabeledBy(input) as TextBlock)?.Text, "Input label.");
         AutomationProperties.SetName(control, "Explicit field name");
-        Assert.AreEqual("Explicit field name", AutomationProperties.GetName(input));
+        Assert.AreEqual("Explicit field name", AutomationProperties.GetName(input), "Input explicit automation name.");
     }
 
     [TestMethod]
@@ -374,6 +369,15 @@ public partial class Given_InputDesignRegression
         var tcs = new TaskCompletionSource();
         element.DispatcherQueue.TryEnqueue(() => tcs.TrySetResult());
         return tcs.Task;
+    }
+
+    private static async Task ReloadAsync(FrameworkElement element)
+    {
+        RuntimeTestHelpers.AttachToHost(element);
+        await RuntimeTestHelpers.EnsureLoadedAsync(element);
+        await DetachAsync(element);
+        RuntimeTestHelpers.AttachToHost(element);
+        await RuntimeTestHelpers.EnsureLoadedAsync(element);
     }
 
     private static async Task DetachAsync(FrameworkElement element)

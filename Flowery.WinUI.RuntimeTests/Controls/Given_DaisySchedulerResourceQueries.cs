@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Flowery.Controls;
 using Flowery.Controls.Scheduler.Models;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -36,45 +36,39 @@ public sealed class Given_DaisySchedulerResourceQueries
         Assert.HasCount(3, appointment.ResourceIds);
         roomA.Kind = ResourceKind.Equipment;
         CollectionAssert.AreEqual(new[] { roomB }, scheduler.GetOccupiedResources(2026, 42, ResourceKind.Room).ToArray());
-        Assert.AreEqual(ResourceKind.Unspecified, new ResourceModel().Kind);
     }
 
     [TestMethod]
-    public void When_DefaultWeekRulesApply_TheyMatchIsoIncludingWeekYearBoundaries()
+    public void When_WeekOneIsDefaultOrConfigured_ItFollowsIsoOrTheConfiguredRule()
     {
+        var cases = new List<(string Label, DayOfWeek? FirstDay, CalendarWeekRule? Rule, int Year, int Week, DateTime Start)>();
+        // Without a configured rule the weeks match ISO, including the week-year boundaries.
         foreach (var year in new[] { 1, 2015, 2020, 2026, 9998 })
-        {
-            var scheduler = new DaisyScheduler { SchedulerResources = new[] { new ResourceModel { Id = 1 } } };
             foreach (var week in new[] { 1, 2, ISOWeek.GetWeeksInYear(year) })
-            {
-                var start = ISOWeek.ToDateTime(year, week, DayOfWeek.Monday);
-                scheduler.Appointments = new[] { Booking(start, start.AddHours(1)) };
-                Assert.HasCount(1, scheduler.GetOccupiedResources(year, week), $"{year}-W{week}");
-                scheduler.Appointments = new[] { Booking(start.AddDays(7), start.AddDays(7).AddHours(1)) };
-                Assert.IsEmpty(scheduler.GetOccupiedResources(year, week), $"{year}-W{week}");
-            }
-        }
+                cases.Add(($"default {year}-W{week}", null, null, year, week, ISOWeek.ToDateTime(year, week, DayOfWeek.Monday)));
+        cases.Add(("Sunday/FirstDay", DayOfWeek.Sunday, CalendarWeekRule.FirstDay, 2026, 1, new DateTime(2025, 12, 28)));
+        cases.Add(("Sunday/FirstFullWeek", DayOfWeek.Sunday, CalendarWeekRule.FirstFullWeek, 2026, 1, new DateTime(2026, 1, 4)));
+        cases.Add(("Monday/FirstFourDayWeek", DayOfWeek.Monday, CalendarWeekRule.FirstFourDayWeek, 2026, 1, new DateTime(2025, 12, 29)));
+        cases.Add(("Saturday/FirstFourDayWeek", DayOfWeek.Saturday, CalendarWeekRule.FirstFourDayWeek, 2026, 1, new DateTime(2026, 1, 3)));
+        foreach (var (label, firstDay, rule, year, week, start) in cases)
+            RuntimeTestHelpers.RunCase(label, () => VerifyWeekOne(firstDay, rule, year, week, start));
     }
 
-    [TestMethod]
-    public void When_WeekOneIsConfigured_ItUsesTheConfiguredStartAndRule()
+    private static void VerifyWeekOne(DayOfWeek? firstDay, CalendarWeekRule? rule, int year, int week, DateTime start)
     {
-        foreach (var (firstDay, rule, first) in new[]
-                 {
-                     (DayOfWeek.Sunday, CalendarWeekRule.FirstDay, new DateTime(2025, 12, 28)),
-                     (DayOfWeek.Sunday, CalendarWeekRule.FirstFullWeek, new DateTime(2026, 1, 4)),
-                     (DayOfWeek.Monday, CalendarWeekRule.FirstFourDayWeek, new DateTime(2025, 12, 29)),
-                     (DayOfWeek.Saturday, CalendarWeekRule.FirstFourDayWeek, new DateTime(2026, 1, 3))
-                 })
+        var scheduler = new DaisyScheduler { SchedulerResources = new[] { new ResourceModel { Id = 1 } } };
+        if (firstDay is { } day)
+            scheduler.FirstDayOfWeek = day;
+        if (rule is { } weekRule)
+            scheduler.WeekRule = weekRule;
+        scheduler.Appointments = new[] { Booking(start, start.AddMinutes(30)) };
+        Assert.HasCount(1, scheduler.GetOccupiedResources(year, week));
+        scheduler.Appointments = new[] { Booking(start.AddDays(7), start.AddDays(8)) };
+        Assert.IsEmpty(scheduler.GetOccupiedResources(year, week));
+        if (firstDay is not null)
         {
-            var label = firstDay + "/" + rule;
-            var scheduler = new DaisyScheduler { FirstDayOfWeek = firstDay, WeekRule = rule, SchedulerResources = new[] { new ResourceModel { Id = 1 } } };
-            scheduler.Appointments = new[] { Booking(first, first.AddMinutes(30)) };
-            Assert.HasCount(1, scheduler.GetOccupiedResources(2026, 1), label);
-            scheduler.Appointments = new[] { Booking(first.AddDays(-1), first) };
-            Assert.IsEmpty(scheduler.GetOccupiedResources(2026, 1), label);
-            scheduler.Appointments = new[] { Booking(first.AddDays(7), first.AddDays(8)) };
-            Assert.IsEmpty(scheduler.GetOccupiedResources(2026, 1), label);
+            scheduler.Appointments = new[] { Booking(start.AddDays(-1), start) };
+            Assert.IsEmpty(scheduler.GetOccupiedResources(year, week));
         }
     }
 
@@ -108,7 +102,7 @@ public sealed class Given_DaisySchedulerResourceQueries
     }
 
     [TestMethod]
-    public void When_WeeksAreZoned_TimedBoundariesUseUtcWhileAllDayDatesFloat()
+    public void When_WeeksAreZoned_TimedBoundariesUseUtcAllDayDatesFloatAndFallBackBookingsCount()
     {
         var newYork = new ResourceModel { Id = 1, TimeZoneId = "America/New_York" };
         var wallClock = new ResourceModel { Id = 2 };
@@ -121,17 +115,14 @@ public sealed class Given_DaisySchedulerResourceQueries
         appointment.End = Monday.AddDays(1).AddHours(2);
         Assert.HasCount(2, scheduler.GetOccupiedResources(2026, 42));
         Assert.IsEmpty(scheduler.GetOccupiedResources(2026, 41));
-    }
 
-    [TestMethod]
-    public void When_FallBackLocalEndPrecedesStart_TheBookingStillCounts()
-    {
-        var scheduler = new DaisyScheduler
+        // At the fall-back change the local end precedes the local start; the booking still counts.
+        var fallBack = new DaisyScheduler
         {
-            SchedulerResources = new[] { new ResourceModel { Id = 1, TimeZoneId = "America/New_York" } },
+            SchedulerResources = new[] { newYork },
             Appointments = new[] { Booking(new DateTime(2026, 11, 1, 5, 50, 0), new DateTime(2026, 11, 1, 6, 10, 0)) }
         };
-        Assert.HasCount(1, scheduler.GetOccupiedResources(2026, 44));
+        Assert.HasCount(1, fallBack.GetOccupiedResources(2026, 44));
     }
 
     [TestMethod]

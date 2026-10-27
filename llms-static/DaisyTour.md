@@ -74,11 +74,37 @@ Keep step definitions in the application; the library does not discover targets 
 | `Cancel()` | Close with `Cancelled`. |
 | `IsOpen`, `CurrentIndex`, `CurrentStep` | Read the current session state. |
 | `Closed` | Receive one outcome for the session. |
+| `StepTargetUnavailable` | Learn that a step cannot show everything it describes. |
 
 The `Closed` event supplies `DaisyTourClosedEventArgs`.
-Its `Reason` is `Completed`, `Skipped`, `Cancelled`, or `TargetUnavailable`.
-`StepId`, `AnnotationId`, `Target`, and `Error` identify the affected definition when applicable.
-Unavailable targets do not count as completed steps.
+Its `Reason` is `Completed`, `Skipped`, `Cancelled`, `TargetUnavailable`, or `Failed`.
+`TargetUnavailable` means the tour could not open because it belongs to no window.
+`Failed` means the tour itself could not continue, such as when its dispatcher no longer accepts work; `Error` tells why.
+`AnnotationId` is always null, because target problems no longer close the tour.
+
+A target that cannot be shown never closes a running tour.
+The step stays open in a warning state:
+
+- The card waits at its stationary position; with `CardPosition` `Target`, it waits in the center.
+- The card frame and the current progress step take the warning color, and a note above the description says what is wrong. Screen readers hear the note when it appears, and the card's name starts with it.
+- Connectors that need the missing element are hidden.
+
+| `DaisyTourTargetProblem` | Cause | Ends when |
+| --- | --- | --- |
+| `Target` | The step target is missing, collapsed, transparent, detached, in another window, or stays outside the visible area after the tour scrolled it into view once. | The target can be shown again; the step returns to normal. |
+| `Annotation` | An end of an annotation is collapsed, transparent, detached, or in another window. | The end can be measured again. |
+| `Preparation` | `PrepareAsync` threw. The note says that the step could not be prepared completely; the target is still highlighted when it can be shown. | The step is left. |
+
+`StepTargetUnavailable` supplies `DaisyTourStepTargetUnavailableEventArgs` with `StepId`, `Problem`, `AnnotationId`, `Target`, and `Error`.
+It is raised after the step is laid out and settled, so a handler may call `Skip()`, `NextAsync()` or `StartAsync()`; reports of a visit that a handler ended are dropped.
+Each cause is reported once per visit of the step: an element that returns and leaves again is not reported twice, every unavailable end of every annotation is reported, and an end that is the step target is reported as the target.
+A handler that throws is logged under `Events` and does not affect the tour.
+While the editor previews the tour, the editor shows the error instead, and the event is not raised.
+
+```csharp
+Tour.StepTargetUnavailable += (_, problem) =>
+    Log.Warning(problem.Error, "Tour step {Step} cannot show {Problem} {Annotation}", problem.StepId, problem.Problem, problem.AnnotationId);
+```
 
 ```csharp
 Tour.Closed += (_, result) =>
@@ -90,18 +116,18 @@ Tour.Closed += (_, result) =>
 
 The application owns any first-run flag and replay command.
 Keep replay available after completion or Skip.
-Do not mark cancellation or a target error as successful completion.
+Do not mark cancellation or a failure as successful completion.
 
 ## Annotations
 
 Each step has an `Annotations` collection.
-Give each annotation an `Id` to identify it in target-error outcomes.
+Give each annotation an `Id` that is unique within its step: `StepTargetUnavailable` names it, and style profiles use it.
 An annotation uses the step target unless its `Target` supplies another control.
 Set `Source` to connect two distinct controls.
 Both controls must belong to the same `XamlRoot` and be visible in the layout.
 When both cannot fit in a scrolled area, the step target is scrolled into view first.
 A connector then still reaches the other control's real position, even outside the window.
-A collapsed, transparent, detached, or foreign-window endpoint closes the tour with `TargetUnavailable`.
+A collapsed, transparent, detached, or foreign-window endpoint hides its connector and puts the step in its warning state.
 
 ```csharp
 var step = new DaisyTourStep
@@ -133,7 +159,7 @@ Tour.Steps.Add(step);
 `SourceAnchor` and `TargetAnchor` accept `Auto`, `Top`, `Bottom`, `Left`, `Right`, and `Center`.
 Automatic anchors use the current bounds of both controls.
 Resize, reflow, and scrolling update the geometry during the active step.
-When another scroll moves the step target out of view, the tour scrolls its targets into view again; a target that stays outside the visible area closes the tour with `TargetUnavailable`.
+When another scroll moves the step target out of view, the tour scrolls its targets into view again; a target that stays outside the visible area puts the step in its warning state until it returns.
 
 ## Style inheritance
 
@@ -326,7 +352,7 @@ The application owns file dialogs and storage.
 | `Apply()`, `Discard()` | Keep the draft as the active profile, or close without applying it. |
 | `Undo()`, `Redo()` | Move through draft changes. |
 | `ProfileChanged` | Observe draft changes. |
-| `Closed`, `LastError` | Observe editor closure and inspect a preparation or lifecycle error. |
+| `Closed`, `LastError` | Observe editor closure and inspect a lifecycle error. A preview step that cannot show its target stays open and shows its error in the editor. |
 
 Export and Apply are separate commands.
 Export saves the current draft without changing the active profile.

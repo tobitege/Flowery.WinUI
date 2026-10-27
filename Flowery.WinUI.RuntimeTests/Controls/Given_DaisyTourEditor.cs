@@ -404,6 +404,26 @@ public class Given_DaisyTourEditor
         return new Point(Canvas.GetLeft(handle) + handle.Width / 2, Canvas.GetTop(handle) + handle.Height / 2);
     }
 
+    [TestMethod]
+    public Task When_APreviewedConnectorEndIsUnavailable_TheEditorStaysOpenAndShowsWhyInsteadOfTheHost() =>
+        InScenarioAsync(async scenario =>
+        {
+            var hostReports = 0;
+            scenario.Tour.StepTargetUnavailable += (_, _) => hostReports++;
+            await scenario.Editor.OpenAsync(scenario.Tour).WaitAsync(Timeout);
+            ((FrameworkElement)scenario.Annotation.Source!).Visibility = Visibility.Collapsed;
+            await RuntimeTestHelpers.WaitUntilAsync(() => scenario.Editor.ErrorText.Length > 0, "the editor shows why");
+            await SettleAsync(scenario.Root);
+            Assert.IsTrue(scenario.Editor.IsOpen, "The editor stays open.");
+            Assert.IsTrue(scenario.Tour.IsOpen, "The preview stays open.");
+            Assert.AreEqual(DaisyTourTargetProblem.Annotation, scenario.Tour.Warning);
+            Assert.AreEqual(0, hostReports, "The host hears nothing while the editor previews.");
+            StringAssert.Contains(scenario.Editor.ErrorText, "connector end");
+            var presenter = scenario.Tour.AnnotationPresenters.Single();
+            Assert.AreEqual(Visibility.Collapsed, presenter.Visibility, "The connector without its end is hidden.");
+            Assert.IsNotEmpty(presenter.ResolvedValues, "The hidden connector still resolves its style for the inspector.");
+        });
+
     private static async Task ChangeAndRenderAsync(Scenario scenario, Action change)
     {
         var updated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

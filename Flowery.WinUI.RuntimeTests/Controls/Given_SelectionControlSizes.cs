@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Threading.Tasks;
 using Flowery.Controls;
 using Flowery.Enums;
@@ -38,7 +38,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         }
 
         [TestMethod]
-        public async Task When_RadioSized_IndicatorUsesItsOwnSizes()
+        public async Task When_RadioSized_IndicatorUsesItsOwnSizesAndSkipsLayoutRounding()
         {
             double[] outer = [14, 16, 20, 24, 28];
             double[] dots = [8, 10, 12, 14, 16];
@@ -58,67 +58,61 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                     .ToList();
                 CollectionAssert.Contains(squares, outer[i], $"Radio {Tiers[i]} outer");
                 CollectionAssert.Contains(squares, dots[i], $"Radio {Tiers[i]} dot");
+
+                // Like the WinUI RadioButton: rounding ring and dot separately moves the dot off center at 125 % or 175 %.
+                var ring = Descendants<Border>(radio).Single(b => b.Name == "PART_IndicatorBorder");
+                var dot = Descendants<Ellipse>(radio).Single(e => e.Name == "PART_InnerDot");
+                Assert.IsFalse(ring.UseLayoutRounding, $"Radio {Tiers[i]} ring UseLayoutRounding");
+                Assert.IsFalse(dot.UseLayoutRounding, $"Radio {Tiers[i]} dot UseLayoutRounding");
             }
         }
 
         [TestMethod]
-        public async Task When_RadioLoaded_RingAndDotSkipLayoutRounding()
+        public async Task When_ToggleSized_TrackAndKnobUseTokenSizesAndTheGapInBothStates()
         {
-            var radio = new DaisyRadio { Content = "Label", IsChecked = true };
-            RuntimeTestHelpers.AttachToHost(radio);
-            await RuntimeTestHelpers.EnsureLoadedAsync(radio);
+            // Every size starts once unchecked and once checked, so both the initial state and the change are measured.
+            (DaisySize Size, bool InitialIsOn, double Width, double Height, double Knob)[] cases =
+            [
+                (DaisySize.ExtraSmall, false, 28, 14, 8),
+                (DaisySize.ExtraSmall, true, 28, 14, 8),
+                (DaisySize.Small, false, 32, 16, 10),
+                (DaisySize.Small, true, 32, 16, 10),
+                (DaisySize.Medium, false, 40, 20, 12),
+                (DaisySize.Medium, true, 40, 20, 12),
+                (DaisySize.Large, false, 48, 24, 14),
+                (DaisySize.Large, true, 48, 24, 14),
+                (DaisySize.ExtraLarge, false, 56, 28, 16),
+                (DaisySize.ExtraLarge, true, 56, 28, 16)
+            ];
 
-            // Like the WinUI RadioButton: rounding ring and dot separately moves the dot off center at 125 % or 175 %.
-            var ring = Descendants<Border>(radio).Single(b => b.Name == "PART_IndicatorBorder");
-            var dot = Descendants<Ellipse>(radio).Single(e => e.Name == "PART_InnerDot");
-            Assert.IsFalse(ring.UseLayoutRounding, "Radio ring UseLayoutRounding");
-            Assert.IsFalse(dot.UseLayoutRounding, "Radio dot UseLayoutRounding");
+            foreach (var row in cases)
+                await RuntimeTestHelpers.RunCaseAsync($"Toggle {row.Size} initially {(row.InitialIsOn ? "on" : "off")}", () => CheckToggleSizeAsync(row));
         }
 
-        [TestMethod]
-        public async Task When_ToggleSized_TrackAndKnobUseTokenSizesAndKnobStaysInside()
+        private static async Task CheckToggleSizeAsync((DaisySize Size, bool InitialIsOn, double Width, double Height, double Knob) row)
         {
-            double[] widths = [28, 32, 40, 48, 56];
-            double[] heights = [14, 16, 20, 24, 28];
-            double[] knobs = [8, 10, 12, 14, 16];
-            for (var i = 0; i < Tiers.Length; i++)
-            {
-                var toggle = new DaisyToggle { Size = Tiers[i], IsOn = true };
-                RuntimeTestHelpers.AttachToHost(toggle);
-                await RuntimeTestHelpers.EnsureLoadedAsync(toggle);
-                await Task.Delay(300); // let the knob animation finish
+            var toggle = new DaisyToggle { Size = row.Size, IsOn = row.InitialIsOn };
+            RuntimeTestHelpers.AttachToHost(toggle);
+            await RuntimeTestHelpers.EnsureLoadedAsync(toggle);
 
-                var (track, knob) = GetToggleParts(toggle);
-                Assert.AreEqual(widths[i], track.Width, $"Toggle {Tiers[i]} width");
-                Assert.AreEqual(heights[i], track.Height, $"Toggle {Tiers[i]} height");
-                Assert.AreEqual(knobs[i], knob.Width, $"Toggle {Tiers[i]} knob");
+            var (track, knob) = await WaitForTogglePartsAsync(toggle);
+            Assert.AreEqual(row.Width, track.Width, "width");
+            Assert.AreEqual(row.Height, track.Height, "height");
+            Assert.AreEqual(row.Knob, knob.Width, "knob");
 
-                // The knob is positioned inside the track border; the automatic padding equals the vertical gap,
-                // so the checked knob keeps the same gap to the right edge as to the top and bottom.
-                var innerWidth = track.Width - track.BorderThickness.Left - track.BorderThickness.Right;
-                var innerHeight = track.Height - track.BorderThickness.Top - track.BorderThickness.Bottom;
-                var gap = (innerHeight - knobs[i]) / 2;
-                var offset = KnobOffset(knob);
-                Assert.AreEqual(innerWidth - knobs[i] - gap, offset, 0.01, $"Toggle {Tiers[i]} checked knob offset");
-                Assert.AreEqual(heights[i], offset - gap, 0.01, $"Toggle {Tiers[i]} knob travels one track height (WinUI ToggleSwitch)");
-            }
-        }
+            // The knob is positioned inside the track border; the automatic padding equals the vertical gap,
+            // so the checked knob keeps the same gap to the right edge as to the top and bottom.
+            var innerWidth = track.Width - track.BorderThickness.Left - track.BorderThickness.Right;
+            var innerHeight = track.Height - track.BorderThickness.Top - track.BorderThickness.Bottom;
+            var uncheckedOffset = (innerHeight - row.Knob) / 2;
+            var checkedOffset = innerWidth - row.Knob - uncheckedOffset;
 
-        [TestMethod]
-        public async Task When_ToggleUnchecked_KnobSitsAtTheAutomaticGap()
-        {
-            for (var i = 0; i < Tiers.Length; i++)
-            {
-                var toggle = new DaisyToggle { Size = Tiers[i] };
-                RuntimeTestHelpers.AttachToHost(toggle);
-                await RuntimeTestHelpers.EnsureLoadedAsync(toggle);
-                await Task.Delay(100);
-
-                var (track, knob) = GetToggleParts(toggle);
-                var innerHeight = track.Height - track.BorderThickness.Top - track.BorderThickness.Bottom;
-                var gap = (innerHeight - knob.Width) / 2;
-                Assert.AreEqual(gap, KnobOffset(knob), 0.01, $"Toggle {Tiers[i]} unchecked knob offset");
-            }
+            var initial = await AssertKnobOffsetAsync(knob, row.InitialIsOn ? checkedOffset : uncheckedOffset,
+                row.InitialIsOn ? "checked knob offset (initial)" : "unchecked knob offset (initial)");
+            toggle.IsOn = !row.InitialIsOn;
+            var changed = await AssertKnobOffsetAsync(knob, row.InitialIsOn ? uncheckedOffset : checkedOffset,
+                row.InitialIsOn ? "unchecked knob offset (after the change)" : "checked knob offset (after the change)");
+            Assert.AreEqual(row.Height, Math.Abs(changed - initial), 0.01, "the knob travels one track height (WinUI ToggleSwitch)");
         }
 
         [TestMethod]
@@ -128,15 +122,13 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             var toggle = new DaisyToggle { TogglePadding = padding };
             RuntimeTestHelpers.AttachToHost(toggle);
             await RuntimeTestHelpers.EnsureLoadedAsync(toggle);
-            await Task.Delay(100);
 
-            var (track, knob) = GetToggleParts(toggle);
-            Assert.AreEqual(padding, KnobOffset(knob), 0.01, "Unchecked knob offset");
+            var (track, knob) = await WaitForTogglePartsAsync(toggle);
+            await AssertKnobOffsetAsync(knob, padding, "Unchecked knob offset");
 
             toggle.IsOn = true;
-            await Task.Delay(300); // let the knob animation finish
             var innerWidth = track.Width - track.BorderThickness.Left - track.BorderThickness.Right;
-            Assert.AreEqual(innerWidth - knob.Width - padding, KnobOffset(knob), 0.01, "Checked knob offset");
+            await AssertKnobOffsetAsync(knob, innerWidth - knob.Width - padding, "Checked knob offset");
         }
 
         [TestMethod]
@@ -144,13 +136,8 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         {
             // A track painted in the Secondary color hides a Secondary knob unless the toggle adjusts it.
             var secondary = (SolidColorBrush)DaisyResourceLookup.GetBrush("DaisySecondaryBrush");
-            var toggle = new DaisyToggle { Variant = DaisyToggleVariant.Secondary, IsOn = true };
-            toggle.Resources["DaisyToggleTrackBackground"] = new SolidColorBrush(secondary.Color);
-            RuntimeTestHelpers.AttachToHost(toggle);
-            await RuntimeTestHelpers.EnsureLoadedAsync(toggle);
-            await Task.Delay(100);
+            var (_, track, knob) = await LoadCheckedSecondaryToggleAsync(secondary.Color);
 
-            var (track, knob) = GetToggleParts(toggle);
             var knobColor = ((SolidColorBrush)knob.Fill).Color;
             Assert.AreNotEqual(secondary.Color, knobColor, "The knob is adjusted away from the track color.");
             Assert.IsTrue(FloweryColorHelpers.GetColorDifference(knobColor, secondary.Color) >= 20,
@@ -167,18 +154,22 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             // The Gallery runs the tests in its saved theme, so the track takes a color far from Secondary.
             var secondary = (SolidColorBrush)DaisyResourceLookup.GetBrush("DaisySecondaryBrush");
             var trackColor = FloweryColorHelpers.IsDark(secondary.Color) ? Microsoft.UI.Colors.White : Microsoft.UI.Colors.Black;
+            var (toggle, track, _) = await LoadCheckedSecondaryToggleAsync(trackColor);
+            Assert.AreEqual(secondary.Color, ((SolidColorBrush)track.BorderBrush).Color, "The checked track border takes the variant color.");
+
+            // IsOn applies the new state at once (DaisyToggle.OnIsOnChanged).
+            toggle.IsOn = false;
+            Assert.AreNotEqual(secondary.Color, ((SolidColorBrush)track.BorderBrush).Color, "The unchecked track border is neutral again.");
+        }
+
+        private static async Task<(DaisyToggle Toggle, Border Track, Ellipse Knob)> LoadCheckedSecondaryToggleAsync(Windows.UI.Color trackColor)
+        {
             var toggle = new DaisyToggle { Variant = DaisyToggleVariant.Secondary, IsOn = true };
             toggle.Resources["DaisyToggleTrackBackground"] = new SolidColorBrush(trackColor);
             RuntimeTestHelpers.AttachToHost(toggle);
             await RuntimeTestHelpers.EnsureLoadedAsync(toggle);
-            await Task.Delay(100);
-
-            var (track, _) = GetToggleParts(toggle);
-            Assert.AreEqual(secondary.Color, ((SolidColorBrush)track.BorderBrush).Color, "The checked track border takes the variant color.");
-
-            toggle.IsOn = false;
-            await Task.Delay(100);
-            Assert.AreNotEqual(secondary.Color, ((SolidColorBrush)track.BorderBrush).Color, "The unchecked track border is neutral again.");
+            var (track, knob) = await WaitForTogglePartsAsync(toggle);
+            return (toggle, track, knob);
         }
 
         [TestMethod]
@@ -281,6 +272,34 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         private static (Border Track, Ellipse Knob) GetToggleParts(DaisyToggle toggle) =>
             (Descendants<Border>(toggle).Single(b => b.Name == "SwitchArea"),
                 Descendants<Ellipse>(toggle).Single(e => e.Name == "Knob"));
+
+        // WinUI builds the template content after Loaded; OnApplyTemplate sizes the parts and places the knob.
+        private static async Task<(Border Track, Ellipse Knob)> WaitForTogglePartsAsync(DaisyToggle toggle)
+        {
+            await RuntimeTestHelpers.WaitUntilAsync(
+                () => Descendants<Border>(toggle).Any(static b => b.Name == "SwitchArea") && Descendants<Ellipse>(toggle).Any(static e => e.Name == "Knob"),
+                "the toggle template has its track and knob");
+            return GetToggleParts(toggle);
+        }
+
+        // IsOn places the knob at once (DaisyToggle.OnIsOnChanged calls ApplyAll(animateKnob: false)); only a change of
+        // IsChecked, as a click makes it, animates it (DaisyToggle.ApplyKnobPosition, 200 ms). The offset is polled so a
+        // Checked event raised after the change cannot leave the test reading a running animation.
+        private static async Task<double> AssertKnobOffsetAsync(Ellipse knob, double expected, string message)
+        {
+            try
+            {
+                await RuntimeTestHelpers.WaitUntilAsync(() => Math.Abs(KnobOffset(knob) - expected) <= 0.01, message);
+            }
+            catch (TimeoutException)
+            {
+                // The assertion below reports the offset the knob stopped at.
+            }
+
+            var offset = KnobOffset(knob);
+            Assert.AreEqual(expected, offset, 0.01, message);
+            return offset;
+        }
 
         private static double KnobOffset(Ellipse knob) => ((TranslateTransform)knob.RenderTransform).X;
 

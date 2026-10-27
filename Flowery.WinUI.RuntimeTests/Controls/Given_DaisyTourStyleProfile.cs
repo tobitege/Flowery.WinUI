@@ -11,7 +11,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls;
 public class Given_DaisyTourStyleProfile
 {
     [TestMethod]
-    public void When_ProfileRoundTrips_SparseOverridesAndInheritanceRemainDistinct()
+    public void When_ProfileRoundTripsOrIsCloned_SparseOverridesInheritanceAndCollectionsRemainDistinct()
     {
         var profile = new DaisyTourStyleProfile { TourId = "tour" };
         profile.AnnotationDefaults = new DaisyTourStyleOverride();
@@ -39,6 +39,12 @@ public class Given_DaisyTourStyleProfile
         Assert.IsFalse(json.Contains("\"fill\"", StringComparison.Ordinal));
         Assert.IsFalse(json.Contains("NaN", StringComparison.Ordinal));
         Assert.AreEqual(json, DaisyTourStyleProfileSerializer.Serialize(copy));
+
+        var clone = DaisyTourStyleProfileSerializer.Clone(profile);
+        clone.Steps[0].Annotations[0].Style!.Values.DashArray![0] = 7;
+        clone.AnnotationDefaults!.Inherit.Add("stroke");
+        Assert.AreEqual(1d, annotation.Style.Values.DashArray![0]);
+        Assert.HasCount(0, profile.AnnotationDefaults.Inherit);
     }
 
     [TestMethod]
@@ -60,9 +66,8 @@ public class Given_DaisyTourStyleProfile
     }
 
     [TestMethod]
-    public void When_OverrideIsClearedOrInherited_ApplicationValueIsNotChanged()
+    public void When_OverrideIsSetInheritedClearedOrRejected_OnlyValidChangesAreKept()
     {
-        var annotation = new DaisyTourAnnotation { StrokeThickness = 9 };
         var style = new DaisyTourStyleOverride();
         Assert.IsFalse(DaisyTourProfileResolver.TryGetValue(style, DaisyTourAnnotationStyle.StrokeThicknessProperty, out _, out _));
         DaisyTourProfileResolver.SetValue(style, "strokeThickness", 4d);
@@ -75,31 +80,14 @@ public class Given_DaisyTourStyleProfile
         Assert.IsNull(value);
         DaisyTourProfileResolver.ClearValue(style, "strokeThickness");
         Assert.IsFalse(DaisyTourProfileResolver.TryGetValue(style, DaisyTourAnnotationStyle.StrokeThicknessProperty, out _, out _));
-        Assert.AreEqual(9d, annotation.StrokeThickness);
-    }
 
-    [TestMethod]
-    public void When_ValueMutationFails_PreviousOverrideRemains()
-    {
-        var style = new DaisyTourStyleOverride();
+        // A rejected value keeps the previous override or inheritance.
         DaisyTourProfileResolver.SetValue(style, "opacity", 0.5d);
         Assert.ThrowsExactly<ArgumentException>(() => DaisyTourProfileResolver.SetValue(style, "opacity", 2d));
         Assert.AreEqual(0.5d, style.Values.Opacity);
         DaisyTourProfileResolver.InheritValue(style, "opacity");
         Assert.ThrowsExactly<ArgumentException>(() => DaisyTourProfileResolver.SetValue(style, "opacity", double.NaN));
         CollectionAssert.AreEqual(new[] { "opacity" }, style.Inherit);
-    }
-
-    [TestMethod]
-    public void When_CloneChanges_OriginalCollectionsAreIndependent()
-    {
-        var original = new DaisyTourStyleProfile { TourId = "tour", AnnotationDefaults = new DaisyTourStyleOverride() };
-        DaisyTourProfileResolver.SetValue(original.AnnotationDefaults, "dashArray", new[] { 2d, 3d });
-        var copy = DaisyTourStyleProfileSerializer.Clone(original);
-        copy.AnnotationDefaults!.Values.DashArray![0] = 7;
-        copy.AnnotationDefaults.Inherit.Add("stroke");
-        Assert.AreEqual(2d, original.AnnotationDefaults.Values.DashArray![0]);
-        Assert.HasCount(0, original.AnnotationDefaults.Inherit);
     }
 
     [TestMethod]
@@ -132,7 +120,7 @@ public class Given_DaisyTourStyleProfile
     }
 
     [TestMethod]
-    public void When_ProfileTargetsAreUnknownOrDuplicated_ValidationFails()
+    public void When_ProfileTargetsAreValidated_UnknownOrDuplicatedIdsFailAndTheDefaultPointerIsAccepted()
     {
         var tour = new DaisyTour { Id = "tour" };
         var step = new DaisyTourStep { Id = "step" };
@@ -152,18 +140,13 @@ public class Given_DaisyTourStyleProfile
         step.Annotations.RemoveAt(1);
         profile.TourId = "other";
         Assert.ThrowsExactly<ArgumentException>(() => DaisyTourStyleProfileSerializer.Validate(profile, tour));
-    }
 
-    [TestMethod]
-    public void When_DefaultPointerIsProfiled_ItsSyntheticIdIsRecognized()
-    {
-        var tour = new DaisyTour { Id = "tour" };
-        tour.Steps.Add(new DaisyTourStep { Id = "step" });
-        var profile = new DaisyTourStyleProfile { TourId = "tour" };
-        var step = new DaisyTourStepStyleProfile { Id = "step" };
-        step.Annotations.Add(new DaisyTourAnnotationStyleProfile { Id = "default-pointer" });
-        profile.Steps.Add(step);
-        DaisyTourStyleProfileSerializer.Validate(profile, tour);
+        // A step without annotations shows the default pointer, which a profile addresses by its synthetic ID.
+        var pointerTour = new DaisyTour { Id = "tour" };
+        pointerTour.Steps.Add(new DaisyTourStep { Id = "step" });
+        profile.TourId = "tour";
+        stepProfile.Annotations[0].Id = "default-pointer";
+        DaisyTourStyleProfileSerializer.Validate(profile, pointerTour);
     }
 }
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using Microsoft.UI.Xaml;
@@ -13,57 +13,27 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         [TestMethod]
         public void When_Constructing_AllControls_NoExceptions()
         {
-            RunControlConstructionTest("All", ControlCatalog.GetAllControls());
-        }
-
-        [TestMethod]
-        public void When_Constructing_KanbanControls_NoExceptions()
-        {
-            RunControlConstructionTest("Kanban", ControlCatalog.GetKanbanControls());
-        }
-
-        [TestMethod]
-        public void When_Constructing_ColorPickerControls_NoExceptions()
-        {
-            RunControlConstructionTest("ColorPicker", ControlCatalog.GetColorPickerControls());
-        }
-
-        [TestMethod]
-        public void When_Constructing_CustomControls_NoExceptions()
-        {
-            RunControlConstructionTest("Custom", ControlCatalog.GetCustomControls());
-        }
-
-        private static void RunControlConstructionTest(string label, IReadOnlyList<Type> controlTypes)
-        {
             if (RuntimeTestContext.HostPanel is not Panel hostPanel)
             {
                 Assert.Inconclusive("Runtime test host panel is not initialized.");
                 return;
             }
 
+            // The core assembly includes the ColorPicker namespace; Kanban lives in its own assembly.
+            var cases = new (string Label, IReadOnlyList<Type> ControlTypes)[]
+            {
+                ("All", ControlCatalog.GetAllControls()),
+                ("Kanban", ControlCatalog.GetKanbanControls())
+            };
+
             var failures = new StringBuilder();
             var failuresCount = 0;
 
-            foreach (var type in controlTypes)
+            foreach (var (label, type) in cases.SelectMany(static group => group.ControlTypes, static (group, controlType) => (group.Label, controlType)))
             {
                 try
                 {
-                    hostPanel.Children.Clear();
-
-                    if (type.GetConstructor(Type.EmptyTypes) == null)
-                    {
-                        throw new InvalidOperationException("No parameterless constructor found.");
-                    }
-
-                    var instance = Activator.CreateInstance(type) as FrameworkElement;
-                    if (instance == null)
-                    {
-                        throw new InvalidOperationException("Instance is not a FrameworkElement.");
-                    }
-
-                    hostPanel.Children.Add(instance);
-                    instance.UpdateLayout();
+                    Construct(hostPanel, type);
                 }
                 catch (Exception ex)
                 {
@@ -76,6 +46,20 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             {
                 throw new InvalidOperationException(failures.ToString());
             }
+        }
+
+        private static void Construct(Panel hostPanel, Type type)
+        {
+            hostPanel.Children.Clear();
+
+            if (type.GetConstructor(Type.EmptyTypes) is null)
+                throw new InvalidOperationException("No parameterless constructor found.");
+
+            if (Activator.CreateInstance(type) is not FrameworkElement instance)
+                throw new InvalidOperationException("Instance is not a FrameworkElement.");
+
+            hostPanel.Children.Add(instance);
+            instance.UpdateLayout();
         }
     }
 }

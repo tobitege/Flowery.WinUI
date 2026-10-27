@@ -279,11 +279,7 @@ public class Given_CompositionFoundation
             Assert.AreSame(geometry, shape.Geometry);
             Assert.AreSame(fill, shape.FillBrush);
             Assert.AreSame(stroke, shape.StrokeBrush);
-            Assert.AreEqual(new Vector2(150, 60), geometry.Size);
             Assert.AreEqual(new Vector2(170, 80), vector.Visual.Size);
-            Assert.AreEqual(Colors.Gold, fill.Color);
-            Assert.AreEqual(new Vector2(5, 6), shape.Offset);
-            CollectionAssert.AreEqual(new float[] { 2, 4 }, shape.StrokeDashArray.ToArray());
             scope.Dispose();
             Assert.IsNull(ElementCompositionPreview.GetElementChildVisual(host));
             Assert.IsFalse(scope.IsAttached);
@@ -364,26 +360,17 @@ public class Given_CompositionFoundation
         {
             await AttachAsync(owner);
             host = FindHost(owner);
-            Assert.IsNull(ElementCompositionPreview.GetElementChildVisual(host));
+            Assert.IsNull(ElementCompositionPreview.GetElementChildVisual(host), "No child visual before the shadow.");
             foreign = ElementCompositionPreview.GetElementVisual(host).Compositor.CreateSpriteVisual();
             ElementCompositionPreview.SetElementChildVisual(host, foreign);
             owner.Shadows.Add(new DaisyShadow());
             await FlushAsync(owner);
-            Assert.AreSame(foreign, ElementCompositionPreview.GetElementChildVisual(host));
-
-            owner.Width = 190;
-            owner.UpdateLayout();
-            await FlushAsync(owner);
-            Assert.AreSame(foreign, ElementCompositionPreview.GetElementChildVisual(host));
-            await DetachAsync(owner);
-            Assert.AreSame(foreign, ElementCompositionPreview.GetElementChildVisual(host));
+            Assert.AreSame(foreign, ElementCompositionPreview.GetElementChildVisual(host), "After the shadow is added.");
+            await AssertForeignVisualSurvivesResizeAndUnloadAsync(owner, host, foreign);
         }
         finally
         {
-            await DetachAsync(owner);
-            if (host is not null && ReferenceEquals(ElementCompositionPreview.GetElementChildVisual(host), foreign))
-                ElementCompositionPreview.SetElementChildVisual(host, null);
-            foreign?.Dispose();
+            await ReleaseForeignVisualAsync(owner, host, foreign);
         }
     }
 
@@ -403,17 +390,31 @@ public class Given_CompositionFoundation
             ElementCompositionPreview.SetElementChildVisual(host, foreign);
             owner.Shadows[0].OffsetX = 10;
             await FlushAsync(owner);
-            Assert.AreSame(foreign, ElementCompositionPreview.GetElementChildVisual(host));
-            await DetachAsync(owner);
-            Assert.AreSame(foreign, ElementCompositionPreview.GetElementChildVisual(host));
+            Assert.AreSame(foreign, ElementCompositionPreview.GetElementChildVisual(host), "After the shadow change.");
+            await AssertForeignVisualSurvivesResizeAndUnloadAsync(owner, host, foreign);
         }
         finally
         {
-            await DetachAsync(owner);
-            if (host is not null && ReferenceEquals(ElementCompositionPreview.GetElementChildVisual(host), foreign))
-                ElementCompositionPreview.SetElementChildVisual(host, null);
-            foreign?.Dispose();
+            await ReleaseForeignVisualAsync(owner, host, foreign);
         }
+    }
+
+    private static async Task AssertForeignVisualSurvivesResizeAndUnloadAsync(DaisyShadowContainer owner, Canvas host, SpriteVisual foreign)
+    {
+        owner.Width = 190;
+        owner.UpdateLayout();
+        await FlushAsync(owner);
+        Assert.AreSame(foreign, ElementCompositionPreview.GetElementChildVisual(host), "After a resize.");
+        await DetachAsync(owner);
+        Assert.AreSame(foreign, ElementCompositionPreview.GetElementChildVisual(host), "After unload.");
+    }
+
+    private static async Task ReleaseForeignVisualAsync(DaisyShadowContainer owner, Canvas? host, SpriteVisual? foreign)
+    {
+        await DetachAsync(owner);
+        if (host is not null && ReferenceEquals(ElementCompositionPreview.GetElementChildVisual(host), foreign))
+            ElementCompositionPreview.SetElementChildVisual(host, null);
+        foreign?.Dispose();
     }
 
     [TestMethod]

@@ -541,7 +541,7 @@ public class Given_HighContrast
     public void When_AContrastHandlerThrows_LaterHandlersStillHearTheChange()
     {
         var reached = false;
-        EventHandler throwing = (_, _) => throw new InvalidOperationException("Simulated failing subscriber");
+        EventHandler throwing = static (_, _) => throw new InvalidOperationException("Simulated failing subscriber");
         EventHandler later = (_, _) => reached = true;
         DaisySystemAppearance.ColorsChanged += throwing;
         DaisySystemAppearance.ColorsChanged += later;
@@ -562,7 +562,7 @@ public class Given_HighContrast
     {
         var original = DaisyThemeManager.CurrentThemeName ?? DaisyThemeManager.BaseThemeName;
         string? reached = null;
-        EventHandler<string> throwing = (_, _) => throw new InvalidOperationException("Simulated failing subscriber");
+        EventHandler<string> throwing = static (_, _) => throw new InvalidOperationException("Simulated failing subscriber");
         EventHandler<string> later = (_, name) => reached = name;
         DaisyThemeManager.ThemeChanged += throwing;
         DaisyThemeManager.ThemeChanged += later;

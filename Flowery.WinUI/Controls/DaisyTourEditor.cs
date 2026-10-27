@@ -181,6 +181,8 @@ public sealed partial class DaisyTourEditor : ContentControl
 
     public bool IsOpen => _tour is not null;
     public Exception? LastError { get; private set; }
+    // The problem of the previewed step that the editor shows while it lasts.
+    private Exception? _previewProblem;
     public bool HasChanges => _draft is not null && _initialSnapshot != DaisyTourStyleProfileSerializer.Serialize(_draft);
     public DaisyTourStyleProfile? DraftProfile => _draft is null ? null : DaisyTourStyleProfileSerializer.Clone(_draft);
     public FrameworkElement? ToolbarContent { get => _toolbar.Content as FrameworkElement; set => _toolbar.Content = value; }
@@ -205,6 +207,7 @@ public sealed partial class DaisyTourEditor : ContentControl
         ArgumentNullException.ThrowIfNull(tour);
         if (IsOpen) throw new InvalidOperationException("This editor is already open.");
         LastError = null;
+        _previewProblem = null;
         if (VisualTreeHelper.GetParent(this) is not null) throw new InvalidOperationException("The editor must not have a visual parent before opening.");
         var draft = tour.StyleProfile is { } profile ? DaisyTourStyleProfileSerializer.Clone(profile) : new DaisyTourStyleProfile { TourId = tour.Id };
         DaisyTourStyleProfileSerializer.Validate(draft, tour);
@@ -363,6 +366,27 @@ public sealed partial class DaisyTourEditor : ContentControl
         HandleLayer.Update();
         if (_gestureSnapshot is null && _tour?.IsCardDragging != true) RefreshValueDescription();
     }
+
+    internal string ErrorText => _error.Text;
+
+    // A previewed step that cannot show everything stays open; the editor shows why while the problem lasts,
+    // and the host hears nothing.
+    internal void OnPreviewTargetUnavailable(DaisyTourStepTargetUnavailableEventArgs problem)
+    {
+        _previewProblem = problem.Error;
+        ShowError(problem.Error);
+    }
+
+    internal void OnPreviewTargetAvailable()
+    {
+        if (_previewProblem is { } problem && _error.Text == problem.Message)
+        {
+            _error.Text = string.Empty;
+            _error.Visibility = Visibility.Collapsed;
+        }
+        _previewProblem = null;
+    }
+
     internal void OnPreviewClosed(Exception? error)
     {
         if (_closing || !IsOpen) return;
@@ -541,7 +565,8 @@ public sealed partial class DaisyTourEditor : ContentControl
     {
         if (_draft is null) return;
         _tour?.UpdatePreview(_draft, geometryOnly: _gestureSnapshot is not null);
-        _error.Text = string.Empty;
+        // A draft change clears an input error, not a problem of the previewed step that still lasts.
+        _error.Text = _previewProblem?.Message ?? string.Empty;
         if (_gestureSnapshot is null)
         {
             RefreshValueDescription();

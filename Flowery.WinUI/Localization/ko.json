@@ -4,6 +4,8 @@
   "Tour_Skip": "건너뛰기",
   "Tour_Finish": "완료",
   "Tour_StepCount": "{1}단계 중 {0}단계",
+  "Tour_TargetUnavailable": "이 단계의 요소를 지금 표시할 수 없습니다.",
+  "Tour_PreparationFailed": "이 단계를 완전히 준비하지 못했습니다.",
   "Size_ExtraSmall": "아주 작은",
   "Sidebar_Favorite": "즐겨찾기",
   "Common_Selected": "선택됨",

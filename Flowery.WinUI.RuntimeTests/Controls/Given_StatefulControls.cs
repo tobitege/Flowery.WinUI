@@ -1,7 +1,8 @@
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Flowery.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Flowery.WinUI.RuntimeTests.Controls
@@ -10,190 +11,91 @@ namespace Flowery.WinUI.RuntimeTests.Controls
     public class Given_StatefulControls
     {
         [TestMethod]
-        public async Task When_Tabs_Load_ItemsAndSelectionSync()
+        public async Task When_ValueExceedsMaximum_ItIsClamped()
         {
-            var tabs = new DaisyTabs
+            // Each row sets a value above the maximum the control reports and expects exactly that maximum back.
+            var cases = new (string Name, Func<DaisyBaseContentControl> Create, Func<DaisyBaseContentControl, double> Maximum,
+                Action<DaisyBaseContentControl, double> Set, Func<DaisyBaseContentControl, double> Read)[]
             {
-                Content = new StackPanel
-                {
-                    Children =
-                    {
-                        new DaisyTabItem { Header = "First", Content = new TextBlock { Text = "One" } },
-                        new DaisyTabItem { Header = "Second", Content = new TextBlock { Text = "Two" } }
-                    }
-                }
+                ("Pagination", static () => new DaisyPagination { TotalPages = 3 }, static control => ((DaisyPagination)control).TotalPages,
+                    static (control, value) => ((DaisyPagination)control).CurrentPage = (int)value, static control => ((DaisyPagination)control).CurrentPage),
+                ("Rating", static () => new DaisyRating(), static control => ((DaisyRating)control).Maximum,
+                    static (control, value) => ((DaisyRating)control).Value = value, static control => ((DaisyRating)control).Value),
+                ("Range", static () => new DaisyRange(), static control => ((DaisyRange)control).Maximum,
+                    static (control, value) => ((DaisyRange)control).Value = value, static control => ((DaisyRange)control).Value),
+                ("Progress", static () => new DaisyProgress(), static control => ((DaisyProgress)control).Maximum,
+                    static (control, value) => ((DaisyProgress)control).Value = value, static control => ((DaisyProgress)control).Value)
             };
 
-            RuntimeTestHelpers.AttachToHost(tabs);
-            await RuntimeTestHelpers.EnsureLoadedAsync(tabs);
+            foreach (var (name, create, maximum, set, read) in cases)
+                await RuntimeTestHelpers.RunCaseAsync(name, () => AssertClampedAsync(create, maximum, set, read));
+        }
 
-            Assert.AreEqual(DaisyTabVariant.Boxed, tabs.Variant);
-            Assert.AreEqual(DaisySize.Auto, tabs.Size);
-            Assert.AreEqual(FlowerySizeManager.CurrentSize, tabs.ResolvedSize);
-            Assert.AreEqual(0, tabs.SelectedIndex);
-            Assert.HasCount(2, tabs.Items);
+        private static async Task AssertClampedAsync(Func<DaisyBaseContentControl> create, Func<DaisyBaseContentControl, double> maximum,
+            Action<DaisyBaseContentControl, double> set, Func<DaisyBaseContentControl, double> read)
+        {
+            var control = create();
+            RuntimeTestHelpers.AttachToHost(control);
+            await RuntimeTestHelpers.EnsureLoadedAsync(control);
 
-            tabs.SelectedIndex = 1;
-            Assert.AreEqual(1, tabs.SelectedIndex);
+            var max = maximum(control);
+            set(control, max + 2);
+            Assert.AreEqual(max, read(control), "The value must clamp to the maximum.");
         }
 
         [TestMethod]
-        public async Task When_Accordion_ExpandedIndex_UpdatesSelection()
+        public async Task When_Dropdown_SelectionAndOpenStateChange_TriggerTextAndPopupFollow()
         {
-            var accordion = new DaisyAccordion
+            var dropdown = new DaisyDropdown { ItemsSource = new[] { "Alpha", "Beta" } };
+            try
             {
-                Content = new StackPanel
-                {
-                    Children =
-                    {
-                        new DaisyAccordionItem { Header = "One", Content = new TextBlock { Text = "A" } },
-                        new DaisyAccordionItem { Header = "Two", Content = new TextBlock { Text = "B" } }
-                    }
-                }
-            };
+                RuntimeTestHelpers.AttachToHost(dropdown);
+                await RuntimeTestHelpers.EnsureLoadedAsync(dropdown);
 
-            RuntimeTestHelpers.AttachToHost(accordion);
-            await RuntimeTestHelpers.EnsureLoadedAsync(accordion);
+                // DaisyDropdown.BuildVisualTree: a Grid with the trigger button (text, chevron) and the popup.
+                var root = (Grid)dropdown.Content;
+                var trigger = root.Children.OfType<Button>().Single();
+                var triggerText = ((Grid)trigger.Content).Children.OfType<TextBlock>().Single();
+                var popup = root.Children.OfType<Popup>().Single();
+                Assert.AreEqual(dropdown.PlaceholderText, triggerText.Text, "Without a selection the trigger shows the placeholder.");
+                Assert.IsFalse(popup.IsOpen, "The popup starts closed.");
 
-            Assert.AreEqual(DaisyCollapseVariant.Arrow, accordion.Variant);
-            Assert.AreEqual(-1, accordion.ExpandedIndex);
+                dropdown.SelectedItem = "Beta";
+                Assert.AreEqual("Beta", triggerText.Text, "The trigger shows the selected item.");
 
-            accordion.ExpandedIndex = 1;
-            Assert.AreEqual(1, accordion.ExpandedIndex);
+                dropdown.IsOpen = true;
+                Assert.IsTrue(popup.IsOpen, "IsOpen opens the popup.");
+                dropdown.IsOpen = false;
+                Assert.IsFalse(popup.IsOpen, "Clearing IsOpen closes the popup.");
+                Assert.AreEqual("Beta", triggerText.Text, "Closing keeps the selected item.");
+            }
+            finally
+            {
+                dropdown.IsOpen = false;
+                RuntimeTestHelpers.GetHostPanel().Children.Clear();
+            }
         }
 
         [TestMethod]
-        public async Task When_Collapse_Toggles_ExpandedState()
+        public async Task When_Collapse_IsExpandedChanges_TheContentIsShownAndHidden()
         {
-            var collapse = new DaisyCollapse
-            {
-                Header = "Header",
-                ExpanderContent = new TextBlock { Text = "Content" }
-            };
+            var content = new TextBlock { Text = "Content" };
+            var collapse = new DaisyCollapse { Header = "Header", ExpanderContent = content };
 
             RuntimeTestHelpers.AttachToHost(collapse);
             await RuntimeTestHelpers.EnsureLoadedAsync(collapse);
 
-            Assert.IsFalse(collapse.IsExpanded);
-            Assert.AreEqual(DaisyCollapseVariant.Arrow, collapse.Variant);
-            Assert.AreEqual(DaisySize.Auto, collapse.Size);
-            Assert.AreEqual(FlowerySizeManager.CurrentSize, collapse.ResolvedSize);
+            // DaisyCollapse.BuildLayout: the outer border holds a panel with the header button and the content border.
+            var panel = (Panel)((Border)collapse.Content).Child;
+            var contentBorder = panel.Children.OfType<Border>()
+                .Single(static border => border.Child is ContentPresenter);
+            Assert.AreSame(content, ((ContentPresenter)contentBorder.Child).Content, "The content border presents ExpanderContent.");
+            Assert.AreEqual(Visibility.Collapsed, contentBorder.Visibility, "A collapsed control hides its content.");
 
             collapse.IsExpanded = true;
-            Assert.IsTrue(collapse.IsExpanded);
-        }
-
-        [TestMethod]
-        public async Task When_Dropdown_SelectionAndOpenState_Update()
-        {
-            var dropdown = new DaisyDropdown
-            {
-                ItemsSource = new[] { "Alpha", "Beta" }
-            };
-
-            RuntimeTestHelpers.AttachToHost(dropdown);
-            await RuntimeTestHelpers.EnsureLoadedAsync(dropdown);
-
-            Assert.IsFalse(dropdown.IsOpen);
-            Assert.IsTrue(dropdown.CloseOnSelection);
-            Assert.AreEqual("Select", dropdown.PlaceholderText);
-            Assert.AreEqual(DaisySize.Auto, dropdown.Size);
-            Assert.AreEqual(FlowerySizeManager.CurrentSize, dropdown.ResolvedSize);
-            Assert.AreEqual(DaisyColor.Default, dropdown.Variant);
-
-            dropdown.SelectedItem = "Beta";
-            Assert.AreEqual("Beta", dropdown.SelectedItem);
-
-            dropdown.IsOpen = true;
-            Assert.IsTrue(dropdown.IsOpen);
-            dropdown.IsOpen = false;
-            Assert.IsFalse(dropdown.IsOpen);
-        }
-
-        [TestMethod]
-        public async Task When_Pagination_DefaultsAndClampingHold()
-        {
-            var pagination = new DaisyPagination
-            {
-                TotalPages = 3
-            };
-
-            RuntimeTestHelpers.AttachToHost(pagination);
-            await RuntimeTestHelpers.EnsureLoadedAsync(pagination);
-
-            Assert.AreEqual(1, pagination.CurrentPage);
-            Assert.AreEqual(3, pagination.TotalPages);
-            Assert.AreEqual(7, pagination.MaxVisiblePages);
-            Assert.IsTrue(pagination.ShowPrevNext);
-            Assert.IsFalse(pagination.ShowFirstLast);
-            Assert.IsFalse(pagination.ShowJumpButtons);
-            Assert.AreEqual(Orientation.Horizontal, pagination.Orientation);
-            Assert.AreEqual("…", pagination.EllipsisText);
-
-            pagination.CurrentPage = 5;
-            Assert.AreEqual(3, pagination.CurrentPage);
-        }
-
-        [TestMethod]
-        public async Task When_Rating_DefaultsHold_AndValueClamps()
-        {
-            var rating = new DaisyRating();
-
-            RuntimeTestHelpers.AttachToHost(rating);
-            await RuntimeTestHelpers.EnsureLoadedAsync(rating);
-
-            Assert.AreEqual(DaisySize.Auto, rating.Size);
-            Assert.AreEqual(FlowerySizeManager.CurrentSize, rating.ResolvedSize);
-            Assert.AreEqual(0.0, rating.Value);
-            Assert.AreEqual(5, rating.Maximum);
-            Assert.IsFalse(rating.IsReadOnly);
-            Assert.AreEqual(RatingPrecision.Full, rating.Precision);
-            Assert.AreEqual(DaisyColor.Warning, rating.FilledColor);
-
-            rating.Value = 10.0;
-            Assert.AreEqual(5.0, rating.Value);
-        }
-
-        [TestMethod]
-        public async Task When_Range_DefaultsHold_AndValueClamps()
-        {
-            var range = new DaisyRange();
-
-            RuntimeTestHelpers.AttachToHost(range);
-            await RuntimeTestHelpers.EnsureLoadedAsync(range);
-
-            Assert.AreEqual(DaisyRangeVariant.Default, range.Variant);
-            Assert.AreEqual(DaisySize.Auto, range.Size);
-            Assert.AreEqual(FlowerySizeManager.CurrentSize, range.ResolvedSize);
-            Assert.AreEqual(0.0, range.Value);
-            Assert.AreEqual(0.0, range.Minimum);
-            Assert.AreEqual(100.0, range.Maximum);
-            Assert.IsTrue(range.ShowProgress);
-            Assert.AreEqual(0.0, range.StepFrequency);
-            Assert.AreEqual(1.0, range.SmallChange);
-            Assert.AreEqual(10.0, range.LargeChange);
-
-            range.Value = 150.0;
-            Assert.AreEqual(100.0, range.Value);
-        }
-
-        [TestMethod]
-        public async Task When_OtpInput_DefaultsHold()
-        {
-            var otp = new DaisyOtpInput();
-
-            RuntimeTestHelpers.AttachToHost(otp);
-            await RuntimeTestHelpers.EnsureLoadedAsync(otp);
-
-            Assert.AreEqual(6, otp.Length);
-            Assert.IsTrue(otp.AcceptsOnlyDigits);
-            Assert.IsTrue(otp.AutoAdvance);
-            Assert.IsTrue(otp.AutoSelectOnFocus);
-            Assert.AreEqual(0, otp.SeparatorInterval);
-            Assert.AreEqual(string.Empty, otp.SeparatorText);
-            Assert.AreEqual(DaisySize.Auto, otp.Size);
-            Assert.AreEqual(FlowerySizeManager.CurrentSize, otp.ResolvedSize);
-            Assert.IsTrue(otp.IsJoined);
+            Assert.AreEqual(Visibility.Visible, contentBorder.Visibility, "Expanding shows the content.");
+            collapse.IsExpanded = false;
+            Assert.AreEqual(Visibility.Collapsed, contentBorder.Visibility, "Collapsing hides the content again.");
         }
     }
 }

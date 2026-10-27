@@ -1,4 +1,4 @@
-using Flowery.Controls;
+﻿using Flowery.Controls;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Flowery.WinUI.UnitTests.Controls
@@ -6,38 +6,26 @@ namespace Flowery.WinUI.UnitTests.Controls
     [TestClass]
     public class Given_SidebarItemSearch
     {
-        private static SidebarItem CreateTagPickerItem() =>
-            new() { Id = "tagpicker", Name = "Sidebar_TagPicker", DisplayName = "Tag-Auswahl", ControlName = "DaisyTagPicker" };
-
         [TestMethod]
-        public void When_SearchingTranslatedOrControlName_Matches()
+        [DataRow(true, "Tag-Auswahl", true)]
+        [DataRow(true, "tag-auswahl", true)]
+        [DataRow(true, "Auswahl", true)]
+        [DataRow(true, "DaisyTagPicker", true)]
+        [DataRow(true, "TagPicker", true)]
+        [DataRow(true, "tag picker", true)]
+        [DataRow(true, "Toggle", false)]
+        [DataRow(true, "---", false)]
+        [DataRow(false, "corner radii", true)]
+        [DataRow(false, "DaisyModal", false)]
+        public void When_Searching_MatchesTranslatedAndControlNames(bool itemHasControlName, string search, bool expected)
         {
-            var item = CreateTagPickerItem();
+            // The tag picker item has the control name DaisyTagPicker; without a control name only the translated
+            // name matches.
+            var item = itemHasControlName
+                ? new SidebarItem { Id = "tagpicker", Name = "Sidebar_TagPicker", DisplayName = "Tag-Auswahl", ControlName = "DaisyTagPicker" }
+                : new SidebarItem { Id = "modal-radii", Name = "Sidebar_ModalRadii", DisplayName = "Modal Corner Radii" };
 
-            foreach (var search in new[] { "Tag-Auswahl", "tag-auswahl", "Auswahl", "DaisyTagPicker", "TagPicker", "tag picker" })
-            {
-                Assert.IsTrue(item.MatchesSearch(search), search);
-            }
-        }
-
-        [TestMethod]
-        public void When_SearchingUnrelatedText_DoesNotMatch()
-        {
-            var item = CreateTagPickerItem();
-
-            foreach (var search in new[] { "Toggle", "---" })
-            {
-                Assert.IsFalse(item.MatchesSearch(search), search);
-            }
-        }
-
-        [TestMethod]
-        public void When_ControlNameIsMissing_MatchesTranslatedNameOnly()
-        {
-            var item = new SidebarItem { Id = "modal-radii", Name = "Sidebar_ModalRadii", DisplayName = "Modal Corner Radii" };
-
-            Assert.IsTrue(item.MatchesSearch("corner radii"));
-            Assert.IsFalse(item.MatchesSearch("DaisyModal"));
+            Assert.AreEqual(expected, item.MatchesSearch(search), search);
         }
     }
 }

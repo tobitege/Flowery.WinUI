@@ -242,9 +242,10 @@ internal static partial class DaisyTourLayout
     /// Moves a card off connector courses; the obstacles are the highlighted targets, the courses, and the
     /// areas their route limits keep clear. A fixed position slides along its own edge. Otherwise a previous
     /// position that is still clear is kept; else the card goes beside the target: on a clear side, then
-    /// moved along or away from a side, then at the nearest clear spot in view. Null when nothing is clear.
+    /// moved along or away from a side, then at the nearest clear spot in view. Without a highlighted target,
+    /// the nearest clear spot from the center is used. Null when nothing is clear.
     /// </summary>
-    internal static Rect? AvoidObstacles(DaisyTourCardPosition position, DaisyTourPlacement preferred, Rect target,
+    internal static Rect? AvoidObstacles(DaisyTourCardPosition position, DaisyTourPlacement preferred, Rect? target,
         Size card, Size viewport, IReadOnlyList<Rect> obstacles, Rect? previous = null)
     {
         if (position is not (DaisyTourCardPosition.Default or DaisyTourCardPosition.Target) &&
@@ -252,7 +253,9 @@ internal static partial class DaisyTourLayout
             return stationary;
         if (previous is { } kept && InView(kept, viewport) && !Covers(kept, obstacles))
             return kept;
-        var candidates = SideCandidates(target, card);
+        if (target is not { } anchor)
+            return Clear(StationaryRect(DaisyTourCardPosition.Center, card, viewport), viewport, obstacles, true, true, combined: true);
+        var candidates = SideCandidates(anchor, card);
         var sides = SideOrder(preferred).Where(candidates.ContainsKey).ToList();
         foreach (var side in sides)
         {
@@ -322,10 +325,11 @@ internal static partial class DaisyTourLayout
     /// vertically, Top and Bottom horizontally, corners and Center along either axis. Without room on that
     /// edge, the card goes beside the target.
     /// </summary>
-    internal static Rect? PlaceStationary(DaisyTourCardPosition position, Size card, Size viewport, Rect highlighted) =>
+    /// <param name="highlighted">The highlighted area the card keeps clear of; null when nothing is highlighted.</param>
+    internal static Rect? PlaceStationary(DaisyTourCardPosition position, Size card, Size viewport, Rect? highlighted) =>
         position is DaisyTourCardPosition.Default or DaisyTourCardPosition.Target
             ? null
-            : SlideStationary(position, card, viewport, [highlighted]);
+            : SlideStationary(position, card, viewport, highlighted is { } area ? [area] : []);
 
     // The smallest slide along the position's own edge that keeps the card in view and clear.
     private static Rect? SlideStationary(DaisyTourCardPosition position, Size card, Size viewport, IReadOnlyList<Rect> obstacles) =>

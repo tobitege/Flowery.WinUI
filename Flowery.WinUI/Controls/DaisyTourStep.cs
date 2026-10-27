@@ -8,26 +8,64 @@ public enum DaisyTourPlacement { Auto, Top, Bottom, Left, Right }
 
 /// <summary>Where the step card appears: beside the target, or at a fixed window position.</summary>
 public enum DaisyTourCardPosition { Default, Target, TopLeft, Top, TopRight, Left, Center, Right, BottomLeft, Bottom, BottomRight }
-public enum DaisyTourCloseReason { Completed, Skipped, Cancelled, TargetUnavailable }
+/// <summary>Why a session ended. <c>TargetUnavailable</c>: the tour could not open because it belongs to no window.
+/// <c>Failed</c>: the tour itself could not continue, such as when its dispatcher no longer accepts work; the error
+/// tells why. A target that cannot be shown during a session keeps the step open and raises
+/// <see cref="DaisyTour.StepTargetUnavailable"/> instead.</summary>
+public enum DaisyTourCloseReason { Completed, Skipped, Cancelled, TargetUnavailable, Failed }
 
-/// <summary>The result of one tour session. Target failures identify the affected step and annotation.</summary>
+/// <summary>What keeps a step from showing everything it describes.</summary>
+public enum DaisyTourTargetProblem
+{
+    /// <summary>The step's <see cref="DaisyTourStep.PrepareAsync"/> failed. The warning lasts for the visit of the step.</summary>
+    Preparation,
+    /// <summary>The step target is missing or cannot be shown.</summary>
+    Target,
+    /// <summary>An end of one of the step's annotations cannot be measured.</summary>
+    Annotation
+}
+
+/// <summary>The result of one tour session. A failed session carries its error.</summary>
 public sealed class DaisyTourClosedEventArgs : EventArgs
 {
     internal DaisyTourClosedEventArgs(DaisyTourCloseReason reason, string? stepId,
-        string? annotationId = null, FrameworkElement? target = null, Exception? error = null)
+        FrameworkElement? target = null, Exception? error = null)
     {
         Reason = reason;
         StepId = stepId;
-        AnnotationId = annotationId;
         Target = target;
         Error = error;
     }
 
     public DaisyTourCloseReason Reason { get; }
     public string? StepId { get; }
-    public string? AnnotationId { get; }
+    /// <summary>Always null: target problems no longer close the tour. <see cref="DaisyTour.StepTargetUnavailable"/>
+    /// reports the affected annotation.</summary>
+    public string? AnnotationId => null;
     public FrameworkElement? Target { get; }
     public Exception? Error { get; }
+}
+
+/// <summary>A step that cannot show everything it describes. The step stays open in its warning state.</summary>
+public sealed class DaisyTourStepTargetUnavailableEventArgs : EventArgs
+{
+    internal DaisyTourStepTargetUnavailableEventArgs(string stepId, DaisyTourTargetProblem problem, string? annotationId,
+        FrameworkElement? target, Exception error)
+    {
+        StepId = stepId;
+        Problem = problem;
+        AnnotationId = annotationId;
+        Target = target;
+        Error = error;
+    }
+
+    public string StepId { get; }
+    public DaisyTourTargetProblem Problem { get; }
+    /// <summary>The annotation whose end is unavailable, for <see cref="DaisyTourTargetProblem.Annotation"/>.</summary>
+    public string? AnnotationId { get; }
+    /// <summary>The element that cannot be shown: the step target, or the annotation end.</summary>
+    public FrameworkElement? Target { get; }
+    public Exception Error { get; }
 }
 
 /// <summary>A nonvisual, bindable definition. Preparation runs again on every visit.</summary>

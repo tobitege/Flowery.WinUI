@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Runs the native WinUI runtime and unit tests through the Windows runner.
+    Runs the unit tests and the native WinUI runtime tests through the Windows runner.
 .DESCRIPTION
     Uses the normal solution output. Test state and reports use a unique directory.
 #>
@@ -36,7 +36,8 @@ if (-not $SkipBuild) {
 
 $galleryPath = Join-Path $repoRoot "bin\$Configuration\Flowery.WinUI.Gallery\$framework\$runtime\Flowery.WinUI.Gallery.exe"
 $runnerPath = Join-Path $repoRoot "bin\$Configuration\Flowery.WinUI.RuntimeTests.WindowsRunner\$framework\$runtime\Flowery.WinUI.RuntimeTests.WindowsRunner.exe"
-foreach ($path in @($galleryPath, $runnerPath)) {
+$unitTestsPath = Join-Path $repoRoot "bin\$Configuration\Flowery.WinUI.UnitTests\$framework\$runtime\Flowery.WinUI.UnitTests.exe"
+foreach ($path in @($galleryPath, $runnerPath, $unitTestsPath)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw ('Required executable is missing. Build the solution first: {0}' -f $path)
     }
@@ -68,8 +69,20 @@ try {
     }
     Write-Host ('Gallery: {0}' -f $galleryPath)
     Write-Host ('Results: {0}' -f $resultsDirectory)
-    & $runnerPath @runnerArguments 2>&1 | Tee-Object -FilePath $logPath
+    # The filter selects runtime tests, so a filtered run skips the unit tests.
+    $unitTestExitCode = 0
+    if ([string]::IsNullOrWhiteSpace($TestFilter)) {
+        & $unitTestsPath @runnerArguments 2>&1 | Tee-Object -FilePath $logPath
+        $unitTestExitCode = $LASTEXITCODE
+    }
+    else {
+        Write-Host 'Unit tests skipped: -TestFilter selects runtime tests.'
+    }
+    & $runnerPath @runnerArguments 2>&1 | Tee-Object -FilePath $logPath -Append
     $testExitCode = $LASTEXITCODE
+    if ($testExitCode -eq 0) {
+        $testExitCode = $unitTestExitCode
+    }
 }
 finally {
     [Environment]::SetEnvironmentVariable('FLOWERY_GALLERY_EXE_PATH', $previousGalleryPath, 'Process')

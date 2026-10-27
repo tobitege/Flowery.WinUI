@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Reflection;
 using System.Threading.Tasks;
 using Flowery.Controls;
@@ -35,21 +35,8 @@ public class Given_ColorDesignRegression
         Assert.AreEqual(1, count);
         grid.ColorIndex = -1;
         Assert.AreEqual(Colors.Blue, grid.Color);
-    }
-
-    [TestMethod]
-    public void When_HslIsAssigned_AllEditorComponentsAndEventFollow()
-    {
-        var editor = new DaisyColorEditor();
-        var expected = Color.FromArgb(128, 0, 255, 0);
-        var count = 0;
-        editor.ColorChanged += (_, _) => count++;
-        editor.HslColor = new HslColor(expected);
-        Assert.AreEqual(expected, editor.Color);
-        Assert.AreEqual((byte)128, editor.Alpha);
-        Assert.AreEqual((byte)255, editor.Green);
-        Assert.AreEqual("#8000FF00", editor.HexValue);
-        Assert.AreEqual(1, count);
+        grid.Color = Colors.Red;
+        Assert.AreEqual(0, grid.ColorIndex, "A palette color selects its index.");
     }
 
     [TestMethod]
@@ -101,8 +88,12 @@ public class Given_ColorDesignRegression
         var sliderProvider = FrameworkElementAutomationPeer.CreatePeerForElement(slider)
             .GetPattern(PatternInterface.RangeValue) as IRangeValueProvider;
         Assert.IsNotNull(sliderProvider);
+        Assert.AreEqual(255d, sliderProvider.Maximum);
         sliderProvider.SetValue(120);
         Assert.AreEqual((byte)120, slider.Color.B);
+        slider.Channel = ColorSliderChannel.Hue;
+        Assert.AreEqual(0d, slider.Minimum);
+        Assert.AreEqual(359d, slider.Maximum, "The hue channel spans the color wheel.");
 
         var grid = new DaisyColorGrid();
         var gridProvider = FrameworkElementAutomationPeer.CreatePeerForElement(grid)

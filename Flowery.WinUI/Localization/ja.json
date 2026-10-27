@@ -4,6 +4,8 @@
   "Tour_Skip": "スキップ",
   "Tour_Finish": "完了",
   "Tour_StepCount": "全 {1} ステップ中 {0} ステップ",
+  "Tour_TargetUnavailable": "このステップの要素は現在表示できません。",
+  "Tour_PreparationFailed": "このステップを完全には準備できませんでした。",
   "Size_ExtraSmall": "極小",
   "Sidebar_Favorite": "お気に入り",
   "Common_Selected": "選択済み",

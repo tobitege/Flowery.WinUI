@@ -4,6 +4,8 @@
   "Tour_Skip": "Omitir",
   "Tour_Finish": "Finalizar",
   "Tour_StepCount": "Paso {0} de {1}",
+  "Tour_TargetUnavailable": "El elemento de este paso no se puede mostrar ahora.",
+  "Tour_PreparationFailed": "Este paso no se pudo preparar por completo.",
   "Size_ExtraSmall": "Extra pequeño",
   "Sidebar_Favorite": "Favorito",
   "Common_Selected": "Seleccionado",

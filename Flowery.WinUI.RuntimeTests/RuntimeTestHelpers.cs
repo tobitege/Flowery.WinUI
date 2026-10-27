@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Microsoft.UI.Dispatching;
@@ -72,6 +72,43 @@ namespace Flowery.WinUI.RuntimeTests
             };
             element.Loaded += handler;
             return tcs.Task;
+        }
+
+        /// <summary>The longest one case of a table-driven test may run.</summary>
+        public static readonly TimeSpan CaseTimeout = TimeSpan.FromSeconds(30);
+
+        /// <summary>Runs one case of a table-driven test. A failure, an exception or a timeout names the case;
+        /// an inconclusive result passes through unchanged.</summary>
+        public static async Task RunCaseAsync(string name, Func<Task> body, TimeSpan? timeout = null)
+        {
+            try { await body().WaitAsync(timeout ?? CaseTimeout); }
+            catch (Exception error) when (error is not AssertInconclusiveException)
+            {
+                throw new AssertFailedException($"{name}: {error.Message}", error);
+            }
+        }
+
+        /// <summary>Runs one synchronous case of a table-driven test; a failure or an exception names the case.</summary>
+        public static void RunCase(string name, Action body)
+        {
+            try { body(); }
+            catch (Exception error) when (error is not AssertInconclusiveException)
+            {
+                throw new AssertFailedException($"{name}: {error.Message}", error);
+            }
+        }
+
+        /// <summary>Waits until <paramref name="condition"/> holds, checking about once per frame, so a test does not
+        /// depend on a fixed delay such as the length of an animation.</summary>
+        public static async Task WaitUntilAsync(Func<bool> condition, string description, TimeSpan? timeout = null)
+        {
+            var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(5));
+            while (!condition())
+            {
+                if (DateTime.UtcNow > deadline)
+                    throw new TimeoutException($"Timed out waiting until {description}.");
+                await Task.Delay(16);
+            }
         }
 
         public static async Task CompleteLayoutAsync(FrameworkElement element, params FrameworkElement[] requiredElements)

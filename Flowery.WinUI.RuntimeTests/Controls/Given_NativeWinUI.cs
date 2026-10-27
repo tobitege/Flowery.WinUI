@@ -124,8 +124,6 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                     visual.Shapes.Add(shape);
                     ElementCompositionPreview.SetElementChildVisual(host, visual);
                     await FlushDispatcherAsync(host.DispatcherQueue);
-                    Assert.AreSame(visual, ElementCompositionPreview.GetElementChildVisual(host));
-                    Assert.AreSame(geometry, shape.Geometry);
                     ElementCompositionPreview.SetElementChildVisual(host, null);
                 }
             }

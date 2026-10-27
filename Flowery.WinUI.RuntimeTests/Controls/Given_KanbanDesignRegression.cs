@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -51,10 +51,24 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         }
 
         [TestMethod]
-        public void When_EndDate_Changes_Footer_Updates_And_Clears()
+        public void When_Card_Binds_Task_Summary_Shows_And_EndDate_Footer_Updates_And_Clears()
         {
-            var task = new FlowTask { PlannedEndDate = new DateTime(2026, 10, 15) };
+            var task = new FlowTask
+            {
+                PlannedEndDate = DateTime.Today.AddDays(1),
+                Subtasks =
+                {
+                    new FlowSubtask { Title = "A", IsCompleted = true },
+                    new FlowSubtask { Title = "B" },
+                    new FlowSubtask { Title = "C" }
+                }
+            };
             var card = new FlowTaskCard { Task = task };
+            Assert.IsTrue(card.HasSubtaskSummary);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(card.SubtaskSummaryText));
+            Assert.IsTrue(card.HasDueDate);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(card.DueDateText));
+
             var previous = card.EndDateText;
             task.PlannedEndDate = task.PlannedEndDate.Value.AddDays(2);
             Assert.IsTrue(card.HasEndDate);
