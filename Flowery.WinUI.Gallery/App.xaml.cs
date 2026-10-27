@@ -8,7 +8,6 @@ using System.Xml.Linq;
 using IOPath = System.IO.Path;
 using Flowery.Theming;
 using Flowery.WinUI.Gallery.Localization;
-using Flowery.WinUI.Kanban.Controls;
 using Flowery.Services;
 using Flowery.WinUI.RuntimeTests;
 
@@ -77,6 +76,7 @@ namespace Flowery.WinUI.Gallery
 #endif
 
             ConfigureStateStorage();
+            RemoveLegacyKanbanCredentials();
 
             // Apply language BEFORE creating MainWindow so FloweryLocalization.CurrentCultureName
             // is already set when the sidebar reads it during construction.
@@ -102,6 +102,24 @@ namespace Flowery.WinUI.Gallery
         private static void ConfigureStateStorage()
         {
             StateStorageProvider.Configure(new FileStateStorage(GetStateDirectory()));
+        }
+
+        // Runs off the UI thread: the vault lookups must not delay the window. Runtime test launches skip it
+        // (they return before this point), so tests never touch the user's Credential Manager.
+        private static void RemoveLegacyKanbanCredentials()
+        {
+            var stateStorage = StateStorageProvider.Instance;
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    LegacyKanbanCredentials.RemoveOnce(new PasswordVaultSecureStorage(), stateStorage);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Removing the legacy Kanban credentials failed: {ex.Message}");
+                }
+            });
         }
 
         private static void ApplyRequestedWindowPlacement(Window window)

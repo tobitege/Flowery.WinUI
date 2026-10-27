@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Flowery.WinUI.Gallery;
 using Flowery.WinUI.Gallery.Examples;
 using Flowery.WinUI.Kanban.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
@@ -561,6 +562,53 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                 "A finished refresh left its linked token source registered on the host token.");
         }
 
+        [TestMethod]
+        public void When_StateOfTheRemovedUserProvidersExists_TheFirstSettingsLoadDeletesIt()
+        {
+            var storage = new InMemoryStateStorage();
+            var previous = StateStorageProvider.Instance;
+            StateStorageProvider.Configure(storage);
+            try
+            {
+                storage.SaveLines("FlowKanban.LocalUserId", new[] { "11111111-2222-3333-4444-555555555555" });
+                storage.SaveLines("FlowKanban.IdentityLinks", new[] { "[]" });
+                storage.SaveLines("kanban.admin.global", new[] { "local:11111111-2222-3333-4444-555555555555" });
+                storage.SaveLines("kanban.board.keep", new[] { "{}" });
+
+                Assert.IsTrue(new FlowKanban().TryLoadSettings(forceReload: true, out var error), error?.Message);
+
+                Assert.AreEqual(0, storage.LoadLines("FlowKanban.LocalUserId").Count);
+                Assert.AreEqual(0, storage.LoadLines("FlowKanban.IdentityLinks").Count);
+                Assert.AreEqual(0, storage.LoadLines("kanban.admin.global").Count);
+                Assert.AreEqual(1, storage.LoadLines("kanban.board.keep").Count, "A board entry was deleted.");
+            }
+            finally
+            {
+                StateStorageProvider.Configure(previous);
+            }
+        }
+
+        [TestMethod]
+        public void When_TheGalleryStarts_TheLegacyProviderCredentialsAreRemovedOnce()
+        {
+            var vault = new DictionarySecureStorage();
+            foreach (var (resource, key) in LegacyKanbanCredentials.Entries)
+                vault.SetValue(resource, key, "secret");
+            vault.SetValue("Other.App", "AccessToken", "keep");
+            var state = new InMemoryStateStorage();
+
+            LegacyKanbanCredentials.RemoveOnce(vault, state);
+
+            Assert.IsNull(vault.GetValue("Flowery.GitHub", "AccessToken"), "The GitHub token is still stored.");
+            Assert.IsTrue(LegacyKanbanCredentials.Entries.All(entry => vault.GetValue(entry.Resource, entry.Key) is null));
+            Assert.AreEqual("keep", vault.GetValue("Other.App", "AccessToken"), "Another app's credential was removed.");
+
+            // Later starts do not touch the vault again.
+            vault.SetValue("Flowery.GitHub", "AccessToken", "new");
+            LegacyKanbanCredentials.RemoveOnce(vault, state);
+            Assert.AreEqual("new", vault.GetValue("Flowery.GitHub", "AccessToken"));
+        }
+
         private static FlowKanban CreateKanban(FlowTask task)
         {
             return new FlowKanban
@@ -571,6 +619,17 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                     Columns = { new FlowKanbanColumnData { Title = "Todo", Tasks = { task } } }
                 }
             };
+        }
+
+        private sealed class DictionarySecureStorage : ISecureStorage
+        {
+            private readonly Dictionary<(string, string), string> _values = new();
+
+            public void SetValue(string resource, string key, string value) => _values[(resource, key)] = value;
+
+            public string? GetValue(string resource, string key) => _values.GetValueOrDefault((resource, key));
+
+            public void RemoveValue(string resource, string key) => _values.Remove((resource, key));
         }
 
         // Counts the adapter calls, so a test can prove that board changes do not reload the list.

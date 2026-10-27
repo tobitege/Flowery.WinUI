@@ -738,6 +738,12 @@ namespace Flowery.WinUI.Kanban.Controls
         private const string SettingsStorageKey = "kanban.settings";
         private const string LegacyUserSettingsStorageKeyPrefix = "kanban.user.settings";
         private const string LegacyLocalUserIdStorageKey = "FlowKanban.LocalUserId";
+        private static readonly string[] LegacyUserStateStorageKeys =
+        [
+            LegacyLocalUserIdStorageKey,
+            "FlowKanban.IdentityLinks",
+            "kanban.admin.global"
+        ];
         #endregion
 
         #region Settings
@@ -1412,6 +1418,7 @@ namespace Flowery.WinUI.Kanban.Controls
 
             _settingsLoaded = true;
             var json = MigrateUserScopedSettings() ?? LoadStateText(SettingsStorageKey);
+            RemoveLegacyUserState();
             if (string.IsNullOrWhiteSpace(json))
                 return;
 
@@ -1448,6 +1455,16 @@ namespace Flowery.WinUI.Kanban.Controls
                 storage.Delete(key);
 
             return json;
+        }
+
+        // The user providers removed in 1.11 left the local user's ID, the identity links and the global admin
+        // in the state storage. Nothing reads them any more, so they are deleted after the settings migration,
+        // which still needs the local user's ID.
+        private static void RemoveLegacyUserState()
+        {
+            var storage = StateStorageProvider.Instance;
+            foreach (var key in LegacyUserStateStorageKeys)
+                storage.Delete(key);
         }
 
         private void SaveSettingsCore()
