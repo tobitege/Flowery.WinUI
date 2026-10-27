@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `FlowKanban` on touch or pen, as in `DaisyScheduler`: a tap opens a card's editor and holding a card selects it, and the finger then drags it; while cards are selected, a tap adds a card to the selection or takes it out. Taps are decided on release and count only if the finger did not move, so a swipe over a card only scrolls. Before, a touch or pen press selected a card like a click, and a double tap edited it. The touch model is chosen by pointer type; the old one for Android and iOS (double tap toggles, long press on the title edits) never ran on Windows and is gone.
 - `FlowKanban`: a tap or click on a free place of the board (not on a card, a button, an input, a combo box such as the column choice of the compact layout, a scroll bar, or a column header, where a tap shows the header buttons on touch) clears the card selection, also one the board was loaded with.
 - `DaisyResourceLookup.TryGetResource` no longer searches the merged dictionaries again after a miss. WinUI's `TryGetValue` already searches nested merged and theme dictionaries, so the result is the same, and lookups of optional keys that do not exist, which every Daisy control makes, are much faster.
+- Release and CI: publishing Gallery, Kiosk and Photos for a runtime no longer downloads the ASP.NET Core and Windows Desktop runtime packs, which none of the apps uses (`DisableTransitiveFrameworkReferenceDownloads`).
 
 ## [1.9.0] - 2026-10-24
 
