@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using System.Xml.Linq;
 using Flowery.Controls;
 using Flowery.Services;
-using Flowery.WinUI.Kanban.Controls;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -43,7 +42,6 @@ namespace Flowery.WinUI.RuntimeTests
                 // Keep tests away from the app's real state storage: saved settings (e.g. the
                 // Kanban's last view) must not leak into tests, and tests must not write user data.
                 StateStorageProvider.Configure(new InMemoryStateStorage());
-                FlowKanban.DefaultUserProvider = null;
 
                 // The test launch skips persisted Gallery settings, so initialize
                 // the shared palette before controls or contrast changes use it.

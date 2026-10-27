@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Flowery.Controls;
@@ -23,7 +23,6 @@ namespace Flowery.WinUI.Kanban.Controls
         private int _keyboardColumnIndex = InvalidColumnIndex;
         private KeyEventHandler? _keyboardKeyDownHandler;
         private readonly List<KeyboardAccelerator> _keyboardAccelerators = new();
-        private bool _keyboardAcceleratorsIncludeAdmin;
         private bool _keyboardAcceleratorsShowTooltips;
         private int _lastTabNavigationTick = int.MinValue;
 
@@ -51,13 +50,11 @@ namespace Flowery.WinUI.Kanban.Controls
 
         private void RegisterKeyboardAccelerators()
         {
-            var includeAdmin = _isCurrentUserGlobalAdmin;
             var showTooltips = ShowKeyboardAcceleratorTooltips;
 
             if (_keyboardAccelerators.Count > 0)
             {
-                if (_keyboardAcceleratorsIncludeAdmin == includeAdmin
-                    && _keyboardAcceleratorsShowTooltips == showTooltips)
+                if (_keyboardAcceleratorsShowTooltips == showTooltips)
                 {
                     return;
                 }
@@ -65,7 +62,6 @@ namespace Flowery.WinUI.Kanban.Controls
                 UnregisterKeyboardAccelerators();
             }
 
-            _keyboardAcceleratorsIncludeAdmin = includeAdmin;
             _keyboardAcceleratorsShowTooltips = showTooltips;
 
             if (!showTooltips)
@@ -73,12 +69,9 @@ namespace Flowery.WinUI.Kanban.Controls
                 return;
             }
 
-            if (includeAdmin)
-            {
-                AddKeyboardAccelerator(VirtualKey.B, VirtualKeyModifiers.Control, OnAddColumnAccelerator);
-                AddKeyboardAccelerator(VirtualKey.D, VirtualKeyModifiers.Control, OnDeleteColumnAccelerator);
-                AddKeyboardAccelerator(VirtualKey.T, VirtualKeyModifiers.Control, OnRenameColumnAccelerator);
-            }
+            AddKeyboardAccelerator(VirtualKey.B, VirtualKeyModifiers.Control, OnAddColumnAccelerator);
+            AddKeyboardAccelerator(VirtualKey.D, VirtualKeyModifiers.Control, OnDeleteColumnAccelerator);
+            AddKeyboardAccelerator(VirtualKey.T, VirtualKeyModifiers.Control, OnRenameColumnAccelerator);
 
             AddKeyboardAccelerator(VirtualKey.N, VirtualKeyModifiers.Control, OnAddCardAccelerator);
             AddKeyboardAccelerator(VirtualKey.F, VirtualKeyModifiers.Control, OnSearchFocusAccelerator);
@@ -121,9 +114,6 @@ namespace Flowery.WinUI.Kanban.Controls
 
         private void OnAddColumnAccelerator(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
         {
-            if (!_isCurrentUserGlobalAdmin)
-                return;
-
             if (!IsBoardViewActive)
                 return;
 
@@ -133,9 +123,6 @@ namespace Flowery.WinUI.Kanban.Controls
 
         private void OnDeleteColumnAccelerator(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
         {
-            if (!_isCurrentUserGlobalAdmin)
-                return;
-
             if (!IsBoardViewActive)
                 return;
 
@@ -148,9 +135,6 @@ namespace Flowery.WinUI.Kanban.Controls
 
         private void OnRenameColumnAccelerator(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
         {
-            if (!_isCurrentUserGlobalAdmin)
-                return;
-
             if (!IsBoardViewActive)
                 return;
 
@@ -326,8 +310,7 @@ namespace Flowery.WinUI.Kanban.Controls
 
         private bool TryHandleControlShortcut(VirtualKey key, bool isAltDown, bool isShiftDown)
         {
-            // Admin-only column operations.
-            if (!isAltDown && !isShiftDown && _isCurrentUserGlobalAdmin)
+            if (!isAltDown && !isShiftDown)
             {
                 switch (key)
                 {

@@ -57,10 +57,8 @@ The Kanban system spans multiple files for modularity:
 - **JSON Persistence**: Atomic save strategy (temp-file rename), schema migration support, and safe-load validation.
 - **Source Gen Support**: Source-generated JSON metadata through `FlowKanbanJsonContext`.
 - **Industrial Sidebar**: A dedicated space for board-level controls (home, settings, undo/redo, zoom, save/load, metrics/help).
-- **User-Scoped Preferences**: Confirmation prompts, auto-save, add card placement, and welcome message settings are stored per user.
-- **Global Admin Bootstrap**: Assigns the first available current user as global admin on initial run.
-- **Local User Default**: If no provider is set, FlowKanban defaults to `LocalUserProvider`.
-- **Provider Workflows**: External providers support explicit connect and disconnect flows, with confirmation before disconnecting and token validation after connect.
+- **Persisted Preferences**: Confirmation prompts, auto-save, add card placement, welcome message, undo/redo and status bar settings are stored in the application settings.
+- **Host-Managed Assignees**: The host application supplies assignee IDs, names, avatars and roles through `AssigneeAdapter`. The package does no sign-in and connects to no account service.
 
 ## Properties
 
@@ -82,43 +80,155 @@ The Kanban system spans multiple files for modularity:
 | `IsSwimlaneLayoutEnabled` | `bool` | True when `Board.GroupBy` is set to `Lane` and lanes exist. |
 | `IsStandardLayoutEnabled` | `bool` | True when swimlanes are disabled or there are no lanes. |
 | `LaneRows` | `ObservableCollection<FlowKanbanLaneRowView>` | Lane row view models used by the swimlane grid template. |
-| `UserProvider` | `IUserProvider` | User provider for identity resolution and current-user context (defaults to `LocalUserProvider`). |
-| `GlobalAdminId` | `string?` | Global admin user ID stored in app settings (if assigned). |
+| `AssigneeAdapter` | `IFlowKanbanAssigneeAdapter?` | Supplies assignee IDs, names, avatars and roles. `null` leaves the saved assignments as they are. |
+| `AssigneeFilterOptions` | `ObservableCollection<FlowTaskAssigneeOption>` | The assignees of the filter bar: the adapter's list plus unresolved IDs from saved tasks. |
 
-## User Providers & Identity Workflows
+## User API: Assignees Without External Account Integration
 
-FlowKanban supports multiple user providers (local and external). The user management surface (`FlowKanbanUserManagement`) exposes consistent connect/disconnect UX and link/unlink workflows.
+An assignee is a person who can own a task.
+The Kanban package does not sign users in and does not connect to GitHub, Microsoft, Slack or another account service.
+The host app owns all external connections, login steps, permissions, privacy rules and access tokens.
 
-### Connect (External Providers)
+The host app gives the board only the data that it needs for display:
 
-- **GitHub**: Uses a personal access token (PAT) and **only loads the current user** (no org member enumeration).
-- Token validation runs immediately after connect; invalid/insufficient scopes trigger a user-visible error and the token is cleared.
-- Current requirement: `read:user` scope for GitHub.
+- A stable ID for each assignee.
+- A display name.
+- An optional avatar image (`ImageSource`).
+- Optional descriptive roles, such as `Designer` or `Reviewer`.
 
-### Disconnect (External Providers)
+Roles are display text only. The Kanban package never uses roles to grant or deny access.
 
-- Disconnect requires **user confirmation**.
-- On confirm, the provider token is removed and any linked identities for that provider are cleared.
-- The provider is re-listed as disconnected; user lists are refreshed.
+Set `FlowKanban.AssigneeAdapter` to an `IFlowKanbanAssigneeAdapter` implementation.
+The included `FlowKanbanAssigneeAdapter` covers direct lists, list callbacks and single-ID callbacks.
+If the host app needs another data source, it can implement the interface.
+A custom adapter raises `AssigneesChanged` after its available assignee data changes.
 
-### Link/Unlink Local Users
+### Why the ID Matters
 
-- External identities can be linked to a local user (optional).
-- Unlinking removes only the link metadata; it does not delete the external or local user entries.
+The same assignee must keep the same ID between app sessions.
+The board stores this ID with each task.
+Names, avatars and roles can change without changing task ownership.
 
-### User Load State
+IDs are case-sensitive and are kept exactly as supplied: `person-42` and `Person-42` are different IDs.
+An ID cannot be empty.
+If a list contains the same ID more than once, the adapter uses the first entry.
 
-`FlowKanbanUserManagement` exposes these dependency properties with public getters and private setters. The control updates their values during provider requests.
+When an old task contains an unknown ID, the board keeps that ID and its last known name.
+The filter bar lists such an assignee as unavailable, so a saved filter keeps working.
+The task receives a new name, avatar and role list after the host app resolves the ID.
 
-| Property | Type | Description |
-| --- | --- | --- |
-| `IsLoading` | `bool` | True during the current user request. |
-| `HasLoadError` | `bool` | True after the current provider request fails. |
-| `LoadErrorMessage` | `string` | Contains the provider error message. Empty before a new request. |
+### Use a Direct Assignee List
 
-The user management view shows an error `InfoBar` for `HasLoadError`.
-The empty and no-results states remain hidden during a request or after an error.
-The Refresh action starts a new request and clears the previous error state.
+If the host app already has the complete assignee list, use `FlowKanbanAssigneeAdapter`:
+
+```csharp
+var assignees = new FlowKanbanAssigneeAdapter(new[]
+{
+    new FlowKanbanAssignee(
+        id: "person-42",
+        displayName: "Mina Singh",
+        avatarSource: minaAvatar,
+        roles: new[] { "Designer", "Reviewer" })
+});
+
+kanban.AssigneeAdapter = assignees;
+```
+
+When the host data changes, replace the list:
+
+```csharp
+assignees.SetAssignees(latestAssignees);
+```
+
+`SetAssignees` updates the list and tells every attached board to reload it.
+
+### Use Host Callbacks
+
+The board calls a callback to get assignee data.
+If the host app loads assignees from its own service, use callbacks:
+
+```csharp
+kanban.AssigneeAdapter = new FlowKanbanAssigneeAdapter(
+    getAssigneesAsync: LoadAssigneesAsync,
+    resolveAssigneeAsync: FindAssigneeAsync);
+```
+
+The methods have these shapes:
+
+```csharp
+Task<IReadOnlyList<FlowKanbanAssignee>> LoadAssigneesAsync(
+    CancellationToken cancellationToken);
+
+Task<FlowKanbanAssignee?> FindAssigneeAsync(
+    string assigneeId,
+    CancellationToken cancellationToken);
+```
+
+`LoadAssigneesAsync` returns the choices for the task editor and the assignee filter.
+`FindAssigneeAsync` finds one ID that already exists in saved task data.
+If the host app does not know the ID, it returns `null`.
+
+If the host app only resolves saved IDs, use the resolver-only adapter:
+
+```csharp
+kanban.AssigneeAdapter = new FlowKanbanAssigneeAdapter(FindAssigneeAsync);
+```
+
+This form resolves assignees already used by tasks. It does not add other assignees to the editor or filter choices.
+
+A resolver must return the requested ID without changes.
+If a resolver returns a different ID, the board reports an error.
+
+When callback data changes, call `NotifyAssigneesChanged()`:
+
+```csharp
+assigneeAdapter.NotifyAssigneesChanged();
+```
+
+The host app can also request a reload:
+
+```csharp
+await kanban.RefreshAssigneesAsync(cancellationToken);
+```
+
+### Task Editor
+
+The task editor takes its assignee choices from the host as well.
+Pass `FlowTaskAssigneeOption` items (ID and display name) to `FlowTaskEditorDialog.ShowAsyncWithAssignees`, for example built from `adapter.GetAssigneesAsync()`.
+
+### Avatars and Roles
+
+`AvatarSource` accepts a WinUI `ImageSource`.
+The host app owns the image and keeps it available while the board displays it.
+If an ID cannot be resolved, the board clears the current avatar.
+
+The board shows the avatar on the task card and the roles as its tooltip.
+The role list is not saved because the host app remains the source of that data.
+
+### Changes, Delays and Errors
+
+When the control opens, the board reloads assignees.
+When the adapter reports a change, the board reloads them again, also from another thread.
+A newer reload replaces an older unfinished reload.
+An unfinished reload cannot change the board after the control is unloaded.
+
+Callback errors do not rewrite the assignee IDs or names in task data.
+The `AssigneeAdapterFailed` event reports the operation and the original error.
+If the assignee ID is available, the event also reports it.
+
+```csharp
+kanban.AssigneeAdapterFailed += (_, error) =>
+{
+    logger.LogError(
+        error.Exception,
+        "Assignee operation {Operation} failed for {AssigneeId}.",
+        error.Operation,
+        error.AssigneeId);
+};
+```
+
+The host app decides how to show or record this error.
+The Kanban package does not store external service credentials or retry external service requests.
 
 ## Commands
 
@@ -195,7 +305,7 @@ var saved = await FlowBoardEditorDialog.ShowAsync(board, control.XamlRoot);
 
 ### FlowKanbanSettingsDialog
 
-Configures Kanban instance settings. User-scoped preferences are persisted per user (see Persistence); board-level toggles update the current board. The undo/redo toggle applies immediately.
+Configures Kanban instance settings. Preferences are persisted in the application settings (see Persistence); board-level toggles update the current board. The undo/redo toggle applies immediately.
 
 | Setting | Description |
 | --- | --- |
@@ -203,8 +313,8 @@ Configures Kanban instance settings. User-scoped preferences are persisted per u
 | Confirm card removals | Require confirmation before deleting a card. |
 | Auto-Save after edits | Auto-save board after any edit (uses the per-board storage key). |
 | Auto-expand card details | Expand card details in the editor by default. |
-| Enable undo/redo | Toggles command history and undo/redo UI (stored per user). |
-| Display Add Card | User preference for inline add placement (Bottom/Top/Both). |
+| Enable undo/redo | Toggles command history and undo/redo UI (stored with the settings). |
+| Display Add Card | Preference for inline add placement (Bottom/Top/Both). |
 | Show archive column | Shows or hides the archive column for the current board. |
 | Show welcome message | Toggle the Home welcome panel. |
 | Welcome title | Home screen welcome title text. |
@@ -237,10 +347,9 @@ A high-level view for managing board collections. It features a responsive grid 
 
 Persistence is handled via `StateStorageProvider` and stores data in the same application settings location as other `.state` files.
 
-- **User settings**: per-user entry `kanban.user.settings.<userId>` with fallback to legacy `kanban.settings` (includes confirmations, auto-save, add card placement, welcome message, undo/redo, and status bar visibility).
+- **Settings**: one entry `kanban.settings` (includes confirmations, auto-save, add card placement, welcome message, undo/redo, column width, last board and view, and status bar visibility).
 - **Board files**: one entry per board ID using `kanban.board.<id>`.
 - **Board store**: `IBoardStore` allows swapping JSON for DB/cloud without changing the control.
-- **Global admin**: app-level entry `kanban.admin.global` storing the bootstrap admin ID.
 - **Atomic Save**: Uses temporary file and rename strategy for power-loss safety.
 - **Migration**: Automatic upgrade of older board files via `FlowKanbanMigration`.
 - **Load hardening**: input length/control characters are validated and invalid IDs are pruned on load.
@@ -526,7 +635,7 @@ The mouse keeps click, Ctrl-click, Shift-click and double click.
 - `Ctrl + Shift + Left/Right` → Move the focused card to an adjacent column.
 - `Ctrl + +` / `Ctrl + -` → Zoom in/out.
 
-Column administration shortcuts (`Ctrl + B`, `Ctrl + D`, and `Ctrl + T`) are available to the current global administrator.
+The column shortcuts are available to everyone; the host app decides who may use the board.
 
 ### Accessibility Metadata
 

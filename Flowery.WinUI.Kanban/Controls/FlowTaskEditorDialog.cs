@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using FloweryWrapPanel = Flowery.Controls.WrapPanel;
 using Microsoft.UI.Xaml.Automation;
 using Windows.UI.Text;
@@ -916,9 +916,6 @@ namespace Flowery.WinUI.Kanban.Controls
 
             contentStack.Children.Add(assigneeRow);
 
-            var addUserLabel = CreateSectionLabel(FloweryLocalization.GetStringInternal("Kanban_Users_AddLocal_Button"));
-            contentStack.Children.Add(addUserLabel);
-
             var assigneeOptions = BuildAvailableAssignees(availableAssignees);
             var assigneeSelect = new DaisySelect
             {
@@ -929,7 +926,7 @@ namespace Flowery.WinUI.Kanban.Controls
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 IsEnabled = assigneeOptions.Count > 0
             };
-            AutomationProperties.SetLabeledBy(assigneeSelect, addUserLabel);
+            AutomationProperties.SetLabeledBy(assigneeSelect, assigneeLabel);
             contentStack.Children.Add(assigneeSelect);
 
             void SetAssignee(FlowTaskAssigneeOption? option)
@@ -1011,7 +1008,7 @@ namespace Flowery.WinUI.Kanban.Controls
                     continue;
 
                 var name = assignee.DisplayName?.Trim();
-                var id = assignee.Id?.Trim();
+                var id = assignee.Id;
 
                 if (string.IsNullOrWhiteSpace(name))
                 {
@@ -1404,14 +1401,19 @@ namespace Flowery.WinUI.Kanban.Controls
 
     public sealed class FlowTaskAssigneeOption
     {
-        public FlowTaskAssigneeOption(string? id, string displayName)
+        public FlowTaskAssigneeOption(string? id, string displayName, bool isResolved = true)
         {
-            Id = string.IsNullOrWhiteSpace(id) ? null : id.Trim();
+            Id = string.IsNullOrWhiteSpace(id) ? null : id;
             DisplayName = displayName ?? string.Empty;
+            IsResolved = isResolved;
         }
 
+        /// <summary>Stable assignee ID, kept exactly as the host supplied it.</summary>
         public string? Id { get; }
         public string DisplayName { get; }
+
+        /// <summary>False for an assignee that only exists in saved task data and that the adapter did not resolve.</summary>
+        public bool IsResolved { get; }
 
         public override string ToString() => DisplayName;
     }

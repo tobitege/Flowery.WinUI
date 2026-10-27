@@ -1,4 +1,4 @@
-// Uncomment to regenerate ProductPalettes.Generated.cs on next run:
+﻿// Uncomment to regenerate ProductPalettes.Generated.cs on next run:
 // #define GENERATE_PRODUCT_PALETTES
 
 using System.Diagnostics;
@@ -77,9 +77,6 @@ namespace Flowery.WinUI.Gallery
 #endif
 
             ConfigureStateStorage();
-            // only for demo purposes we enable the user management button!
-            // FlowKanban is SINGLE-USER only for time being!
-            FlowKanban.IsUserManagementButtonEnabled = true;
 
             // Apply language BEFORE creating MainWindow so FloweryLocalization.CurrentCultureName
             // is already set when the sidebar reads it during construction.

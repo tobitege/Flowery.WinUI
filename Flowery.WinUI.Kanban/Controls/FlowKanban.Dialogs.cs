@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Flowery.Localization;
 using Flowery.Theming;
@@ -135,8 +135,7 @@ namespace Flowery.WinUI.Kanban.Controls
         private async void ExecuteShowKeyboardHelp()
         {
             if (XamlRoot == null) return;
-            var showAdminShortcuts = await IsCurrentUserGlobalAdminAsync();
-            await FlowKanbanKeyboardHelpDialog.ShowAsync(XamlRoot, showAdminShortcuts);
+            await FlowKanbanKeyboardHelpDialog.ShowAsync(XamlRoot);
         }
 
         #endregion
@@ -656,11 +655,11 @@ namespace Flowery.WinUI.Kanban.Controls
 
             private readonly DaisyButton _closeButton;
 
-            private FlowKanbanKeyboardHelpDialog(XamlRoot xamlRoot, bool showAdminShortcuts)
+            private FlowKanbanKeyboardHelpDialog(XamlRoot xamlRoot)
             {
                 _xamlRoot = xamlRoot;
 
-                Content = CreateDialogLayout(xamlRoot, showAdminShortcuts, out _closeButton);
+                Content = CreateDialogLayout(xamlRoot, out _closeButton);
                 IsDraggable = true;
                 ApplySmartSizingWithAutoHeight(xamlRoot);
 
@@ -668,12 +667,12 @@ namespace Flowery.WinUI.Kanban.Controls
                 _isOpenCallbackToken = RegisterPropertyChangedCallback(IsOpenProperty, OnIsOpenChanged);
             }
 
-            public static Task ShowAsync(XamlRoot xamlRoot, bool showAdminShortcuts)
+            public static Task ShowAsync(XamlRoot xamlRoot)
             {
                 if (xamlRoot == null)
                     return Task.CompletedTask;
 
-                var dialog = new FlowKanbanKeyboardHelpDialog(xamlRoot, showAdminShortcuts);
+                var dialog = new FlowKanbanKeyboardHelpDialog(xamlRoot);
                 return dialog.ShowInternalAsync();
             }
 
@@ -726,7 +725,7 @@ namespace Flowery.WinUI.Kanban.Controls
                 _tcs.TrySetResult(true);
             }
 
-            private static FrameworkElement CreateDialogLayout(XamlRoot xamlRoot, bool showAdminShortcuts, out DaisyButton closeButton)
+            private static FrameworkElement CreateDialogLayout(XamlRoot xamlRoot, out DaisyButton closeButton)
             {
                 var header = new StackPanel
                 {
@@ -754,12 +753,9 @@ namespace Flowery.WinUI.Kanban.Controls
 
                 shortcuts.Children.Add(CreateShortcutRow("Tab / Shift+Tab", "Kanban_KeyboardHelp_Tab"));
                 shortcuts.Children.Add(CreateShortcutRow("Arrow keys", "Kanban_KeyboardHelp_Arrows"));
-                if (showAdminShortcuts)
-                {
-                    shortcuts.Children.Add(CreateShortcutRow("Ctrl + B", "Kanban_KeyboardHelp_AddSection"));
-                    shortcuts.Children.Add(CreateShortcutRow("Ctrl + D", "Kanban_KeyboardHelp_DeleteSection"));
-                    shortcuts.Children.Add(CreateShortcutRow("Ctrl + T", "Kanban_KeyboardHelp_RenameSection"));
-                }
+                shortcuts.Children.Add(CreateShortcutRow("Ctrl + B", "Kanban_KeyboardHelp_AddSection"));
+                shortcuts.Children.Add(CreateShortcutRow("Ctrl + D", "Kanban_KeyboardHelp_DeleteSection"));
+                shortcuts.Children.Add(CreateShortcutRow("Ctrl + T", "Kanban_KeyboardHelp_RenameSection"));
                 shortcuts.Children.Add(CreateShortcutRow("Ctrl + N", "Kanban_KeyboardHelp_AddCard"));
                 shortcuts.Children.Add(CreateShortcutRow("Ctrl + F", "Kanban_KeyboardHelp_Search"));
                 shortcuts.Children.Add(CreateShortcutRow("Ctrl + Shift + Arrow", "Kanban_KeyboardHelp_MoveCard"));

@@ -1,9 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Tasks;
 using Flowery.WinUI.Kanban.Controls;
-using Flowery.WinUI.Kanban.Controls.Users;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Automation.Provider;
@@ -99,25 +96,6 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         }
 
         [TestMethod]
-        public async Task When_Provider_Fails_Error_Replaces_Empty_State_And_Retry_Clears_It()
-        {
-            var provider = new TestUserProvider();
-            var view = new FlowKanbanUserManagement { UserProvider = provider };
-            var refresh = typeof(FlowKanbanUserManagement).GetMethod("RefreshUsersAsync",
-                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
-            await (Task)refresh.Invoke(view, new object[] { true, true })!;
-            Assert.IsTrue(view.HasLoadError);
-            Assert.AreEqual("Provider unavailable", view.LoadErrorMessage);
-            Assert.IsFalse(view.IsLoading);
-            Assert.IsFalse(view.IsEmptyStateVisible);
-
-            provider.Fail = false;
-            await (Task)refresh.Invoke(view, new object[] { true, true })!;
-            Assert.IsFalse(view.HasLoadError);
-            Assert.IsTrue(view.IsEmptyStateVisible);
-        }
-
-        [TestMethod]
         public void When_Card_Selection_Provider_Is_Used_Model_State_Follows()
         {
             var task = new FlowTask();
@@ -156,25 +134,6 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         private sealed partial class ProviderPeer(FrameworkElement owner) : FrameworkElementAutomationPeer(owner)
         {
             public AutomationPeer FromProvider(IRawElementProviderSimple provider) => PeerFromProvider(provider);
-        }
-
-        private sealed class TestUserProvider : IUserProvider
-        {
-            public bool Fail { get; set; } = true;
-            public string ProviderKey => "test";
-            public string DisplayName => "Test";
-            public string ImplementationVersion => "1";
-            public bool SupportsAvatars => false;
-            public bool SupportsPresence => false;
-            public bool SupportsRealtime => false;
-            public event Action? UsersChanged { add { } remove { } }
-            public Task<IEnumerable<IFlowUser>> GetAllUsersAsync(CancellationToken cancellation = default) =>
-                Task.FromResult<IEnumerable<IFlowUser>>(Array.Empty<IFlowUser>());
-            public Task<IFlowUser?> GetUserByIdAsync(string rawId, CancellationToken cancellation = default) => Task.FromResult<IFlowUser?>(null);
-            public Task<IEnumerable<IFlowUser>> SearchUsersAsync(string query, int maxResults = 20, CancellationToken cancellation = default) => GetAllUsersAsync(cancellation);
-            public Task<IFlowUser?> GetCurrentUserAsync(CancellationToken cancellation = default) => Task.FromResult<IFlowUser?>(null);
-            public Task RefreshAsync(CancellationToken cancellation = default) => Fail
-                ? Task.FromException(new InvalidOperationException("Provider unavailable")) : Task.CompletedTask;
         }
     }
 }

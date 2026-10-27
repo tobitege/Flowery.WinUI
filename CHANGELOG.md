@@ -6,6 +6,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - 2026-10-27
+
+### Added
+
+- `FlowKanban.AssigneeAdapter`, `IFlowKanbanAssigneeAdapter`, `FlowKanbanAssignee` and `FlowKanbanAssigneeAdapter`, as in Flowery.NET 3.1.0: the host application supplies the assignees of a board as stable IDs with display names, optional avatars (`ImageSource`) and descriptive roles, either as a direct list (`SetAssignees`), through a list callback, or through a single-ID resolver for IDs that saved tasks still carry. The board reloads them when it loads, when the board changes and when the adapter raises `AssigneesChanged`, also from another thread; `RefreshAssigneesAsync` reloads on request. A newer reload replaces an older unfinished one, and an unfinished reload cannot change an unloaded board.
+- `FlowKanban.AssigneeAdapterFailed` reports a failed adapter call with the operation, the exception and the assignee ID. Saved assignments and names stay as they are.
+- `FlowTask.AssigneeAvatarSource` and `AssigneeRoles` (not saved to JSON) and the card properties `AssigneeAvatarSource`, `HasAssigneeAvatar`, `AssigneeRolesText` and `HasAssigneeRoles`: a task card shows the assignee's avatar in place of the initials and the roles as the avatar's tooltip.
+- `FlowTaskAssigneeOption.IsResolved`: the assignee filter lists an assignee that only saved tasks know, marked "(Unavailable)" in all twelve languages, so a saved filter keeps working.
+- Docs: the "User API" section in `llms-static/FlowKanban.md` explains the adapter and its three forms.
+
+### Changed
+
+- **Breaking:** The `Flowery.Integrations.WinUI` package is removed. Its Teams and Slack providers threw `NotImplementedException` in every data method, the OAuth provider never re-validated a stored token, the loopback sign-in used a fixed port and blocked the UI thread, and the `IdentityModel.OidcClient` dependency has reached its end of life. External identity, authentication, authorization, account mapping and token storage are the host application's responsibility. The Gallery no longer registers GitHub or OpenID Connect demo providers.
+- **Breaking:** The Kanban user-provider API is removed: `IUserProvider`, `ICompositeUserProvider`, `IFlowUser`, `FlowUser`, `FlowUserStatus`, `CompositeUserProvider`, `LocalUserProvider`, `FlowUserIdHelper`, `IUserCacheService`, `UserIdentityLinkStore`, the token interfaces (`ITokenSaveProvider`, `ITokenStateProvider`, `ITokenValidationProvider`, `IInteractiveAuthProvider`), `FlowKanban.UserProvider`, `FlowKanban.DefaultUserProvider`, `FlowKanban.GlobalAdminId`, `FlowKanban.IsUserManagementButtonEnabled`, `FlowKanbanView.UserManagement`, the user management view (`FlowKanbanUserManagement`) with its GitHub connect dialog and sidebar button, and the `Kanban_Users_*` texts. Assignee IDs are opaque: the board keeps them exactly as the host supplied them (no trimming) and no longer clears an ID that no provider knows.
+- **Breaking:** `FlowKanban.TryLoadUserSettings`, `TrySaveUserSettings` and `LoadUserSettingsAsync` are removed; `TryLoadSettings` and `TrySaveSettings` read and write one settings entry (`kanban.settings`) instead of one per user. The "global admin" is gone: the column shortcuts Ctrl+B, Ctrl+D and Ctrl+T and their rows in the keyboard help apply to everyone.
+- `ISecureStorage` and `PasswordVaultSecureStorage` stay in the core package as a general service.
+
 ## [1.10.0] - 2026-10-27
 
 ### Added

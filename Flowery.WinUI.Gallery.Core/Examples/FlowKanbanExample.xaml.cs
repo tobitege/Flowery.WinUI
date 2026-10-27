@@ -1,24 +1,21 @@
-using Flowery.Controls;
+﻿using Flowery.Controls;
 using Flowery.Enums;
-using Flowery.Integrations.WinUI.GitHub;
-using Flowery.Integrations.WinUI.OAuth;
-using Flowery.Services;
 using Flowery.WinUI.Kanban.Controls;
-using Flowery.WinUI.Kanban.Controls.Users;
 
 namespace Flowery.WinUI.Gallery.Examples
 {
     public sealed partial class FlowKanbanExample : ScrollableExamplePage
     {
-        private static readonly object UserProviderInitLock = new();
         private static readonly object ResourceInitLock = new();
         private static bool _kanbanResourcesLoaded;
         private const string KanbanDictionaryUri = "ms-appx:///Flowery.WinUI.Kanban/Themes/Generic.xaml";
+        private readonly FlowKanbanAssigneeAdapter _assigneeAdapter;
         private FlowKanbanManager? _kanbanManager;
 
         public FlowKanbanExample()
         {
             InitializeComponent();
+            _assigneeAdapter = new FlowKanbanAssigneeAdapter(CreateAssignees());
             InitializeKanbanDemo();
             Unloaded += OnFlowKanbanUnloaded;
         }
@@ -32,19 +29,23 @@ namespace Flowery.WinUI.Gallery.Examples
 
         private void InitializeKanbanDemo()
         {
-#pragma warning disable CA1416 // Kanban providers use Windows APIs.
             if (DemoKanban == null)
                 return;
 
             EnsureKanbanResourcesLoaded();
-            DemoKanban.UserProvider = EnsureDefaultUserProvider();
+            DemoKanban.AssigneeAdapter = _assigneeAdapter;
+            DemoKanban.AssigneeAdapterFailed += (_, args) =>
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"Kanban assignee {args.Operation} failed: {args.Exception.Message}");
+            };
 
             DemoKanban.EditCardCommand = new RelayCommand<FlowTask>(async task =>
             {
                 if (task == null || XamlRoot == null)
                     return;
 
-                var assignees = await GetAssigneeOptionsAsync(DemoKanban.UserProvider);
+                var assignees = await GetAssigneeOptionsAsync(_assigneeAdapter);
                 await FlowTaskEditorDialog.ShowAsyncWithAssignees(
                     task,
                     XamlRoot,
@@ -65,56 +66,25 @@ namespace Flowery.WinUI.Gallery.Examples
             {
                 DemoKanban.Board = CreateSampleKanbanBoard();
             }
-#pragma warning restore CA1416
         }
 
-        private static IUserProvider EnsureDefaultUserProvider()
+        // The demo supplies its assignees directly. A real host app loads them from its own user store.
+        private static IReadOnlyList<FlowKanbanAssignee> CreateAssignees()
         {
-#pragma warning disable CA1416 // Kanban providers use Windows APIs.
-            if (FlowKanban.DefaultUserProvider != null)
+            string[] names = ["Sam", "Dario", "Max", "Demis", "Adam", "Lucy", "Anita", "Sue", "Eric", "Forrest"];
+            return names.Select((name, index) =>
             {
-                return FlowKanban.DefaultUserProvider;
-            }
-
-            lock (UserProviderInitLock)
-            {
-                if (FlowKanban.DefaultUserProvider != null)
+                string[] roles = index switch
                 {
-                    return FlowKanban.DefaultUserProvider;
-                }
-
-                var demoProvider = new CompositeUserProvider();
-                demoProvider.RegisterProvider(new LocalUserProvider(includeDemoUsers: true));
-                try
-                {
-                    demoProvider.RegisterProvider(new GitHubUserProvider(new PasswordVaultSecureStorage(), loadTokenFromStorage: true));
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"FlowKanbanExample GitHub provider init failed: {ex.GetType().Name} - {ex.Message}");
-                }
-
-                try
-                {
-                    demoProvider.RegisterProvider(new OAuthUserProvider(
-                        providerKey: "oidc-demo",
-                        displayName: "OIDC Demo",
-                        authority: "https://demo.duendesoftware.com/",
-                        clientId: "interactive.confidential",
-                        clientSecret: "secret",
-                        scope: "openid profile api offline_access",
-                        secureStorage: new PasswordVaultSecureStorage(),
-                        loadTokenFromStorage: true));
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"FlowKanbanExample OIDC provider init failed: {ex.GetType().Name} - {ex.Message}");
-                }
-
-                FlowKanban.DefaultUserProvider = demoProvider;
-                return demoProvider;
-            }
-#pragma warning restore CA1416
+                    0 => ["Administrator"],
+                    1 => ["Product owner"],
+                    _ => ["Contributor"]
+                };
+                return new FlowKanbanAssignee(
+                    $"demo-{name.ToLowerInvariant()}",
+                    name,
+                    roles: roles);
+            }).ToArray();
         }
 
         private static void EnsureKanbanResourcesLoaded()
@@ -261,37 +231,14 @@ namespace Flowery.WinUI.Gallery.Examples
             };
         }
 
-        private static async Task<IReadOnlyList<FlowTaskAssigneeOption>> GetAssigneeOptionsAsync(IUserProvider? provider)
+        private static async Task<IReadOnlyList<FlowTaskAssigneeOption>> GetAssigneeOptionsAsync(
+            IFlowKanbanAssigneeAdapter adapter)
         {
-            if (provider == null)
-                return Array.Empty<FlowTaskAssigneeOption>();
-
-            var users = await provider.GetAllUsersAsync();
-            if (users == null)
-                return Array.Empty<FlowTaskAssigneeOption>();
-
-            var seen = new HashSet<string>(StringComparer.Ordinal);
-            var results = new List<FlowTaskAssigneeOption>();
-            foreach (var user in users)
-            {
-                if (user == null)
-                    continue;
-
-                var name = string.IsNullOrWhiteSpace(user.DisplayName) ? user.RawId : user.DisplayName;
-                if (string.IsNullOrWhiteSpace(name))
-                    continue;
-
-                var id = user.Id?.Trim();
-                if (string.IsNullOrWhiteSpace(id))
-                    continue;
-
-                if (seen.Add(id))
-                    results.Add(new FlowTaskAssigneeOption(id, name.Trim()));
-            }
-
-            results.Sort((left, right) => StringComparer.OrdinalIgnoreCase.Compare(left.DisplayName, right.DisplayName));
-            return results;
+            var assignees = await adapter.GetAssigneesAsync();
+            return assignees
+                .Select(assignee => new FlowTaskAssigneeOption(assignee.Id, assignee.DisplayName))
+                .OrderBy(option => option.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
         }
-
     }
 }

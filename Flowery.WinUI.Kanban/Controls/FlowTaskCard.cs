@@ -28,6 +28,7 @@ namespace Flowery.WinUI.Kanban.Controls
         private DaisyButton? _closeButton;
         private TextBlock? _titleTextBlock;
         private Border? _rootBorder;
+        private DaisyAvatar? _assigneeAvatar;
         private Brush? _defaultBorderBrush;
         private Thickness _defaultBorderThickness;
         private FlowTask? _trackedTask;
@@ -227,6 +228,66 @@ namespace Flowery.WinUI.Kanban.Controls
         {
             get => (bool)GetValue(HasAssigneeProperty);
             set => SetValue(HasAssigneeProperty, value);
+        }
+        #endregion
+
+        #region AssigneeAvatarSource
+        public static readonly DependencyProperty AssigneeAvatarSourceProperty =
+            DependencyProperty.Register(
+                nameof(AssigneeAvatarSource),
+                typeof(ImageSource),
+                typeof(FlowTaskCard),
+                new PropertyMetadata(null));
+
+        public ImageSource? AssigneeAvatarSource
+        {
+            get => (ImageSource?)GetValue(AssigneeAvatarSourceProperty);
+            set => SetValue(AssigneeAvatarSourceProperty, value);
+        }
+        #endregion
+
+        #region HasAssigneeAvatar
+        public static readonly DependencyProperty HasAssigneeAvatarProperty =
+            DependencyProperty.Register(
+                nameof(HasAssigneeAvatar),
+                typeof(bool),
+                typeof(FlowTaskCard),
+                new PropertyMetadata(false));
+
+        public bool HasAssigneeAvatar
+        {
+            get => (bool)GetValue(HasAssigneeAvatarProperty);
+            set => SetValue(HasAssigneeAvatarProperty, value);
+        }
+        #endregion
+
+        #region AssigneeRolesText
+        public static readonly DependencyProperty AssigneeRolesTextProperty =
+            DependencyProperty.Register(
+                nameof(AssigneeRolesText),
+                typeof(string),
+                typeof(FlowTaskCard),
+                new PropertyMetadata(string.Empty));
+
+        public string AssigneeRolesText
+        {
+            get => (string)GetValue(AssigneeRolesTextProperty);
+            set => SetValue(AssigneeRolesTextProperty, value);
+        }
+        #endregion
+
+        #region HasAssigneeRoles
+        public static readonly DependencyProperty HasAssigneeRolesProperty =
+            DependencyProperty.Register(
+                nameof(HasAssigneeRoles),
+                typeof(bool),
+                typeof(FlowTaskCard),
+                new PropertyMetadata(false));
+
+        public bool HasAssigneeRoles
+        {
+            get => (bool)GetValue(HasAssigneeRolesProperty);
+            set => SetValue(HasAssigneeRolesProperty, value);
         }
         #endregion
 
@@ -742,6 +803,8 @@ namespace Flowery.WinUI.Kanban.Controls
             }
 
             _closeButton = GetTemplateChild("PART_CloseBtn") as DaisyButton;
+            _assigneeAvatar = GetTemplateChild("PART_AssigneeAvatar") as DaisyAvatar;
+            UpdateAssigneeRolesToolTip();
             UpdateCloseButtonVisibility();
             UpdateAutomationProperties();
             if (_closeButton != null)
@@ -1012,7 +1075,9 @@ namespace Flowery.WinUI.Kanban.Controls
             {
                 UpdateWorkItemNumber();
             }
-            else if (string.Equals(e.PropertyName, nameof(FlowTask.Assignee), StringComparison.Ordinal))
+            else if (string.Equals(e.PropertyName, nameof(FlowTask.Assignee), StringComparison.Ordinal)
+                     || string.Equals(e.PropertyName, nameof(FlowTask.AssigneeAvatarSource), StringComparison.Ordinal)
+                     || string.Equals(e.PropertyName, nameof(FlowTask.AssigneeRoles), StringComparison.Ordinal))
             {
                 UpdateAssignee();
             }
@@ -1105,15 +1170,35 @@ namespace Flowery.WinUI.Kanban.Controls
                 HasAssignee = false;
                 AssigneeText = string.Empty;
                 AssigneeInitials = string.Empty;
+                AssigneeAvatarSource = null;
+                HasAssigneeAvatar = false;
+                AssigneeRolesText = string.Empty;
+                HasAssigneeRoles = false;
             }
             else
             {
                 HasAssignee = true;
                 AssigneeText = assignee;
                 AssigneeInitials = BuildInitials(assignee);
+                AssigneeAvatarSource = task?.AssigneeAvatarSource;
+                HasAssigneeAvatar = AssigneeAvatarSource is not null;
+                AssigneeRolesText = task?.AssigneeRoles is { Count: > 0 } roles
+                    ? string.Join(", ", roles)
+                    : string.Empty;
+                HasAssigneeRoles = AssigneeRolesText.Length > 0;
             }
 
+            UpdateAssigneeRolesToolTip();
             UpdateFooterVisibility();
+        }
+
+        // An empty tooltip would still open as an empty box, so the roles are set only when there are any.
+        private void UpdateAssigneeRolesToolTip()
+        {
+            if (_assigneeAvatar is { } avatar)
+            {
+                ToolTipService.SetToolTip(avatar, HasAssigneeRoles ? AssigneeRolesText : null);
+            }
         }
 
         private void UpdateDateRange()
