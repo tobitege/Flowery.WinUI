@@ -5,7 +5,7 @@
 
 # 🌼 Flowery.WinUI
 
-**DaisyUI-inspired controls, themes, and native Composition effects for WinUI 3.**
+**More than 100 themed controls for WinUI 3 on Windows.**
 
 [![WinUI 3](https://img.shields.io/badge/WinUI-3-0078D4?style=flat-square&logo=windows&logoColor=white)](https://learn.microsoft.com/en-us/windows/apps/winui/winui3/) [![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) [![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?style=flat-square&logo=windows&logoColor=white)](#requirements) [![MIT license](https://img.shields.io/github/license/tobitege/Flowery.WinUI?style=flat-square)](LICENSE)
 
