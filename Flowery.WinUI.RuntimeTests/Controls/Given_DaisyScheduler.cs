@@ -183,7 +183,8 @@ public sealed partial class Given_DaisyScheduler
         var body = scope.BodyScroll();
         body.ChangeView(null, 480, null, true);
         await scope.LayoutAsync();
-        Assert.AreEqual(480, body.VerticalOffset, 1);
+        // ChangeView takes effect with a later layout pass, which a busy runner can delay past LayoutAsync.
+        await RuntimeTestHelpers.WaitUntilAsync(() => Math.Abs(body.VerticalOffset - 480) <= 1, "the body scrolled to 480");
         scope.Scheduler.SelectedAppointment = scope.Appointment;
         var updated = scope.Appointment.Clone();
         updated.Subject = "Updated";
@@ -191,7 +192,9 @@ public sealed partial class Given_DaisyScheduler
         await scope.LayoutAsync();
         var refreshed = scope.BodyScroll();
         Assert.AreNotSame(body, refreshed);
-        Assert.AreEqual(480, refreshed.VerticalOffset, 1);
+        // The new body restores the offset in its Loaded handler, which WinUI raises asynchronously.
+        await RuntimeTestHelpers.WaitUntilAsync(() => Math.Abs(refreshed.VerticalOffset - 480) <= 1,
+            $"the refreshed body kept the offset 480 (it shows {refreshed.VerticalOffset})");
         Assert.AreSame(updated, scope.Scheduler.SelectedAppointment);
         Assert.IsTrue(Descendants<TextBlock>(scope.Scheduler).Any(text => text.Text == "Updated"));
     }

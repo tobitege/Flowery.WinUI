@@ -99,7 +99,9 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             var card = CardOf(kanban, tasks[0]);
             var middle = new Windows.Foundation.Point(card.ActualWidth / 2, card.ActualHeight / 2);
 
+            // A slow runner handles the injected input later; each step waits for its effect.
             await TouchInjection.TapAsync(card, middle);
+            await RuntimeTestHelpers.WaitUntilAsync(() => edits.Count > 0, "the tap opened the card");
             CollectionAssert.AreEqual(new[] { tasks[0] }, edits, "tap");
             Assert.IsFalse(tasks[0].IsSelected, "tap");
 
@@ -110,15 +112,14 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             // A tap on a free place of the board clears the selection.
             var doingColumn = RuntimeTestHelpers.Descendants<FlowKanbanColumn>(kanban).Single(column => ReferenceEquals(column.ColumnData, doing));
             await TouchInjection.TapAsync(doingColumn, new Windows.Foundation.Point(doingColumn.ActualWidth / 2, doingColumn.ActualHeight * 2 / 3));
-            Assert.IsFalse(tasks[0].IsSelected, "free tap");
+            await RuntimeTestHelpers.WaitUntilAsync(() => !tasks[0].IsSelected, "the free tap cleared the selection");
 
             // A swipe over a card scrolls and neither opens nor selects it, also once the hold time has passed.
             card = CardOf(kanban, tasks[0]);
             var before = card.TransformToVisual(kanban).TransformPoint(default);
             await TouchInjection.SwipeAsync(card, middle, new Windows.Foundation.Point(0, -150));
             await Task.Delay(1000);
-            await RuntimeTestHelpers.CompleteLayoutAsync(kanban);
-            Assert.AreNotEqual(before, card.TransformToVisual(kanban).TransformPoint(default), "the swipe did not scroll");
+            await RuntimeTestHelpers.WaitUntilAsync(() => !before.Equals(card.TransformToVisual(kanban).TransformPoint(default)), "the swipe scrolled the board");
             Assert.IsFalse(tasks[0].IsSelected, "swipe");
             Assert.HasCount(1, edits, "swipe");
         }

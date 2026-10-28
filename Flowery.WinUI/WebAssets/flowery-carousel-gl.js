@@ -2002,11 +2002,9 @@
                 entry.canvas._floweryGl.resume();
             }
             resize(entry.canvas);
-        } else {
-            if (entry.canvas._floweryGl && entry.canvas._floweryGl.pause) {
-                entry.canvas._floweryGl.pause();
-            }
-            entry.canvas.style.display = "none";
+        } else if (entry.canvas._floweryGl && entry.canvas._floweryGl.pause) {
+            // The canvas stays displayed, so its last frame remains as a still image.
+            entry.canvas._floweryGl.pause();
         }
     }
 

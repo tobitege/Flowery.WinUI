@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.12.0] - 2026-10-27
+## [1.12.0] - 2026-10-28
 
 ### Added
 
@@ -24,6 +24,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Kanban, as in Flowery.NET: a tap on a card decides whether cards are selected through the board it finds at the tap. The card looked its board up in its `Loaded` handler, which WinUI raises after the card is in the tree, so a touch on a card realized just then, such as while a long column scrolls, opened its editor while other cards were selected.
 - Kanban, as in Flowery.NET: an edit that still waits for its auto-save is saved at once when the board unloads, before the home view clears the last board ID, and while its window closes. WinUI unloads the board of a closed window only later, and closing the last window ends the app before that. The same happens before a board loads, so reopening the open board shows the edit, and before `Board` or `BoardStore` changes: the edit is saved on the board it was made on and into the store it was meant for, and a replaced board does not become the last board. Deleting the open board drops its waiting edit instead of saving the board back. Before, the timer kept running and later saved whatever board was open then into the store and state storage current then, and set the last board ID again.
+- Gallery: the `pixelize` GL transition pixelates again. The transition shaders read the `progress` uniform directly, so global initializers that read `progress` see the real value. Before, they read a copy that `main` set only after them, which was still 0: `pixelize` drew a plain crossfade.
+- GL hosts (`CarouselGlEffectHost`, Gallery `CarouselGlTransitionHost`): a paused host, out of view or with animations disabled, draws its frame at once when a setting such as `IntervalSeconds` changes and its effect, variant and images stay, and a host that pauses while a request waits for its next frame draws that frame. Before, the request waited for the paused draw loop and failed the renderer after the 30-second request timeout.
+- GL hosts: an engine failure, such as an image that does not decode, raises `RenderFailed` once. Before, the request that the failure also rejected raised it a second time.
+- GL hosts: with animations disabled the host shows its last frame as a still image. A resize, which clears the canvas, draws a new still frame, and the Gallery's transition host draws a changed `TransitionName` at once. Before, pausing hid the canvas and the host stayed empty.
+- GL hosts, as in Flowery.NET: a host that is unloaded and loaded again while an update of its settings still runs gets its renderer back. Before, the reload left the new renderer to that update, which gave up on the renderer the unload had closed; the host stayed empty, and reading a frame failed with "No GL effect is selected.".
+- GL hosts: a host whose WebGL context is lost, such as when the GPU process of WebView2 restarts, sets itself up again once the browser restores the context, and its requests wait for that. Before, the next frame read back `CONTEXT_LOST_WEBGL` and failed the renderer.
+- Gallery: the `BookFlip` GL transition selects the page for each side of the fold instead of blending both pages with a weight of 0 or 1. At exactly half progress the unused page divides by zero, which GLSL leaves unspecified, so a GPU could put NaN pixels into the frame; WebView2's ANGLE drew the frame correctly. A test checks that the middle frame shows half of each image.
 
 ## [1.11.0] - 2026-10-27
 

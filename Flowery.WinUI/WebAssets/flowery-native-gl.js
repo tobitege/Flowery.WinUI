@@ -22,10 +22,36 @@
     function currentState(canvas) { return canvas && (canvas._floweryGl || canvas._floweryGlTransitions); }
     function engine() { return configuration.Api === "effects" ? FloweryCarouselGL : FloweryCarouselGLTransitions; }
 
+    let restoration = null;
+
+    // Requests wait for this while the overlay's WebGL context is lost, such as when the GPU process restarted.
+    function whenRestored() {
+        if (!restoration) {
+            let resolve;
+            const promise = new Promise(done => { resolve = done; });
+            restoration = { promise, resolve };
+        }
+        return restoration.promise;
+    }
+
+    function isContextLost(canvas) {
+        const state = currentState(canvas);
+        return Boolean(state && state.gl && state.gl.isContextLost());
+    }
+
     function createContext(canvas) {
         const gl = canvas.getContext("webgl", { alpha: true, premultipliedAlpha: false, preserveDrawingBuffer: true });
         if (!gl) throw new Error("WebGL GPU context is unavailable in WebView2.");
         if (!contexts.has(gl)) {
+            canvas.addEventListener("webglcontextlost", event => {
+                if (canvas !== currentCanvas()) return;
+                // Lets the browser restore the context, for example after its GPU process restarted.
+                event.preventDefault();
+                whenRestored();
+            });
+            canvas.addEventListener("webglcontextrestored", () => {
+                if (canvas === currentCanvas()) restoreOverlay(canvas);
+            });
             const resources = [];
             contexts.set(gl, resources);
             for (const kind of ["Buffer", "Texture", "Shader", "Program"]) {
@@ -67,6 +93,8 @@
         state.nativeFrames = (state.nativeFrames || 0) + 1;
         const waiters = state.canvas._nativeWaiters || [];
         if (waiters.length === 0) return;
+        // A lost context reads back nothing; its waiters get the first frame after the restore.
+        if (state.gl.isContextLost()) return;
         try {
             const result = readFrame(state);
             state.canvas._nativeWaiters = [];
@@ -90,16 +118,64 @@
         });
     }
 
-    function resize() {
-        if (!configuration) return;
+    // A paused overlay draws no frame of its own; changes that need one draw it here.
+    function drawPausedFrame(canvas) {
+        const state = currentState(canvas);
+        if (state && state._render && !state.running) state._render(performance.now());
+    }
+
+    function resizeCanvas() {
         const canvas = currentCanvas();
-        if (!canvas) return;
+        if (!canvas) return null;
         canvas.style.width = window.innerWidth + "px";
         canvas.style.height = window.innerHeight + "px";
         engine().resize(canvas);
+        return canvas;
     }
 
+    function resize() {
+        if (!configuration) return;
+        const canvas = resizeCanvas();
+        // Resizing the canvas clears its drawing buffer.
+        if (canvas) drawPausedFrame(canvas);
+    }
+
+    function applyActive() {
+        engine().setOverlayActive(key, requestedActive && !document.hidden);
+        // A pause cancels the frame that pending waiters expect.
+        const canvas = currentCanvas();
+        if (canvas && canvas._nativeWaiters && canvas._nativeWaiters.length > 0) drawPausedFrame(canvas);
+    }
+
+    // The programs, buffers and textures of a lost context are gone, so the overlay is set up again.
+    async function restoreOverlay(canvas) {
+        const waiters = canvas._nativeWaiters || [];
+        canvas._nativeWaiters = [];
+        whenRestored();
+        try {
+            engine().detachAllOverlays();
+            const result = await configureOverlay(configuration);
+            applyActive();
+            for (const waiter of waiters) waiter.resolve(result);
+        } catch (error) {
+            for (const waiter of waiters) waiter.reject(error);
+            fail(canvas, error);
+        } finally {
+            const done = restoration;
+            restoration = null;
+            done.resolve();
+        }
+    }
+
+    // Requests wait while the context is lost and while the overlay is set up again.
+    function isRestoring() { return restoration !== null || isContextLost(currentCanvas()); }
+
     async function configure(value) {
+        if (isRestoring()) await whenRestored();
+        return configureOverlay(value);
+    }
+
+    function configureOverlay(value) {
         configuration = value;
         const api = engine();
         if (value.Api === "effects") {
@@ -112,11 +188,18 @@
         }
         api.setOverlayTiming(key, value.IntervalSeconds);
         api.setOverlayTransitionDuration(key, value.TransitionSeconds);
-        resize();
-        return waitFrame(currentCanvas());
+        const canvas = resizeCanvas();
+        const state = currentState(canvas);
+        // A paused overlay that was not initialized again draws no frame of its own.
+        if (state && state._render && !state.running) {
+            state._render(performance.now());
+            return readFrame(state);
+        }
+        return waitFrame(canvas);
     }
 
     async function sample(elapsedSeconds) {
+        if (isRestoring()) await whenRestored();
         const canvas = currentCanvas();
         const state = currentState(canvas);
         if (!state || !state._render) throw new Error("The GPU draw loop has not initialized.");
@@ -148,7 +231,7 @@
                 else if (request.command === "compile") result = await engine().compile();
                 else if (request.command === "active") {
                     requestedActive = Boolean(request.payload);
-                    if (configuration) engine().setOverlayActive(key, requestedActive && !document.hidden);
+                    if (configuration) applyActive();
                     result = true;
                 }
                 else throw new Error("Unknown native GL command: " + request.command);
@@ -157,7 +240,7 @@
         });
         new ResizeObserver(resize).observe(document.documentElement);
         document.addEventListener("visibilitychange", () => {
-            if (configuration) engine().setOverlayActive(key, requestedActive && !document.hidden);
+            if (configuration) applyActive();
         });
         window.addEventListener("pagehide", () => {
             if (configuration) engine().detachAllOverlays();

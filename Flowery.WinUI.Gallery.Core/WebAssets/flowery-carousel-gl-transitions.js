@@ -595,20 +595,16 @@
             "uniform float progress;",
             "uniform float ratio;",
             "varying vec2 v_texCoord;",
-            "float floweryProgress;",
             "vec4 getFromColor(vec2 uv) {",
             "  return texture2D(from, uv);",
             "}",
             "vec4 getToColor(vec2 uv) {",
             "  return texture2D(to, uv);",
             "}",
-            "#define progress floweryProgress",
             source,
-            "#undef progress",
             "void main() {",
             "  vec2 uv = v_texCoord;",
             "  float clampedProgress = clamp(progress, 0.0, 1.0);",
-            "  floweryProgress = clampedProgress;",
             "  if (clampedProgress <= 0.0001) {",
             "    gl_FragColor = getFromColor(uv);",
             "    return;",
@@ -911,10 +907,7 @@
                     state.fromTexture = previousFromTexture;
                     state.toTexture = previousToTexture;
                     state.startTime = previousStartTime;
-                    return;
-                }
-
-                if (imageCount > 0) {
+                } else if (imageCount > 0) {
                     const baseIndex = resolveCurrentIndex(imageCount);
                     const normalizedIndex = ((baseIndex % imageCount) + imageCount) % imageCount;
                     state.imageIndex = normalizedIndex;
@@ -923,6 +916,11 @@
                     setCycleStart(state, normalizedIndex, transitionUpdateTime);
                 } else {
                     setCycleStart(state, 0, performance.now());
+                }
+
+                // A paused overlay draws the new program once; its loop would not.
+                if (!state.running && state._render) {
+                    state._render(performance.now());
                 }
             }).catch((err) => {
                 FloweryNativeBridge.fail(canvas, err);
@@ -1217,11 +1215,9 @@
                 entry.canvas._floweryGlTransitions.resume();
             }
             resize(entry.canvas);
-        } else {
-            if (entry.canvas._floweryGlTransitions && entry.canvas._floweryGlTransitions.pause) {
-                entry.canvas._floweryGlTransitions.pause();
-            }
-            entry.canvas.style.display = "none";
+        } else if (entry.canvas._floweryGlTransitions && entry.canvas._floweryGlTransitions.pause) {
+            // The canvas stays displayed, so its last frame remains as a still image.
+            entry.canvas._floweryGlTransitions.pause();
         }
     }
 

@@ -79,6 +79,7 @@ namespace Flowery.Effects
 
         private async Task UpdateRendererAsync()
         {
+            CarouselGlSession? session = null;
             try
             {
                 while (IsLoaded)
@@ -90,7 +91,7 @@ namespace Flowery.Effects
                         CloseRenderer();
                         return;
                     }
-                    var session = _session;
+                    session = _session;
                     if (session is null)
                     {
                         session = new CarouselGlSession(EngineScript, ShaderSources);
@@ -98,13 +99,23 @@ namespace Flowery.Effects
                         session.Failed += OnRendererFailed;
                         Content = session.View;
                     }
-                    await session.InitializeAsync();
-                    var assets = new Dictionary<string, string>(StringComparer.Ordinal);
-                    foreach (var asset in configuration.Assets)
-                        assets.Add(asset.Key, await ResolveAssetAsync(asset.Value));
-                    configuration = configuration with { Assets = assets };
-                    await session.RequestAsync("configure", configuration);
-                    await session.RequestAsync("active", _inViewport && DaisyMotion.AnimationsEnabled);
+                    try
+                    {
+                        await session.InitializeAsync();
+                        var assets = new Dictionary<string, string>(StringComparer.Ordinal);
+                        foreach (var asset in configuration.Assets)
+                            assets.Add(asset.Key, await ResolveAssetAsync(asset.Value));
+                        configuration = configuration with { Assets = assets };
+                        await session.RequestAsync("configure", configuration);
+                        await session.RequestAsync("active", _inViewport && DaisyMotion.AnimationsEnabled);
+                    }
+                    // An unload closed this session meanwhile. A reload that came first found this update running and
+                    // left the new session to it; after an unload alone the loop ends.
+                    catch (Exception closed) when (closed is OperationCanceledException or ObjectDisposedException
+                        && !ReferenceEquals(session, _session) && LastRenderError is null)
+                    {
+                        continue;
+                    }
                     if (revision == _revision) return;
                 }
             }
@@ -112,7 +123,8 @@ namespace Flowery.Effects
             catch (ObjectDisposedException) when (!IsLoaded || _session is null) { }
             catch (Exception error)
             {
-                if (IsLoaded) OnRendererFailed(this, error);
+                // An engine failure also rejects the pending request; the session's Failed event has reported it then.
+                if (IsLoaded && (session is null || ReferenceEquals(session, _session))) OnRendererFailed(this, error);
             }
         }
 

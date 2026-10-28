@@ -166,7 +166,9 @@ public sealed partial class Given_DaisyScheduler
         var frame = scope.Frame(scope.Appointment);
         var middle = new Point(frame.ActualWidth / 2, frame.ActualHeight / 2);
 
+        // A slow runner handles the injected input later; each step waits for its effect.
         await TouchInjection.TapAsync(frame, middle);
+        await RuntimeTestHelpers.WaitUntilAsync(() => edits > 0, "the tap opened the appointment");
         await scope.LayoutAsync();
         Assert.AreEqual((0, 1), (moves, edits), "tap");
         Assert.IsNull(scope.Scheduler.SelectedAppointment, "tap");
@@ -176,6 +178,7 @@ public sealed partial class Given_DaisyScheduler
         var scroll = scope.BodyScroll();
         var offset = scroll.VerticalOffset;
         await TouchInjection.HoldAsync(frame, middle, () => scope.Scheduler.SelectedAppointment is not null, new Point(0, 80));
+        await RuntimeTestHelpers.WaitUntilAsync(() => moves > 0, "the held finger moved the appointment");
         await scope.LayoutAsync();
         Assert.AreSame(scope.Appointment, scope.Scheduler.SelectedAppointment, "hold");
         Assert.AreEqual((1, 1), (moves, edits), "hold and drag");
@@ -189,8 +192,8 @@ public sealed partial class Given_DaisyScheduler
         offset = scroll.VerticalOffset;
         await TouchInjection.SwipeAsync(frame, middle, new Point(0, offset > 100 ? 150 : -150));
         await Task.Delay(500);
+        await RuntimeTestHelpers.WaitUntilAsync(() => Math.Abs(scroll.VerticalOffset - offset) > 20, $"the swipe scrolled the view from {offset}");
         await scope.LayoutAsync();
-        Assert.IsTrue(Math.Abs(scroll.VerticalOffset - offset) > 20, $"swipe scrolled from {offset} to {scroll.VerticalOffset}");
         Assert.AreEqual((1, 1), (moves, edits), "swipe");
         Assert.IsNull(scope.Scheduler.SelectedAppointment, "swipe");
     }
