@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.12.0] - 2026-10-27
+## [1.12.0] - 2026-10-28
 
 ### Added
 
@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Kanban, as in Flowery.NET: a tap on a card decides whether cards are selected through the board it finds at the tap. The card looked its board up in its `Loaded` handler, which WinUI raises after the card is in the tree, so a touch on a card realized just then, such as while a long column scrolls, opened its editor while other cards were selected.
 - Kanban, as in Flowery.NET: an edit that still waits for its auto-save is saved at once when the board unloads, before the home view clears the last board ID, and while its window closes. WinUI unloads the board of a closed window only later, and closing the last window ends the app before that. The same happens before a board loads, so reopening the open board shows the edit, and before `Board` or `BoardStore` changes: the edit is saved on the board it was made on and into the store it was meant for, and a replaced board does not become the last board. Deleting the open board drops its waiting edit instead of saving the board back. Before, the timer kept running and later saved whatever board was open then into the store and state storage current then, and set the last board ID again.
+- Gallery: the `pixelize` GL transition pixelates again. The transition shaders read the `progress` uniform directly, so global initializers that read `progress` see the real value. Before, they read a copy that `main` set only after them, which was still 0: `pixelize` drew a plain crossfade.
 
 ## [1.11.0] - 2026-10-27
 

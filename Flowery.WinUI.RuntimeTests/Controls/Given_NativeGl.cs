@@ -87,6 +87,43 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             finally { RuntimeTestHelpers.GetHostPanel().Children.Clear(); await FlushAsync(host.DispatcherQueue); }
         }
 
+        [TestMethod]
+        public async Task When_PixelizeTransitionRuns_ItSamplesBlocksInsteadOfCrossfading()
+        {
+            // pixelize sizes its blocks in global initializers that read progress. Without blocks it draws the
+            // same crossfade as fade. The times lie inside the steps of its block size (1.25 s transition).
+            double[] elapsedSeconds = [0.51, 0.635, 0.69];
+            var host = new CarouselGlTransitionHost { Width = 160, Height = 100, TransitionName = "fade", IntervalSeconds = 0, TransitionSeconds = 1 };
+            try
+            {
+                RuntimeTestHelpers.AttachToHost(host);
+                await RuntimeTestHelpers.EnsureLoadedAsync(host);
+                var crossfades = new CarouselGlFrame[elapsedSeconds.Length];
+                for (var index = 0; index < elapsedSeconds.Length; index++)
+                {
+                    crossfades[index] = await host.ReadFrameAsync(elapsedSeconds[index]);
+                    AssertFrame(crossfades[index], "fade");
+                }
+
+                host.TransitionName = "pixelize";
+                var details = new string[elapsedSeconds.Length];
+                var largestDifference = 0;
+                for (var index = 0; index < elapsedSeconds.Length; index++)
+                {
+                    var pixelized = await host.ReadFrameAsync(elapsedSeconds[index]);
+                    AssertFrame(pixelized, "pixelize");
+                    var difference = crossfades[index].Pixel.Zip(pixelized.Pixel, (fade, pixelize) => Math.Abs(fade - pixelize)).Max();
+                    largestDifference = Math.Max(largestDifference, difference);
+                    details[index] = $"{elapsedSeconds[index]} s: fade {string.Join(",", crossfades[index].Pixel)}, pixelize {string.Join(",", pixelized.Pixel)}";
+                }
+
+                Assert.IsTrue(largestDifference >= 8,
+                    "pixelize must sample its blocks during the transition instead of crossfading like fade ("
+                    + crossfades[0].Width + "x" + crossfades[0].Height + "; " + string.Join("; ", details) + ").");
+            }
+            finally { RuntimeTestHelpers.GetHostPanel().Children.Clear(); await FlushAsync(host.DispatcherQueue); }
+        }
+
         private static void AssertFrame(CarouselGlFrame frame, string context)
         {
             Assert.IsTrue(frame.Frames > 0, context + " must execute a GPU draw.");
