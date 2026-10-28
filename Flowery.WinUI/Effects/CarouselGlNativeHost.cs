@@ -79,6 +79,7 @@ namespace Flowery.Effects
 
         private async Task UpdateRendererAsync()
         {
+            CarouselGlSession? session = null;
             try
             {
                 while (IsLoaded)
@@ -90,7 +91,7 @@ namespace Flowery.Effects
                         CloseRenderer();
                         return;
                     }
-                    var session = _session;
+                    session = _session;
                     if (session is null)
                     {
                         session = new CarouselGlSession(EngineScript, ShaderSources);
@@ -112,7 +113,8 @@ namespace Flowery.Effects
             catch (ObjectDisposedException) when (!IsLoaded || _session is null) { }
             catch (Exception error)
             {
-                if (IsLoaded) OnRendererFailed(this, error);
+                // An engine failure also rejects the pending request; the session's Failed event has reported it then.
+                if (IsLoaded && (session is null || ReferenceEquals(session, _session))) OnRendererFailed(this, error);
             }
         }
 

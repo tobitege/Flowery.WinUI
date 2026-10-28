@@ -1213,11 +1213,9 @@
                 entry.canvas._floweryGlTransitions.resume();
             }
             resize(entry.canvas);
-        } else {
-            if (entry.canvas._floweryGlTransitions && entry.canvas._floweryGlTransitions.pause) {
-                entry.canvas._floweryGlTransitions.pause();
-            }
-            entry.canvas.style.display = "none";
+        } else if (entry.canvas._floweryGlTransitions && entry.canvas._floweryGlTransitions.pause) {
+            // The canvas stays displayed, so its last frame remains as a still image.
+            entry.canvas._floweryGlTransitions.pause();
         }
     }
 

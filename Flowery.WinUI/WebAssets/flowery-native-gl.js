@@ -113,7 +113,14 @@
         api.setOverlayTiming(key, value.IntervalSeconds);
         api.setOverlayTransitionDuration(key, value.TransitionSeconds);
         resize();
-        return waitFrame(currentCanvas());
+        const canvas = currentCanvas();
+        const state = currentState(canvas);
+        // A paused overlay that was not initialized again draws no frame of its own.
+        if (state && state._render && !state.running) {
+            state._render(performance.now());
+            return readFrame(state);
+        }
+        return waitFrame(canvas);
     }
 
     async function sample(elapsedSeconds) {
