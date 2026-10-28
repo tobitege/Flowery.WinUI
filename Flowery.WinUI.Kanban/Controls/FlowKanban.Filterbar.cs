@@ -732,6 +732,7 @@ namespace Flowery.WinUI.Kanban.Controls
             // Synchronize the DateTimeOffset values explicitly.
             HookFilterDatePickers();
             ResolveThemeRefreshTemplateParts();
+            AttachBoardZoom();
         }
 
         private void HookFilterDatePickers()

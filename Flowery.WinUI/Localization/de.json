@@ -273,6 +273,7 @@
   "Scheduler_TimeSlotStart": "Erste Uhrzeit im Editor",
   "Scheduler_TimeSlotEnd": "Letzte Uhrzeit im Editor",
   "Scheduler_TimeSlotInterval": "Zeitraster im Editor",
+  "Scheduler_ColumnZoom": "Spaltenbreite",
   "Scheduler_Day": "Tag",
   "Scheduler_Week": "Woche",
   "Scheduler_Month": "Monat",

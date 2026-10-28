@@ -888,6 +888,13 @@ namespace Flowery.WinUI.Kanban.Controls
 
         private void OnDragStarting(UIElement sender, Microsoft.UI.Xaml.DragStartingEventArgs args)
         {
+            // Fingers that pinch zoom the board; they drag no card.
+            if ((_parentKanban ?? FindParentKanban())?.IsPinchTouch == true)
+            {
+                args.Cancel = true;
+                return;
+            }
+
             // Store the task data for the drag operation
             var task = CloseCommandParameter as FlowTask;
             if (task != null)

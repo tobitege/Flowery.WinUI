@@ -61,7 +61,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <daisy:DaisyScheduler x:Name="DemoScheduler" CurrentView="Month" />
+                <daisy:DaisyScheduler x:Name="DemoScheduler" CurrentView="Month" StateKey="gallery" />
                 <Border x:Name="EditorPanel" Grid.Column="1" Visibility="Collapsed" Width="280"
                         Background="{ThemeResource DaisyBase200Brush}" BorderBrush="{ThemeResource DaisyBase300Brush}"
                         BorderThickness="1" CornerRadius="8" Padding="16">

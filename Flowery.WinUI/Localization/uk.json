@@ -273,6 +273,7 @@
   "Scheduler_TimeSlotStart": "Перший час у редакторі",
   "Scheduler_TimeSlotEnd": "Останній час у редакторі",
   "Scheduler_TimeSlotInterval": "Часовий крок у редакторі",
+  "Scheduler_ColumnZoom": "Ширина стовпців",
   "Scheduler_Day": "День",
   "Scheduler_Week": "Тиждень",
   "Scheduler_Month": "Місяць",

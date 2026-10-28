@@ -275,6 +275,7 @@
   "Scheduler_TimeSlotStart": "First editor time",
   "Scheduler_TimeSlotEnd": "Last editor time",
   "Scheduler_TimeSlotInterval": "Editor time interval",
+  "Scheduler_ColumnZoom": "Column width",
   "Scheduler_Day": "Day",
   "Scheduler_Week": "Week",
   "Scheduler_Month": "Month",

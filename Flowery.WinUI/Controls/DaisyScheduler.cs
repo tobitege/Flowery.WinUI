@@ -148,6 +148,29 @@ public partial class DaisyScheduler : Control
         set => SetValidated(AppointmentCornerRadiusProperty, value);
     }
 
+    public static readonly DependencyProperty ColumnZoomProperty = Register(nameof(ColumnZoom), MinimumColumnZoom);
+
+    /// <summary>Widens the day columns of Month, Day and Week and the hours of Planner and Timeline by this factor of
+    /// the width that fits them into the view, at least their minimum width; from 1 (default) to 4. Users change it
+    /// with two fingers on a touch screen or a precision touchpad, Ctrl and the mouse wheel, a double click or two taps
+    /// on a column heading, dragging the right edge of a column heading with the mouse, or the settings menu.</summary>
+    public double ColumnZoom
+    {
+        get => Math.Clamp((double)GetValue(ColumnZoomProperty), MinimumColumnZoom, MaximumColumnZoom);
+        set => SetValidated(ColumnZoomProperty, double.IsFinite(value) ? Math.Clamp(value, MinimumColumnZoom, MaximumColumnZoom) : value);
+    }
+
+    public static readonly DependencyProperty StateKeyProperty = Register<string?>(nameof(StateKey), null);
+
+    /// <summary>Remembers the settings of the user under this key in <see cref="StateStorageProvider"/>: the scheduler
+    /// loads them when it is loaded and saves every change. For now this is the column zoom. Null (default) keeps
+    /// nothing.</summary>
+    public string? StateKey
+    {
+        get => (string?)GetValue(StateKeyProperty);
+        set => SetValue(StateKeyProperty, value);
+    }
+
     public static readonly DependencyProperty IsReadOnlyProperty = Register(nameof(IsReadOnly), false);
 
     public bool IsReadOnly
@@ -293,6 +316,11 @@ public partial class DaisyScheduler : Control
         ToolbarButtons.CollectionChanged += (_, _) => RequestRender();
         ToolbarAdornments.CollectionChanged += (_, _) => RequestRender();
         RegisterPropertyChangedCallback(FontSizeProperty, (_, _) => RequestRender());
+        // Two fingers zoom the columns (DaisyScheduler.Zoom.cs).
+        _pinch.Started += OnPinchStarted;
+        _pinch.Changed += OnPinchChanged;
+        _pinch.Ended += OnPinchEnded;
+        _pinch.Attach(this);
         IsTabStop = true;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -314,6 +342,7 @@ public partial class DaisyScheduler : Control
             FloweryLocalization.CultureChanged += OnCultureChanged;
             _cultureSubscribed = true;
         }
+        LoadState();
         RequestRender();
     }
 
@@ -381,6 +410,18 @@ public partial class DaisyScheduler : Control
             _selectionSyncing = false;
             return;
         }
+        // A new zoom only resizes the columns of the shown view; the view is not built again.
+        if (change.Property == ColumnZoomProperty)
+        {
+            ZoomColumns();
+            SaveState();
+            return;
+        }
+        if (change.Property == StateKeyProperty)
+        {
+            LoadState();
+            return;
+        }
         if (change.Property == CurrentViewProperty)
         {
             CancelGesture();
@@ -416,6 +457,8 @@ public partial class DaisyScheduler : Control
             return value is null || value is double width && double.IsFinite(width) && width > 0;
         if (property == AppointmentCornerRadiusProperty)
             return value is null || value is double radius && double.IsFinite(radius) && radius >= 0;
+        if (property == ColumnZoomProperty)
+            return value is double zoom && double.IsFinite(zoom);
         return true;
     }
 

@@ -122,6 +122,8 @@ public partial class DaisyScheduler
             var text = Label(start.AddDays(weekdays[column]).ToString("ddd", Culture), true);
             text.HorizontalAlignment = HorizontalAlignment.Center;
             var header = Cell(text, header: true);
+            AddColumnEdge(header);
+            AttachColumnHeading(header);
             Grid.SetColumn(header, column);
             grid.Children.Add(header);
         }
@@ -228,9 +230,13 @@ public partial class DaisyScheduler
             header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(width) });
             body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(width) });
             var heading = new StackPanel { Spacing = 4 };
-            heading.Children.Add(Label(date.ToString("ddd, d MMM", Culture)));
+            // The date and resource, not the all-day row below them, where a double tap creates an appointment.
+            var title = new StackPanel { Spacing = 4, Background = Transparent };
+            title.Children.Add(Label(date.ToString("ddd, d MMM", Culture)));
             if (resource is not null)
-                heading.Children.Add(Label(resource.Name, true));
+                title.Children.Add(Label(resource.Name, true));
+            AttachColumnHeading(title);
+            heading.Children.Add(title);
             var banners = new StackPanel { Spacing = 2, MinHeight = ChipHeight };
             foreach (var appointment in Items.Where(appointment => IsBanner(appointment) && OnDate(appointment, date) && MatchesResource(appointment, resource)))
                 banners.Children.Add(CreateAppointment(appointment, AppointmentSurface.Chip, resourceId: resource?.Id));
@@ -238,6 +244,7 @@ public partial class DaisyScheduler
             AttachEmptyDay(allDay, date, resource);
             heading.Children.Add(allDay);
             var headerCell = Cell(heading, header: true, today: date == DateTime.Today);
+            AddColumnEdge(headerCell);
             Grid.SetColumn(headerCell, index);
             header.Children.Add(headerCell);
 
@@ -304,6 +311,8 @@ public partial class DaisyScheduler
             var date = days[day];
             var dayHeader = Cell(Label(date.ToString("ddd, d MMM", Culture)), header: true, today: date == DateTime.Today);
             dayHeader.Height = ChipHeight;
+            AddColumnEdge(dayHeader);
+            AttachColumnHeading(dayHeader);
             PlaceByMinutes(dayHeader, day * 1440, 1440);
             header.Children.Add(dayHeader);
             for (var hour = 0; hour < 24; hour++)
@@ -422,6 +431,8 @@ public partial class DaisyScheduler
         _bodyScroll.SizeChanged += OnBodyResized;
         _bodyScroll.DirectManipulationStarted += OnBodyManipulationStarted;
         _bodyScroll.DirectManipulationCompleted += OnBodyManipulationCompleted;
+        AttachZoomWheel(content);
+        AttachBodyZoom(_bodyScroll);
         return _bodyScroll;
     }
 
@@ -451,8 +462,9 @@ public partial class DaisyScheduler
     {
         if (ReferenceEquals(sender, _bodyScroll) && _bodyScroll is { } body)
         {
-            _headerScroll?.ChangeView(body.HorizontalOffset, null, null, true);
-            _gutterScroll?.ChangeView(null, body.VerticalOffset, null, true);
+            // They also follow the optical zoom while a touchpad pinches the body (see FloweryScrollZoom).
+            _headerScroll?.ChangeView(body.HorizontalOffset, null, body.ZoomFactor, true);
+            _gutterScroll?.ChangeView(null, body.VerticalOffset, body.ZoomFactor, true);
         }
     }
 

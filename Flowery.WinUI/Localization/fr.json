@@ -273,6 +273,7 @@
   "Scheduler_TimeSlotStart": "Première heure proposée",
   "Scheduler_TimeSlotEnd": "Dernière heure proposée",
   "Scheduler_TimeSlotInterval": "Intervalle horaire",
+  "Scheduler_ColumnZoom": "Largeur des colonnes",
   "Scheduler_Day": "Jour",
   "Scheduler_Week": "Semaine",
   "Scheduler_Month": "Mois",

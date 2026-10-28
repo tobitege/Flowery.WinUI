@@ -91,10 +91,11 @@ namespace Flowery.WinUI.Kanban.Controls
                 EndTouchPress();
         }
 
-        /// <summary>A touch or pen tap: toggles the card's selection while cards are selected, otherwise edits it.</summary>
+        /// <summary>A touch or pen tap: toggles the card's selection while cards are selected, otherwise edits it.
+        /// Fingers that pinched zoom the board; they neither open nor select a card.</summary>
         internal bool TapTask()
         {
-            if (CardTask is not { } task)
+            if (CardTask is not { } task || IsPinchTouch)
                 return false;
 
             if (IsSelectionActive())
@@ -104,10 +105,11 @@ namespace Flowery.WinUI.Kanban.Controls
             return true;
         }
 
-        /// <summary>A touch or pen hold: adds the card to the selection; the finger may drag it now.</summary>
+        /// <summary>A touch or pen hold: adds the card to the selection; the finger may drag it now. Not while fingers
+        /// pinch.</summary>
         internal bool HoldTask()
         {
-            if (CardTask is not { } task)
+            if (CardTask is not { } task || IsPinchTouch)
                 return false;
 
             if (!task.IsSelected)
@@ -127,6 +129,8 @@ namespace Flowery.WinUI.Kanban.Controls
         private bool IsSelectionActive() =>
             FindParentKanban()?.Board.Columns.Any(static column => column.Tasks.Any(static task => task.IsSelected && task.IsSearchMatch))
             ?? CardTask?.IsSelected == true;
+
+        private bool IsPinchTouch => (_parentKanban ?? FindParentKanban())?.IsPinchTouch == true;
 
         private bool IsTap(Point position) =>
             Math.Abs(position.X - _tapStart.X) <= TouchTapTolerance && Math.Abs(position.Y - _tapStart.Y) <= TouchTapTolerance;

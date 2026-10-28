@@ -273,6 +273,7 @@
   "Scheduler_TimeSlotStart": "Düzenleyicide ilk saat",
   "Scheduler_TimeSlotEnd": "Düzenleyicide son saat",
   "Scheduler_TimeSlotInterval": "Düzenleyici zaman aralığı",
+  "Scheduler_ColumnZoom": "Sütun genişliği",
   "Scheduler_Day": "Gün",
   "Scheduler_Week": "Hafta",
   "Scheduler_Month": "Ay",

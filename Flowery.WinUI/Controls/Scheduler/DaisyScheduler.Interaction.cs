@@ -46,9 +46,10 @@ public partial class DaisyScheduler
     }
 
     // A touch or pen press is left to scrolling first: released where it was pressed, it opens its appointment (or
-    // toggles it while appointments are selected), or selects its slot or day; held, it selects its appointment.
+    // toggles it while appointments are selected), or selects its slot or day; held, it selects its appointment. The
+    // second tap in a row on a column heading switches the column zoom.
     private sealed record PendingTap(SchedulerPointer Pointer, Border? Frame, AppointmentTarget? Target, GestureKind Kind,
-        Lane? Lane, DateTime Slot, DayTarget? Day);
+        Lane? Lane, DateTime Slot, DayTarget? Day, bool Heading = false);
 
     private Gesture? _gesture;
     private PendingTap? _pendingTap;
@@ -228,7 +229,14 @@ public partial class DaisyScheduler
             return false;
         }
         _taps = tap.Pointer.ClickCount > 1 && _taps > 0 ? _taps + 1 : 1;
-        if (tap.Target is { } target)
+        if (tap.Heading)
+        {
+            if (_taps < 2)
+                return true;
+            _taps = 0;
+            ToggleWideColumns(WindowPosition(position));
+        }
+        else if (tap.Target is { } target)
         {
             _taps = 0;
             RememberSelectionResource(target);
@@ -368,6 +376,11 @@ public partial class DaisyScheduler
     {
         base.OnPointerMoved(e);
         var id = e.Pointer.PointerId;
+        if (MoveColumnEdge(id, e.GetCurrentPoint(null).Position.X))
+        {
+            e.Handled = true;
+            return;
+        }
         if ((_gesture?.PointerId == id || _pendingTap?.Pointer.Id == id) && MoveGesture(e.GetCurrentPoint(this).Position))
             e.Handled = true;
     }
@@ -450,6 +463,11 @@ public partial class DaisyScheduler
     {
         base.OnPointerReleased(e);
         var id = e.Pointer.PointerId;
+        if (ReleaseColumnEdge(id))
+        {
+            e.Handled = true;
+            return;
+        }
         if ((_pendingTap?.Pointer.Id == id && ReleasePendingTap(e.GetCurrentPoint(this).Position, e.KeyModifiers)) ||
             (_gesture?.PointerId == id && ReleaseGesture(e.GetCurrentPoint(this).Position, e.KeyModifiers)))
             e.Handled = true;
@@ -598,6 +616,7 @@ public partial class DaisyScheduler
 
     protected override void OnPointerCaptureLost(PointerRoutedEventArgs e)
     {
+        ReleaseColumnEdge(e.Pointer.PointerId);
         if (_gesture?.PointerId == e.Pointer.PointerId)
             CancelGesture();
         base.OnPointerCaptureLost(e);

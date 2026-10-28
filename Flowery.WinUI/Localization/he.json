@@ -273,6 +273,7 @@
   "Scheduler_TimeSlotStart": "השעה הראשונה בעורך",
   "Scheduler_TimeSlotEnd": "השעה האחרונה בעורך",
   "Scheduler_TimeSlotInterval": "מרווח זמן בעורך",
+  "Scheduler_ColumnZoom": "רוחב העמודות",
   "Scheduler_Day": "יום",
   "Scheduler_Week": "שבוע",
   "Scheduler_Month": "חודש",

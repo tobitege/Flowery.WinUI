@@ -275,6 +275,7 @@
   "Scheduler_TimeSlotStart": "أول وقت في المحرر",
   "Scheduler_TimeSlotEnd": "آخر وقت في المحرر",
   "Scheduler_TimeSlotInterval": "الفاصل الزمني في المحرر",
+  "Scheduler_ColumnZoom": "عرض الأعمدة",
   "Scheduler_Day": "يوم",
   "Scheduler_Week": "أسبوع",
   "Scheduler_Month": "شهر",
