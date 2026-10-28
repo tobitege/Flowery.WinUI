@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO.Pipes;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -374,6 +375,96 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             }
         }
 
+        [TestMethod]
+        public async Task When_TheHostReloadsWhileAnUpdateWaitsOnItsClosedRenderer_TheUpdateStartsTheNewRenderer()
+        {
+            // Regression: an unload closed the session that a running update worked on, and the reload found that update
+            // running, so it started none. The update then gave up on the closed session, and the reloaded host had no
+            // renderer ("No GL effect is selected."). WinUI raises the reload's Loaded after the cancellation of a pending
+            // request reached the update, so the test holds the update in its image read instead: one image is a pipe
+            // that the test closes only after the reload has loaded.
+            CarouselGlGalleryPresets.EnsureRegistered();
+            const CarouselGlEffectKind kind = CarouselGlEffectKind.Fade;
+            CarouselGlEffectRegistry.TryGet(kind, out var original);
+            Assert.IsNotNull(original);
+            var originalMotion = DaisyMotion.AnimationsEnabled;
+            var host = new CarouselGlEffectHost { Width = 160, Height = 100, Effect = kind, IntervalSeconds = 0, TransitionSeconds = 1 };
+            NamedPipeServerStream? pipe = null;
+            try
+            {
+                DaisySystemAppearance.SetMotionPreference(true);
+                RuntimeTestHelpers.AttachToHost(host);
+                await RuntimeTestHelpers.EnsureLoadedAsync(host);
+                var source = await host.ReadFrameAsync(0);
+                AssertFrame(source, "source");
+                var closed = host.Content;
+
+                var pipeName = "flowery-gl-image-" + Guid.NewGuid().ToString("N");
+                pipe = new NamedPipeServerStream(pipeName, PipeDirection.Out, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+                var assets = new Dictionary<string, string>(original.Assets) { ["transitionA"] = @"\\.\pipe\" + pipeName };
+                CarouselGlEffectRegistry.Register(new CarouselGlEffectDefinition(kind, original.Mode, assets, original.Variant));
+                host.TransitionSeconds = 2;
+                var update = GetUpdateTask(host);
+                await pipe.WaitForConnectionAsync().WaitAsync(TimeSpan.FromSeconds(10));
+
+                RuntimeTestHelpers.GetHostPanel().Children.Clear();
+                RuntimeTestHelpers.AttachToHost(host);
+                await RuntimeTestHelpers.EnsureLoadedAsync(host);
+                Assert.IsFalse(update.IsCompleted, "The update must still read its image.");
+                Assert.IsFalse(host.IsRendererInitialized, "The unload must close the renderer of the update, and the reload must leave it to the update.");
+
+                // The read ends empty; the update then meets its closed session and continues with the original images.
+                CarouselGlEffectRegistry.Register(original);
+                pipe.Dispose();
+                pipe = null;
+                var reloaded = await host.ReadFrameAsync(0).WaitAsync(TimeSpan.FromSeconds(20));
+                AssertFrame(reloaded, "reloaded");
+                Assert.IsTrue(host.IsRendererInitialized);
+                Assert.AreNotSame(closed, host.Content);
+                CollectionAssert.AreEqual(source.Pixel, reloaded.Pixel);
+                Assert.IsNull(host.LastRenderError);
+            }
+            finally
+            {
+                pipe?.Dispose();
+                CarouselGlEffectRegistry.Register(original);
+                DaisySystemAppearance.SetMotionPreference(originalMotion);
+                RuntimeTestHelpers.GetHostPanel().Children.Clear();
+                await FlushAsync(host.DispatcherQueue);
+            }
+        }
+
+        [TestMethod]
+        public async Task When_TheWebGlContextIsLostAndRestored_TheHostDrawsAgain()
+        {
+            // A GPU process restart loses the WebGL contexts of the page (CI read back CONTEXT_LOST_WEBGL, 37442).
+            // The WEBGL_lose_context extension loses the context the same way and lets the test restore it.
+            var originalMotion = DaisyMotion.AnimationsEnabled;
+            var host = new CarouselGlTransitionHost { Width = 160, Height = 100, TransitionName = "fade", IntervalSeconds = 0, TransitionSeconds = 1 };
+            try
+            {
+                DaisySystemAppearance.SetMotionPreference(true);
+                RuntimeTestHelpers.AttachToHost(host);
+                await RuntimeTestHelpers.EnsureLoadedAsync(host);
+                var source = await host.ReadFrameAsync(0);
+                AssertFrame(source, "source");
+
+                await ExecuteScriptAsync(host, "(() => { const extension = document.querySelector('canvas').getContext('webgl')"
+                    + ".getExtension('WEBGL_lose_context'); extension.loseContext(); setTimeout(() => extension.restoreContext(), 100); })()");
+                var restored = await host.ReadFrameAsync(0).WaitAsync(TimeSpan.FromSeconds(10));
+                AssertFrame(restored, "restored");
+                CollectionAssert.AreEqual(source.Pixel, restored.Pixel);
+                Assert.IsNull(host.LastRenderError);
+                Assert.IsTrue(host.IsRendererInitialized);
+            }
+            finally
+            {
+                DaisySystemAppearance.SetMotionPreference(originalMotion);
+                RuntimeTestHelpers.GetHostPanel().Children.Clear();
+                await FlushAsync(host.DispatcherQueue);
+            }
+        }
+
         private static async Task<string?> CheckPausedHostShowsAFrameAfterResizeAsync(CarouselGlNativeHost host, string name)
         {
             try
@@ -457,6 +548,13 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             var data = await decoder.GetPixelDataAsync(BitmapPixelFormat.Rgba8, BitmapAlphaMode.Straight, new BitmapTransform(),
                 ExifOrientationMode.IgnoreExifOrientation, ColorManagementMode.DoNotColorManage);
             return new WebViewCapture(data.DetachPixelData(), (int)decoder.PixelWidth, (int)decoder.PixelHeight);
+        }
+
+        private static async Task ExecuteScriptAsync(CarouselGlNativeHost host, string script)
+        {
+            if (host.Content is not WebView2 { CoreWebView2: { } core })
+                throw new AssertFailedException("The GL host must show its WebView2.");
+            await core.ExecuteScriptAsync(script);
         }
 
         private static int MaxDifference(byte[] first, byte[] second) => first.Zip(second, (a, b) => Math.Abs(a - b)).Max();
