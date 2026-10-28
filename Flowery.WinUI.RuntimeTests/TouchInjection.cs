@@ -17,20 +17,21 @@ namespace Flowery.WinUI.RuntimeTests
         private const int FrameMilliseconds = 16;
         private static bool? _initialized;
 
-        /// <summary>Touches the point and lifts the finger at once.</summary>
+        /// <summary>Touches the point and lifts the finger at once. Both are injected together: a wait between them runs
+        /// on the UI thread, and a busy runner would stretch it into a hold.</summary>
         public static async Task TapAsync(UIElement element, Point point)
         {
             var contact = Down(element, point);
-            await FrameAsync();
             Inject(ref contact, PointerFlagUp);
             await SettleAsync();
         }
 
-        /// <summary>Moves the finger by <paramref name="offset"/> right after touching, as a swipe.</summary>
+        /// <summary>Moves the finger by <paramref name="offset"/> right after touching, as a swipe. The first move is
+        /// injected with the touch, so the finger leaves the tap tolerance before a busy runner could time a hold.</summary>
         public static async Task SwipeAsync(UIElement element, Point point, Point offset, int steps = 10)
         {
             var contact = Down(element, point);
-            await MoveAsync(element, offset, steps, contact);
+            await MoveAsync(element, offset, steps, contact, firstAtOnce: true);
             await SettleAsync();
         }
 
@@ -60,13 +61,15 @@ namespace Flowery.WinUI.RuntimeTests
         }
 
         // The finger moves on the screen from where it touched: the element may scroll along or leave the tree.
-        private static async Task MoveAsync(UIElement element, Point offset, int steps, PointerTouchInfo contact, bool rest = false)
+        private static async Task MoveAsync(UIElement element, Point offset, int steps, PointerTouchInfo contact, bool rest = false,
+            bool firstAtOnce = false)
         {
             var origin = contact.PointerInfo.PixelLocation;
             var scale = element.XamlRoot?.RasterizationScale ?? 1;
             for (var step = 1; step <= steps; step++)
             {
-                await FrameAsync();
+                if (step > 1 || !firstAtOnce)
+                    await FrameAsync();
                 Place(ref contact, new NativePoint
                 {
                     X = origin.X + (int)Math.Round(offset.X * scale * step / steps),

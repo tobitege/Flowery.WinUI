@@ -382,7 +382,8 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             // running, so it started none. The update then gave up on the closed session, and the reloaded host had no
             // renderer ("No GL effect is selected."). WinUI raises the reload's Loaded after the cancellation of a pending
             // request reached the update, so the test holds the update in its image read instead: one image is a pipe
-            // that the test closes only after the reload has loaded.
+            // that the test closes only after the reload has loaded. The test waits for the unload's Unloaded before it
+            // adds the host again, since WinUI can raise it after the next Loaded.
             CarouselGlGalleryPresets.EnsureRegistered();
             const CarouselGlEffectKind kind = CarouselGlEffectKind.Fade;
             CarouselGlEffectRegistry.TryGet(kind, out var original);
@@ -407,11 +408,15 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                 var update = GetUpdateTask(host);
                 await pipe.WaitForConnectionAsync().WaitAsync(TimeSpan.FromSeconds(10));
 
+                // The update reads from the pipe until the test closes it, so it runs through the unload and the reload.
+                var unloaded = RuntimeTestHelpers.WaitForUnloadedAsync(host);
                 RuntimeTestHelpers.GetHostPanel().Children.Clear();
+                await unloaded.WaitAsync(RuntimeTestHelpers.LayoutTimeout);
+                Assert.IsFalse(host.IsRendererInitialized, "The unload must close the renderer of the update.");
                 RuntimeTestHelpers.AttachToHost(host);
                 await RuntimeTestHelpers.EnsureLoadedAsync(host);
                 Assert.IsFalse(update.IsCompleted, "The update must still read its image.");
-                Assert.IsFalse(host.IsRendererInitialized, "The unload must close the renderer of the update, and the reload must leave it to the update.");
+                Assert.IsFalse(host.IsRendererInitialized, "The reload must leave the renderer to the running update.");
 
                 // The read ends empty; the update then meets its closed session and continues with the original images.
                 CarouselGlEffectRegistry.Register(original);
