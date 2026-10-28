@@ -907,10 +907,7 @@
                     state.fromTexture = previousFromTexture;
                     state.toTexture = previousToTexture;
                     state.startTime = previousStartTime;
-                    return;
-                }
-
-                if (imageCount > 0) {
+                } else if (imageCount > 0) {
                     const baseIndex = resolveCurrentIndex(imageCount);
                     const normalizedIndex = ((baseIndex % imageCount) + imageCount) % imageCount;
                     state.imageIndex = normalizedIndex;
@@ -919,6 +916,11 @@
                     setCycleStart(state, normalizedIndex, transitionUpdateTime);
                 } else {
                     setCycleStart(state, 0, performance.now());
+                }
+
+                // A paused overlay draws the new program once; its loop would not.
+                if (!state.running && state._render) {
+                    state._render(performance.now());
                 }
             }).catch((err) => {
                 FloweryNativeBridge.fail(canvas, err);

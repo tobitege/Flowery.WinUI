@@ -1,6 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using Flowery.Effects;
 using Flowery.Services;
@@ -97,7 +97,8 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         public async Task When_PixelizeTransitionRuns_ItSamplesBlocksInsteadOfCrossfading()
         {
             // pixelize sizes its blocks in global initializers that read progress. Without blocks it draws the
-            // same crossfade as fade. The times lie inside the steps of its block size (1.25 s transition).
+            // same crossfade as fade. The engine stretches TransitionSeconds by TRANSITION_DURATION_SCALE (1.25),
+            // so the transition takes 1.25 s; the times lie inside the steps of its block size.
             double[] elapsedSeconds = [0.51, 0.635, 0.69];
             var host = new CarouselGlTransitionHost { Width = 160, Height = 100, TransitionName = "fade", IntervalSeconds = 0, TransitionSeconds = 1 };
             try
@@ -277,6 +278,150 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             }
         }
 
+        [TestMethod]
+        public async Task When_PausedTransitionHostChangesItsTransition_ItShowsTheNewTransition()
+        {
+            var originalMotion = DaisyMotion.AnimationsEnabled;
+            // fadecolor fades through black: a 10 s transition (8 s scaled by 1.25) is dark after 3 s.
+            var host = new CarouselGlTransitionHost { Width = 160, Height = 100, TransitionName = "fadecolor", IntervalSeconds = 0, TransitionSeconds = 8 };
+            try
+            {
+                DaisySystemAppearance.SetMotionPreference(true);
+                RuntimeTestHelpers.AttachToHost(host);
+                await RuntimeTestHelpers.EnsureLoadedAsync(host);
+                AssertFrame(await host.ReadFrameAsync(), "fadecolor");
+                await Task.Delay(3000);
+                await DisableMotionAsync(host);
+                var before = (await CaptureAsync(host)).GetPixel(0.5, 0.5);
+
+                // The engine applies the new program asynchronously; the update ends after the following pause request.
+                host.TransitionName = "fade";
+                await GetUpdateTask(host);
+                var after = (await CaptureAsync(host)).GetPixel(0.5, 0.5);
+                // fade starts its new cycle with the source image, which a sample at 0 s draws.
+                AssertFrame(await host.ReadFrameAsync(0), "fade");
+                var source = (await CaptureAsync(host)).GetPixel(0.5, 0.5);
+
+                Assert.IsTrue(MaxDifference(before, source) > 48, $"fadecolor must be dark after 3 s ({string.Join(",", before)}, source {string.Join(",", source)}).");
+                Assert.IsTrue(MaxDifference(after, source) <= 16,
+                    $"A paused host must show its new transition, not the frame of the old one (shows {string.Join(",", after)}, "
+                    + $"fade starts with {string.Join(",", source)}, fadecolor showed {string.Join(",", before)}).");
+            }
+            finally
+            {
+                DaisySystemAppearance.SetMotionPreference(originalMotion);
+                RuntimeTestHelpers.GetHostPanel().Children.Clear();
+                await FlushAsync(host.DispatcherQueue);
+            }
+        }
+
+        [TestMethod]
+        public async Task When_PausedHostIsResized_ItShowsAFrameAgain()
+        {
+            CarouselGlGalleryPresets.EnsureRegistered();
+            var originalMotion = DaisyMotion.AnimationsEnabled;
+            try
+            {
+                var problems = new[]
+                {
+                    await CheckPausedHostShowsAFrameAfterResizeAsync(new CarouselGlEffectHost
+                    {
+                        Width = 160, Height = 100, Effect = CarouselGlEffectKind.Fade, IntervalSeconds = 0, TransitionSeconds = 100
+                    }, "effect host"),
+                    await CheckPausedHostShowsAFrameAfterResizeAsync(new CarouselGlTransitionHost
+                    {
+                        Width = 160, Height = 100, TransitionName = "fade", IntervalSeconds = 0, TransitionSeconds = 100
+                    }, "transition host")
+                }.OfType<string>().ToArray();
+                Assert.AreEqual(0, problems.Length, "Resizing clears the canvas of a paused GL host, which must draw again: " + string.Join("; ", problems));
+            }
+            finally
+            {
+                DaisySystemAppearance.SetMotionPreference(originalMotion);
+            }
+        }
+
+        [TestMethod]
+        public async Task When_HostPausesWhileARequestWaitsForAFrame_TheRequestCompletes()
+        {
+            var originalMotion = DaisyMotion.AnimationsEnabled;
+            var host = new CarouselGlTransitionHost { Width = 160, Height = 100, TransitionName = "fade", IntervalSeconds = 0, TransitionSeconds = 1 };
+            try
+            {
+                DaisySystemAppearance.SetMotionPreference(true);
+                RuntimeTestHelpers.AttachToHost(host);
+                await RuntimeTestHelpers.EnsureLoadedAsync(host);
+                // A running loop can still draw between the two requests, so several rounds try the pause.
+                for (var round = 1; round <= 3; round++)
+                {
+                    DaisySystemAppearance.SetMotionPreference(true);
+                    AssertFrame(await host.ReadFrameAsync(), "running");
+                    // The sample waits for the next frame of the running loop; the pause request follows it at once.
+                    var pending = host.ReadFrameAsync();
+                    DaisySystemAppearance.SetMotionPreference(false);
+                    CarouselGlFrame frame;
+                    try { frame = await pending.WaitAsync(TimeSpan.FromSeconds(5)); }
+                    catch (TimeoutException) { throw new AssertFailedException($"A request that waits for a frame must complete when the host pauses (round {round})."); }
+                    AssertFrame(frame, "paused");
+                }
+                Assert.IsNull(host.LastRenderError);
+            }
+            finally
+            {
+                DaisySystemAppearance.SetMotionPreference(originalMotion);
+                RuntimeTestHelpers.GetHostPanel().Children.Clear();
+                await FlushAsync(host.DispatcherQueue);
+            }
+        }
+
+        private static async Task<string?> CheckPausedHostShowsAFrameAfterResizeAsync(CarouselGlNativeHost host, string name)
+        {
+            try
+            {
+                DaisySystemAppearance.SetMotionPreference(true);
+                RuntimeTestHelpers.AttachToHost(host);
+                await RuntimeTestHelpers.EnsureLoadedAsync(host);
+                AssertFrame(await host.ReadFrameAsync(), name);
+                await DisableMotionAsync(host);
+                var before = await CaptureAsync(host);
+                Assert.AreEqual(255, before.GetPixel(0.5, 0.5)[3], name + " must show its frame when paused.");
+
+                host.Width = 200;
+                var resized = before;
+                for (var attempt = 0; attempt < 50 && resized.Width == before.Width; attempt++)
+                {
+                    await Task.Delay(100);
+                    resized = await CaptureAsync(host);
+                }
+                Assert.AreNotEqual(before.Width, resized.Width, name + " must resize its WebView2.");
+                // The page resizes the canvas from its resize observer, which can follow the new WebView2 size.
+                await Task.Delay(250);
+                var shown = (await CaptureAsync(host)).GetPixel(0.5, 0.5);
+                return shown[3] == 255 ? null : $"{name} shows {string.Join(",", shown)} after its resize";
+            }
+            finally
+            {
+                RuntimeTestHelpers.GetHostPanel().Children.Clear();
+                await FlushAsync(host.DispatcherQueue);
+            }
+        }
+
+        /// <summary>Disables animations and waits until the host's engine has paused, without drawing a frame.</summary>
+        private static async Task DisableMotionAsync(CarouselGlNativeHost host)
+        {
+            DaisySystemAppearance.SetMotionPreference(false);
+            // The host posts its pause request at once; the engine answers this second one after it.
+            await GetSession(host).RequestAsync("active", false);
+        }
+
+        private static CarouselGlSession GetSession(CarouselGlNativeHost host) =>
+            typeof(CarouselGlNativeHost).GetField("_session", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(host) as CarouselGlSession
+            ?? throw new InvalidOperationException("The GL host has no renderer session.");
+
+        private static Task GetUpdateTask(CarouselGlNativeHost host) =>
+            typeof(CarouselGlNativeHost).GetField("_updateTask", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(host) as Task
+            ?? Task.CompletedTask;
+
         private static async Task<string?> CheckPausedHostShowsItsFrameAsync(CarouselGlNativeHost host, string name)
         {
             try
@@ -287,9 +432,8 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                 AssertFrame(await host.ReadFrameAsync(), name);
                 var running = (await CaptureAsync(host)).GetPixel(0.5, 0.5);
                 Assert.AreEqual(255, running[3], name + " must show its frame while it runs.");
-                DaisySystemAppearance.SetMotionPreference(false);
-                // The sample follows the pause request and draws the current frame of the paused overlay.
-                AssertFrame(await host.ReadFrameAsync(), name);
+                // No sample after the pause: a sample would draw a frame of its own.
+                await DisableMotionAsync(host);
                 var paused = (await CaptureAsync(host)).GetPixel(0.5, 0.5);
                 return MaxDifference(running, paused) <= 16
                     ? null

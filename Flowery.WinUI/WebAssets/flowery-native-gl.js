@@ -90,13 +90,33 @@
         });
     }
 
-    function resize() {
-        if (!configuration) return;
+    // A paused overlay draws no frame of its own; changes that need one draw it here.
+    function drawPausedFrame(canvas) {
+        const state = currentState(canvas);
+        if (state && state._render && !state.running) state._render(performance.now());
+    }
+
+    function resizeCanvas() {
         const canvas = currentCanvas();
-        if (!canvas) return;
+        if (!canvas) return null;
         canvas.style.width = window.innerWidth + "px";
         canvas.style.height = window.innerHeight + "px";
         engine().resize(canvas);
+        return canvas;
+    }
+
+    function resize() {
+        if (!configuration) return;
+        const canvas = resizeCanvas();
+        // Resizing the canvas clears its drawing buffer.
+        if (canvas) drawPausedFrame(canvas);
+    }
+
+    function applyActive() {
+        engine().setOverlayActive(key, requestedActive && !document.hidden);
+        // A pause cancels the frame that pending waiters expect.
+        const canvas = currentCanvas();
+        if (canvas && canvas._nativeWaiters && canvas._nativeWaiters.length > 0) drawPausedFrame(canvas);
     }
 
     async function configure(value) {
@@ -112,8 +132,7 @@
         }
         api.setOverlayTiming(key, value.IntervalSeconds);
         api.setOverlayTransitionDuration(key, value.TransitionSeconds);
-        resize();
-        const canvas = currentCanvas();
+        const canvas = resizeCanvas();
         const state = currentState(canvas);
         // A paused overlay that was not initialized again draws no frame of its own.
         if (state && state._render && !state.running) {
@@ -155,7 +174,7 @@
                 else if (request.command === "compile") result = await engine().compile();
                 else if (request.command === "active") {
                     requestedActive = Boolean(request.payload);
-                    if (configuration) engine().setOverlayActive(key, requestedActive && !document.hidden);
+                    if (configuration) applyActive();
                     result = true;
                 }
                 else throw new Error("Unknown native GL command: " + request.command);
@@ -164,7 +183,7 @@
         });
         new ResizeObserver(resize).observe(document.documentElement);
         document.addEventListener("visibilitychange", () => {
-            if (configuration) engine().setOverlayActive(key, requestedActive && !document.hidden);
+            if (configuration) applyActive();
         });
         window.addEventListener("pagehide", () => {
             if (configuration) engine().detachAllOverlays();
