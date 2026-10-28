@@ -60,6 +60,32 @@ namespace Flowery.WinUI.RuntimeTests
             await SettleAsync();
         }
 
+        /// <summary>Puts two fingers on both sides of <paramref name="center"/>, <paramref name="from"/> away from it
+        /// along x, moves both to <paramref name="to"/> away from it and lifts them. Both fingers are injected in one
+        /// frame, as a touch screen reports them.</summary>
+        public static async Task PinchAsync(UIElement element, Point center, double from, double to, int steps = 12)
+        {
+            var contacts = new[]
+            {
+                Contact(element, new Point(center.X - from, center.Y), 0),
+                Contact(element, new Point(center.X + from, center.Y), 1)
+            };
+            InjectAll(contacts, PointerFlagInRange | PointerFlagInContact | PointerFlagDown);
+            var scale = element.XamlRoot?.RasterizationScale ?? 1;
+            var origins = new[] { contacts[0].PointerInfo.PixelLocation, contacts[1].PointerInfo.PixelLocation };
+            for (var step = 1; step <= steps; step++)
+            {
+                await FrameAsync();
+                var shift = (int)Math.Round((to - from) * scale * step / steps);
+                Place(ref contacts[0], new NativePoint { X = origins[0].X - shift, Y = origins[0].Y });
+                Place(ref contacts[1], new NativePoint { X = origins[1].X + shift, Y = origins[1].Y });
+                InjectAll(contacts, PointerFlagInRange | PointerFlagInContact | PointerFlagUpdate);
+            }
+            await FrameAsync();
+            InjectAll(contacts, PointerFlagUp);
+            await SettleAsync();
+        }
+
         // The finger moves on the screen from where it touched: the element may scroll along or leave the tree.
         private static async Task MoveAsync(UIElement element, Point offset, int steps, PointerTouchInfo contact, bool rest = false,
             bool firstAtOnce = false)
@@ -91,7 +117,16 @@ namespace Flowery.WinUI.RuntimeTests
 
         private static PointerTouchInfo Down(UIElement element, Point point)
         {
-            _initialized ??= InitializeTouchInjection(1, TouchFeedbackNone);
+            var contact = Contact(element, point, 0);
+            Inject(ref contact, PointerFlagInRange | PointerFlagInContact | PointerFlagDown);
+            return contact;
+        }
+
+        // A finger at the point that is not down yet; the point must lie in the runner window.
+        private static PointerTouchInfo Contact(UIElement element, Point point, uint pointerId)
+        {
+            // Two contacts, for a pinch.
+            _initialized ??= InitializeTouchInjection(2, TouchFeedbackNone);
             if (_initialized != true)
                 Assert.Inconclusive("Windows refused touch injection here (error " + Marshal.GetLastWin32Error() + ").");
 
@@ -109,14 +144,31 @@ namespace Flowery.WinUI.RuntimeTests
 
             var contact = new PointerTouchInfo
             {
-                PointerInfo = new PointerInfo { PointerType = PointerTypeTouch, PointerId = 0 },
+                PointerInfo = new PointerInfo { PointerType = PointerTypeTouch, PointerId = pointerId },
                 TouchMask = TouchMaskContactArea | TouchMaskOrientation | TouchMaskPressure,
                 Orientation = 90,
                 Pressure = 512
             };
             Place(ref contact, location);
-            Inject(ref contact, PointerFlagInRange | PointerFlagInContact | PointerFlagDown);
             return contact;
+        }
+
+        private static void InjectAll(PointerTouchInfo[] contacts, uint flags)
+        {
+            for (var index = 0; index < contacts.Length; index++)
+                contacts[index].PointerInfo.PointerFlags = flags;
+            if (InjectTouchInput((uint)contacts.Length, contacts))
+                return;
+
+            var error = Marshal.GetLastWin32Error();
+            // Lift fingers that are down, so later tests do not start with them.
+            if (flags != PointerFlagUp)
+            {
+                for (var index = 0; index < contacts.Length; index++)
+                    contacts[index].PointerInfo.PointerFlags = PointerFlagUp;
+                InjectTouchInput((uint)contacts.Length, contacts);
+            }
+            Assert.Inconclusive($"Windows refused the injected pinch 0x{flags:X} (error {error}).");
         }
 
         private static void Place(ref PointerTouchInfo contact, NativePoint location)

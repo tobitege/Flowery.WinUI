@@ -1102,7 +1102,8 @@
                               Grid.Column="0"
                               Visibility="{Binding IsBoardViewActive, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <!-- Main Board -->
-                            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                            <ScrollViewer x:Name="PART_BoardScroll"
+                                          HorizontalScrollBarVisibility="Auto"
                                           VerticalScrollBarVisibility="Disabled"
                                           Visibility="{Binding IsStandardLayoutVisible, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <Grid>
@@ -1614,7 +1615,8 @@
                             </Grid>
                         </Border>
                             <!-- Swimlane Board -->
-                            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                            <ScrollViewer x:Name="PART_SwimlaneScroll"
+                                          HorizontalScrollBarVisibility="Auto"
                                           VerticalScrollBarVisibility="Auto"
                                           Visibility="{Binding IsSwimlaneLayoutVisible, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <StackPanel Padding="16"

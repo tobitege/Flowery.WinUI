@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Flowery.Services;
@@ -14,8 +14,12 @@ namespace Flowery.WinUI.RuntimeTests
             return _store.TryGetValue(key, out var lines) ? lines : Array.Empty<string>();
         }
 
+        /// <summary>How often <see cref="SaveLines"/> was called.</summary>
+        public int SaveCount { get; private set; }
+
         public void SaveLines(string key, IEnumerable<string> lines)
         {
+            SaveCount++;
             _store[key] = new List<string>(lines);
         }
 

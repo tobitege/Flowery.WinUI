@@ -1,4 +1,4 @@
-using Flowery.Theming;
+﻿using Flowery.Theming;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -69,7 +69,8 @@ public partial class DaisyScheduler
         }
         var minimum = RoundToPixel(width) / 60;
         var fill = ((_viewHost?.ActualWidth ?? 0) - gutterWidth) / (dayCount * 1440);
-        return (minimum, Math.Max(minimum, fill));
+        // The column zoom widens the hours beyond the width that fills the view.
+        return (minimum, Math.Max(minimum, fill) * ColumnZoom);
     }
 }
 

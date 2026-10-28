@@ -273,6 +273,7 @@
   "Scheduler_TimeSlotStart": "편집기 첫 시간",
   "Scheduler_TimeSlotEnd": "편집기 마지막 시간",
   "Scheduler_TimeSlotInterval": "편집기 시간 간격",
+  "Scheduler_ColumnZoom": "열 너비",
   "Scheduler_Day": "일",
   "Scheduler_Week": "주",
   "Scheduler_Month": "월",

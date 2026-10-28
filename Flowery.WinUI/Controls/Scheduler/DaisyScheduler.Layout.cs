@@ -1,4 +1,4 @@
-using Flowery.Controls.Scheduler.Models;
+﻿using Flowery.Controls.Scheduler.Models;
 using Flowery.Controls.Scheduler.Rendering;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -18,9 +18,11 @@ public partial class DaisyScheduler
     {
         if (_bodyScroll is not { ViewportWidth: > 0, ViewportHeight: > 0 } scroll)
             return;
+        var zoom = ColumnZoom;
+        _appliedZoom = zoom;
         if (_monthGrid is { } month)
         {
-            month.Width = Math.Max(month.MinWidth, scroll.ViewportWidth);
+            month.Width = Math.Max(month.MinWidth, scroll.ViewportWidth) * zoom;
             month.Height = Math.Max(month.MinHeight, scroll.ViewportHeight);
         }
         if (_timeColumns.Count == 0)
@@ -31,7 +33,7 @@ public partial class DaisyScheduler
         var extra = Math.Max(0, (scroll.ViewportWidth - minimumWidth) / _timeColumns.Count);
         foreach (var column in _timeColumns)
         {
-            var width = column.MinimumWidth + extra;
+            var width = (column.MinimumWidth + extra) * zoom;
             column.Header.Width = new GridLength(width);
             column.Body.Width = new GridLength(width);
             column.Surface.Width = width;

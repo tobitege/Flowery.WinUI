@@ -381,7 +381,7 @@ public sealed partial class Given_DaisyScheduler
         Assert.HasCount(1, scope.Frames(scope.Appointment));
         var grid = Descendants<Grid>(scope.Scheduler).Single(control => control.RowDefinitions.Count == 7 && control.ColumnDefinitions.Count == 7);
         var header = (Border)grid.Children[0];
-        Assert.AreEqual(new DateTime(2026, 9, 27).ToString("ddd", scope.Scheduler.FormattingCulture), ((TextBlock)header.Child).Text);
+        Assert.AreEqual(new DateTime(2026, 9, 27).ToString("ddd", scope.Scheduler.FormattingCulture), HeadingText(header).Text);
     }
 
     [TestMethod]
@@ -394,7 +394,7 @@ public sealed partial class Given_DaisyScheduler
         await month.LayoutAsync();
         var grid = Descendants<Grid>(month.Scheduler).Single(control => control.RowDefinitions.Count == 7);
         Assert.HasCount(5, grid.ColumnDefinitions);
-        Assert.AreEqual(Monday.ToString("ddd", month.Scheduler.FormattingCulture), ((TextBlock)((Border)grid.Children[0]).Child).Text);
+        Assert.AreEqual(Monday.ToString("ddd", month.Scheduler.FormattingCulture), HeadingText((Border)grid.Children[0]).Text);
         Assert.HasCount(1, month.Frames(month.Appointment));
         Assert.IsEmpty(month.Frames(saturday));
         month.Scheduler.ShowWeekends = true;
@@ -545,6 +545,9 @@ public sealed partial class Given_DaisyScheduler
                 yield return descendant;
         }
     }
+
+    // A heading cell holds its text beside the grip on its right edge.
+    private static TextBlock HeadingText(Border heading) => ((Grid)heading.Child).Children.OfType<TextBlock>().Single();
 
     private sealed partial class SchedulerScope
     {

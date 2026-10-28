@@ -652,8 +652,13 @@ The mouse keeps click, Ctrl-click, Shift-click and double click.
 - `Ctrl + Shift + Up/Down` → Move the focused card within its column.
 - `Ctrl + Shift + Left/Right` → Move the focused card to an adjacent column.
 - `Ctrl + +` / `Ctrl + -` → Zoom in/out.
+- `Ctrl` + mouse wheel → Zoom in/out, one size tier per notch, also from the parts of a notch that precision wheels send.
 
 The column shortcuts are available to everyone; the host app decides who may use the board.
+
+### Pinch to Zoom
+
+On a touch screen and on a precision touchpad, spreading two fingers zooms the board in and pinching them zooms it out, one size tier per quarter of their distance, within the same tiers as the zoom buttons (`ExtraSmall` to `ExtraLarge`). On a touch screen the board changes its tier while the fingers move. WinUI gives a touchpad pinch only to the board's scroll viewer, so the board scales while the fingers move and takes the nearest tier when they lift. A pinch neither opens, selects nor drags a card, and the board does not scroll with the fingers. One finger works as before.
 
 ### Accessibility Metadata
 

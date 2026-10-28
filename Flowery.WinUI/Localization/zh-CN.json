@@ -273,6 +273,7 @@
   "Scheduler_TimeSlotStart": "编辑器首个时间",
   "Scheduler_TimeSlotEnd": "编辑器最后时间",
   "Scheduler_TimeSlotInterval": "编辑器时间间隔",
+  "Scheduler_ColumnZoom": "列宽",
   "Scheduler_Day": "日",
   "Scheduler_Week": "周",
   "Scheduler_Month": "月",

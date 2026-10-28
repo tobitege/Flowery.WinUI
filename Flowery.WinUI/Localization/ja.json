@@ -273,6 +273,7 @@
   "Scheduler_TimeSlotStart": "選択可能な開始時刻",
   "Scheduler_TimeSlotEnd": "選択可能な最終時刻",
   "Scheduler_TimeSlotInterval": "時刻の選択間隔",
+  "Scheduler_ColumnZoom": "列の幅",
   "Scheduler_Day": "日",
   "Scheduler_Week": "週",
   "Scheduler_Month": "月",

@@ -55,6 +55,21 @@ Scheduler.AppointmentMoveRequested += (_, request) =>
 | Timeline | One day on a horizontal axis, with named, collapsible resource groups | Move between lanes, resize, create, external drop |
 | Calendar | Month navigator with week numbers beside a daily appointment list | Edit and context requests |
 
+### Column zoom
+
+Narrow columns show only the start of their appointments. `ColumnZoom` widens the day columns of Month, Day and Week
+and the hours of Planner and Timeline, from 1 to 4 times the fitted width, and the view scrolls sideways. Spread or
+pinch two fingers on a touch screen or a precision touchpad, drag the right edge of a column heading with the mouse or
+use Ctrl and the mouse wheel to zoom where they are, or double-click or double-tap a column heading to switch between
+the fitted columns and twice their width. The settings menu offers the zoom as Column width. On a touch screen the
+columns follow the fingers; WinUI gives a touchpad pinch only to the body's scroll viewer, so the view scales while the
+fingers move and the columns take the zoom when they lift. A finger that started a tap, hold or drag does neither once
+the second one lands. Set `StateKey` to keep the user's zoom for the next start:
+
+```xml
+<daisy:DaisyScheduler StateKey="planning" />
+```
+
 ### Calendar navigator and daily list
 
 Set CurrentView=Calendar and ResourceKindFilter=Person or Room to show appointments assigned to that resource kind.
@@ -159,6 +174,8 @@ Scheduler tooltips use `DaisyBase200Brush`, `DaisyBaseContentBrush`, and a borde
 | `ClockFormat` | Regional default, 12 hours, or 24 hours |
 | `AppointmentColors` | Optional host editor palette (`Windows.UI.Color`). Null or empty hides the Gallery color selector |
 | `ColumnMinWidth` | Minimum width before horizontal scrolling |
+| `ColumnZoom` | Widens the day columns and hours from 1 (default) to 4 times the fitted width; see Column zoom |
+| `StateKey` | Key under which `StateStorageProvider` keeps the user's column zoom. Default: null, which keeps nothing |
 | `WorkDayStart`, `WorkDayEnd` | Working-hours band in Day and Week |
 | `SingleClickCreates` | Request creation on a single click of an empty slot |
 | `SelectedAppointment` | Single selected appointment, or null. Bind with `Mode=TwoWay` |
