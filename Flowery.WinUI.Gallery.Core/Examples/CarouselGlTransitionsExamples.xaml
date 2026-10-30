@@ -112,7 +112,7 @@
                     <StackPanel Spacing="4">
                         <TextBlock Text="{Binding [Gallery_Carousel_Interval_Label]}" FontSize="12" Opacity="{ThemeResource GalleryOpacity70}"
                                    Foreground="{ThemeResource DaisyBaseContentBrush}" />
-                        <daisy:DaisyNumericUpDown x:Name="GlIntervalBox" Width="90" />
+                        <daisy:DaisyNumericUpDown x:Name="GlIntervalBox" Width="90" FormatString="0.#" />
                     </StackPanel>
                 </daisy:WrapPanel>
             </StackPanel>

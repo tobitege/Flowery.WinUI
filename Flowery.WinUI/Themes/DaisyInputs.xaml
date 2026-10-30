@@ -223,7 +223,6 @@
 
                 <ContentPresenter x:Name="HeaderPresenter"
                                   Grid.Column="1"
-                                  Content="{TemplateBinding Header}"
                                   FontFamily="{TemplateBinding FontFamily}"
                                   FontSize="{TemplateBinding FontSize}"
                                   FontStyle="{TemplateBinding FontStyle}"

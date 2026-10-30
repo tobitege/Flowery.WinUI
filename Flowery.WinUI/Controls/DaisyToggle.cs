@@ -212,7 +212,7 @@ namespace Flowery.Controls
                 new PropertyMetadata(null, OnAppearanceChanged));
 
         /// <summary>
-        /// Header content for the toggle.
+        /// Label next to the track. When it is null, <see cref="ContentControl.Content"/> is the label.
         /// </summary>
         public object? Header
         {
@@ -298,9 +298,20 @@ namespace Flowery.Controls
             ApplyTheme(resources);
             ApplyKnobPosition(animateKnob);
 
-            // Without a header the presenter would still reserve its 8 px gap next to the track.
+            // The label is the Header, or the Content as on a ToggleButton. Without a label the presenter would still
+            // reserve its 8 px gap next to the track.
             if (_headerPresenter != null)
-                _headerPresenter.Visibility = Header is null ? Visibility.Collapsed : Visibility.Visible;
+            {
+                var label = Header ?? Content;
+                _headerPresenter.Content = label;
+                _headerPresenter.Visibility = label is null ? Visibility.Collapsed : Visibility.Visible;
+            }
+        }
+
+        protected override void OnContentChanged(object oldContent, object newContent)
+        {
+            base.OnContentChanged(oldContent, newContent);
+            ApplyAll(animateKnob: false);
         }
 
         private void ApplySizing(ResourceDictionary? resources)

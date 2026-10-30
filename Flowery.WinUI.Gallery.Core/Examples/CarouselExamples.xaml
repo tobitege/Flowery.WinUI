@@ -250,30 +250,30 @@
                             <TextBlock Text="{Binding [Gallery_Carousel_Guide_Title]}" FontWeight="Bold"
                                        Foreground="{ThemeResource DaisyPrimaryBrush}" Opacity="{ThemeResource GalleryOpacity90}"/>
 
-                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12">
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding [Gallery_Carousel_Guide_GridLabel]}"
-                                           FontWeight="SemiBold" Width="100"/>
-                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding [Gallery_Carousel_Guide_GridDesc]}" Opacity="{ThemeResource GalleryOpacity80}"/>
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding [Gallery_Carousel_Guide_GridDesc]}" TextWrapping="Wrap" Opacity="{ThemeResource GalleryOpacity80}"/>
 
                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding [Gallery_Carousel_Guide_StaggerMsLabel]}"
-                                           FontWeight="SemiBold" Width="100"/>
-                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding [Gallery_Carousel_Guide_StaggerMsDesc]}" Opacity="{ThemeResource GalleryOpacity80}"/>
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding [Gallery_Carousel_Guide_StaggerMsDesc]}" TextWrapping="Wrap" Opacity="{ThemeResource GalleryOpacity80}"/>
 
                                 <TextBlock Grid.Row="2" Grid.Column="0" Text="{Binding [Gallery_Carousel_Guide_StaggerToggleLabel]}"
-                                           FontWeight="SemiBold" Width="100"/>
-                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding [Gallery_Carousel_Guide_StaggerToggleDesc]}" Opacity="{ThemeResource GalleryOpacity80}"/>
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding [Gallery_Carousel_Guide_StaggerToggleDesc]}" TextWrapping="Wrap" Opacity="{ThemeResource GalleryOpacity80}"/>
 
                                 <TextBlock Grid.Row="3" Grid.Column="0" Text="{Binding [Gallery_Carousel_Guide_PixelSizeLabel]}"
-                                           FontWeight="SemiBold" Width="100"/>
-                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding [Gallery_Carousel_Guide_PixelSizeDesc]}" Opacity="{ThemeResource GalleryOpacity80}"/>
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding [Gallery_Carousel_Guide_PixelSizeDesc]}" TextWrapping="Wrap" Opacity="{ThemeResource GalleryOpacity80}"/>
 
                                 <TextBlock Grid.Row="4" Grid.Column="0" Text="{Binding [Gallery_Carousel_Guide_DissolveDensityLabel]}"
-                                           FontWeight="SemiBold" Width="100"/>
-                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding [Gallery_Carousel_Guide_DissolveDensityDesc]}" Opacity="{ThemeResource GalleryOpacity80}"/>
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding [Gallery_Carousel_Guide_DissolveDensityDesc]}" TextWrapping="Wrap" Opacity="{ThemeResource GalleryOpacity80}"/>
 
                                 <TextBlock Grid.Row="5" Grid.Column="0" Text="{Binding [Gallery_Carousel_Guide_FlipAngleLabel]}"
-                                           FontWeight="SemiBold" Width="100"/>
-                                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding [Gallery_Carousel_Guide_FlipAngleDesc]}" Opacity="{ThemeResource GalleryOpacity80}"/>
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding [Gallery_Carousel_Guide_FlipAngleDesc]}" TextWrapping="Wrap" Opacity="{ThemeResource GalleryOpacity80}"/>
                             </Grid>
                         </StackPanel>
                     </daisy:DaisyCard>

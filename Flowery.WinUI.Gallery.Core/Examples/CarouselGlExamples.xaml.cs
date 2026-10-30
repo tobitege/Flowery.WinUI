@@ -41,6 +41,7 @@ namespace Flowery.WinUI.Gallery.Examples
         private bool _isUpdatingGlSelection;
         private bool _isApplyingSettings;
         private bool _hasRestoredSettings;
+        private bool _hasInitializedControls;
         private FlowerySlideshowMode _glMode = FlowerySlideshowMode.Manual;
         private CarouselGlEffectKind _lastRandomEffect = CarouselGlEffectKind.None;
         private CarouselGlEffectKind _lastRandomTransition = CarouselGlEffectKind.None;
@@ -66,6 +67,7 @@ namespace Flowery.WinUI.Gallery.Examples
 
             InitializeGlControls();
             RestoreGlSettings();
+            ApplyGlSettings();
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -138,6 +140,11 @@ namespace Flowery.WinUI.Gallery.Examples
 
         private void InitializeGlControls()
         {
+            // The defaults and callbacks are set once, so a reload neither resets the values nor registers again.
+            if (_hasInitializedControls)
+                return;
+
+            _hasInitializedControls = true;
             if (GlIntervalBox != null)
             {
                 GlIntervalBox.Value = 3m;
@@ -281,13 +288,12 @@ namespace Flowery.WinUI.Gallery.Examples
             {
                 _isApplyingSettings = false;
             }
-
-            ApplyGlSettings();
         }
 
         private void PersistGlSettings()
         {
-            if (_isApplyingSettings)
+            // Loading the XAML raises the events of the inputs; their defaults must not replace the stored settings.
+            if (_isApplyingSettings || !_hasRestoredSettings)
                 return;
 
             var intervalSeconds = NormalizeIntervalValue(GlIntervalBox?.Value, fallback: 3m);
