@@ -3,7 +3,13 @@
 
 # Overview
 
-DaisyToggle is a styled `ToggleSwitch` with **8 color variants** and **5 size presets**. It offers customizable thumb size via `TogglePadding` (knob margin) and uses smooth knob animation on state changes. Use it for binary on/off controls.
+DaisyToggle is a switch built on `ToggleButton` with **8 color variants** and **5 size presets**. It offers customizable thumb size via `TogglePadding` (knob margin) and uses smooth knob animation on state changes. Use it for binary on/off controls.
+
+## Label and State
+
+The text or element next to the track is the label. `Content` is the label, as on any `ToggleButton`; `Header` takes its place when it is set. A toggle without either shows only the track, with no gap beside it.
+
+`IsOn` and `IsChecked` always hold the same state, so either can be set or bound. `Toggled` is raised when the user switches it, like on the WinUI `ToggleSwitch`.
 
 ## Variant Options
 
@@ -46,6 +52,7 @@ The track is as tall as the line height of the label text. Medium follows the Wi
 <controls:DaisyToggle Content="Primary" Variant="Primary" IsChecked="True" />
 <controls:DaisyToggle Content="Error" Variant="Error" Size="Small" IsChecked="True" />
 <controls:DaisyToggle Content="Large Switch" Variant="Accent" Size="Large" />
+<controls:DaisyToggle Header="Notifications" IsOn="True" Toggled="OnNotificationsToggled" />
 ```
 
 ## Tips & Best Practices
@@ -53,4 +60,4 @@ The track is as tall as the line height of the label text. Medium follows the Wi
 - Match `Size` to surrounding controls; use Large for mobile or card headers, Small/XS for dense lists.
 - Use semantic variants to convey meaning (Success for enabled/ready, Error for risky toggles).
 - Leave `TogglePadding` at its automatic default unless a design needs a different knob inset; larger values shorten the knob travel.
-- Bind `IsChecked` for state management; it inherits ToggleSwitch behavior.
+- Bind `IsOn` or `IsChecked` for state management; both report the same state.

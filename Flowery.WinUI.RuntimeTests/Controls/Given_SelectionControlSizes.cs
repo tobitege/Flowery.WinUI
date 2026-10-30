@@ -132,6 +132,33 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         }
 
         [TestMethod]
+        public async Task When_ToggleHasContentOrHeader_ItShowsThemAsItsLabel()
+        {
+            var toggle = new DaisyToggle { Content = "Infinite" };
+            RuntimeTestHelpers.AttachToHost(toggle);
+            await RuntimeTestHelpers.EnsureLoadedAsync(toggle);
+            await WaitForTogglePartsAsync(toggle);
+            var label = Descendants<ContentPresenter>(toggle).Single(static presenter => presenter.Name == "HeaderPresenter");
+
+            AssertToggleLabel(toggle, label, "Infinite", "Content is the label.");
+            toggle.Header = "Header";
+            AssertToggleLabel(toggle, label, "Header", "Header takes the place of Content.");
+            toggle.Header = null;
+            toggle.Content = "Changed";
+            AssertToggleLabel(toggle, label, "Changed", "A new Content replaces the label.");
+            toggle.Content = null;
+            Assert.AreEqual(Visibility.Collapsed, label.Visibility, "Without a label the presenter keeps no gap beside the track.");
+        }
+
+        private static void AssertToggleLabel(DaisyToggle toggle, ContentPresenter label, string expected, string message)
+        {
+            toggle.UpdateLayout();
+            Assert.AreEqual(Visibility.Visible, label.Visibility, message);
+            var shown = Descendants<TextBlock>(label).Where(static text => text.ActualWidth > 0).Select(static text => text.Text).ToArray();
+            CollectionAssert.Contains(shown, expected, message);
+        }
+
+        [TestMethod]
         public async Task When_CheckedKnobMatchesTheTrack_ItGetsContrastAnOutlineAndKeepsTheNeutralBorder()
         {
             // A track painted in the Secondary color hides a Secondary knob unless the toggle adjusts it.

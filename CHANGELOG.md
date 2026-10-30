@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.12.0] - 2026-10-28
+## [1.12.0] - 2026-10-30
 
 ### Added
 
@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GL hosts, as in Flowery.NET: a host that is unloaded and loaded again while an update of its settings still runs gets its renderer back. Before, the reload left the new renderer to that update, which gave up on the renderer the unload had closed; the host stayed empty, and reading a frame failed with "No GL effect is selected.".
 - GL hosts: a host whose WebGL context is lost, such as when the GPU process of WebView2 restarts, sets itself up again once the browser restores the context, and its requests wait for that. Before, the next frame read back `CONTEXT_LOST_WEBGL` and failed the renderer.
 - Gallery: the `BookFlip` GL transition selects the page for each side of the fold instead of blending both pages with a weight of 0 or 1. At exactly half progress the unused page divides by zero, which GLSL leaves unspecified, so a GPU could put NaN pixels into the frame; WebView2's ANGLE drew the frame correctly. A test checks that the middle frame shows half of each image.
+- Gallery, as in Flowery.NET: the Carousel GL and Carousel GL Transitions pages keep their values when they load again. Before, every reload set the inputs back to their defaults, Carousel GL saved those over the stored settings, and both pages registered their value handlers once more. Carousel GL also saves nothing before it has restored its settings, so the events its inputs raise while the page loads no longer replace them. The dissolve density shows two decimals and the intervals one, so 0.5 no longer shows as 1 and 1.5 s as 2. The note below the controls says they drive the preview, and the descriptions of the pages and their demos describe the WebGL renderer in WebView2 instead of Skia and the browser-only version of Flowery.Uno, in all twelve languages.
+- `DaisyToggle` shows its `Content` as the label next to the track, as on a `ToggleButton` and as its documentation shows; `Header` takes its place when it is set. Before, only `Header` was shown, so toggles with `Content`, such as the Infinite toggles of the Carousel pages and the Styling examples of the Gallery, had no label. `llms-static/DaisyToggle.md` describes the label and the `IsOn`/`IsChecked` state.
+- Gallery: the guide labels of the Carousel and Carousel GL pages are as wide as the longest label, and their descriptions wrap. Before, a fixed width of 100 cut off longer labels such as "Stagger-Umschalter" and "Dissolve-Dichte".
 
 ## [1.11.0] - 2026-10-27
 

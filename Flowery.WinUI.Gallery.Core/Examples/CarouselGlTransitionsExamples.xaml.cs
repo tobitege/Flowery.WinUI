@@ -122,6 +122,7 @@ namespace Flowery.WinUI.Gallery.Examples
         private bool _isUpdatingSelection;
         private bool _isApplyingSettings;
         private bool _hasInitializedTransitions;
+        private bool _hasInitializedControls;
         private FlowerySlideshowMode _glMode = FlowerySlideshowMode.Manual;
 
         public GalleryLocalization Localization { get; } = GalleryLocalization.Instance;
@@ -191,6 +192,11 @@ namespace Flowery.WinUI.Gallery.Examples
 
         private void InitializeGlControls()
         {
+            // The defaults and callback are set once, so a reload neither resets the interval nor registers again.
+            if (_hasInitializedControls)
+                return;
+
+            _hasInitializedControls = true;
             if (GlIntervalBox != null)
             {
                 GlIntervalBox.Value = 1m;
