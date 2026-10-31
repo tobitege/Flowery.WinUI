@@ -172,6 +172,23 @@ namespace Flowery.WinUI.RuntimeTests
             return tcs.Task;
         }
 
+        /// <summary>
+        /// Writes a report with one failed test for a host that could not run the tests: same format as a test run, so
+        /// the runner shows the cause instead of failing on the counts.
+        /// </summary>
+        public static void WriteStartupFailure(string resultPath, Exception exception)
+        {
+            try
+            {
+                WriteResults(resultPath, [RuntimeTestCaseResult.Failed("RuntimeTestsHost.Startup", exception)]);
+            }
+            catch (Exception writeError)
+            {
+                // The host's exit code still signals the failure.
+                System.Diagnostics.Debug.WriteLine(writeError);
+            }
+        }
+
         private static void WriteResults(string resultPath, IReadOnlyCollection<RuntimeTestCaseResult> results)
         {
             var document = new XDocument(
