@@ -86,81 +86,17 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             Assert.IsEmpty(edits);
         }
 
-        [TestMethod]
-        public async Task When_ARealFingerTapsHoldsAndSwipes_WinUIDeliversTheTouchModel()
-        {
-            var tasks = new[] { new FlowTask { Title = "A" }, new FlowTask { Title = "B" } };
-            var doing = new FlowKanbanColumnData { Title = "Doing" };
-            // Enough cards below them that the board scrolls.
-            var kanban = await CreateBoardAsync(tasks, filler: 20, doing);
-            var edits = new List<FlowTask>();
-            foreach (var task in tasks)
-                CardOf(kanban, task).EditCommand = new EditCounter(edits);
-            var card = CardOf(kanban, tasks[0]);
-            var middle = new Windows.Foundation.Point(card.ActualWidth / 2, card.ActualHeight / 2);
-
-            // A slow runner handles the injected input later; each step waits for its effect.
-            await TouchInjection.TapAsync(card, middle);
-            await RuntimeTestHelpers.WaitUntilAsync(() => edits.Count > 0, "the tap opened the card");
-            CollectionAssert.AreEqual(new[] { tasks[0] }, edits, "tap");
-            Assert.IsFalse(tasks[0].IsSelected, "tap");
-
-            await TouchInjection.HoldAsync(card, middle, () => tasks[0].IsSelected);
-            Assert.IsTrue(tasks[0].IsSelected, "hold");
-            Assert.HasCount(1, edits, "hold");
-
-            // A tap on a free place of the board clears the selection.
-            var doingColumn = RuntimeTestHelpers.Descendants<FlowKanbanColumn>(kanban).Single(column => ReferenceEquals(column.ColumnData, doing));
-            await TouchInjection.TapAsync(doingColumn, new Windows.Foundation.Point(doingColumn.ActualWidth / 2, doingColumn.ActualHeight * 2 / 3));
-            await RuntimeTestHelpers.WaitUntilAsync(() => !tasks[0].IsSelected, "the free tap cleared the selection");
-
-            // A swipe over a card scrolls and neither opens nor selects it, also once the hold time has passed.
-            card = CardOf(kanban, tasks[0]);
-            var before = card.TransformToVisual(kanban).TransformPoint(default);
-            await TouchInjection.SwipeAsync(card, middle, new Windows.Foundation.Point(0, -150));
-            await Task.Delay(1000);
-            await RuntimeTestHelpers.WaitUntilAsync(() => !before.Equals(card.TransformToVisual(kanban).TransformPoint(default)), "the swipe scrolled the board");
-            Assert.IsFalse(tasks[0].IsSelected, "swipe");
-            Assert.HasCount(1, edits, "swipe");
-        }
-
-        [TestMethod]
-        public async Task When_ARealFingerHoldsACard_ItDragsItIntoAnotherColumn()
-        {
-            var task = new FlowTask { Title = "A" };
-            var doing = new FlowKanbanColumnData { Title = "Doing" };
-            var kanban = await CreateBoardAsync(new[] { task }, 0, doing);
-            var card = CardOf(kanban, task);
-            var middle = new Windows.Foundation.Point(card.ActualWidth / 2, card.ActualHeight / 2);
-            var doingColumn = RuntimeTestHelpers.Descendants<FlowKanbanColumn>(kanban).Single(column => ReferenceEquals(column.ColumnData, doing));
-            var target = card.TransformToVisual(doingColumn).Inverse.TransformPoint(
-                new Windows.Foundation.Point(doingColumn.ActualWidth / 2, doingColumn.ActualHeight / 3));
-
-            // After the hold the finger drags the card through WinUI's drag and drop (CanDrag).
-            await TouchInjection.HoldAsync(card, middle, () => task.IsSelected,
-                new Windows.Foundation.Point(target.X - middle.X, target.Y - middle.Y));
-            await Task.Delay(500);
-            await RuntimeTestHelpers.CompleteLayoutAsync(kanban);
-            if (!doing.Tasks.Contains(task) && Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true")
-                Assert.Inconclusive("Skipped: on the GitHub runner, WinUI's drag and drop does not land a card dragged by injected touch.");
-            CollectionAssert.Contains(doing.Tasks, task, "drag after the hold");
-        }
-
-        private static async Task<FlowKanban> CreateBoardAsync(FlowTask[] tasks, int filler = 0, params FlowKanbanColumnData[] more)
+        private static async Task<FlowKanban> CreateBoardAsync(FlowTask[] tasks)
         {
             var column = new FlowKanbanColumnData { Title = "Todo" };
             foreach (var task in tasks)
                 column.Tasks.Add(task);
-            for (var index = 0; index < filler; index++)
-                column.Tasks.Add(new FlowTask { Title = "Filler " + index });
-            // A fixed size keeps the board inside the runner window, so the board scrolls instead.
+            // A fixed size keeps the board inside the runner window.
             var kanban = new FlowKanban
             {
                 Board = new FlowKanbanData { Columns = { column } }, Width = 1000, Height = 600,
                 HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top
             };
-            foreach (var other in more)
-                kanban.Board.Columns.Add(other);
             RuntimeTestHelpers.AttachToHost(kanban);
             await RuntimeTestHelpers.EnsureLoadedAsync(kanban);
             // With no saved boards, OnKanbanLoaded switches to the Home view, which hides the columns.

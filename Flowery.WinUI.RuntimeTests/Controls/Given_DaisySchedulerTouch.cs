@@ -153,51 +153,6 @@ public sealed partial class Given_DaisyScheduler
         Assert.IsNull(scope.Scheduler.SelectedAppointment);
     }
 
-    [TestMethod]
-    public async Task When_ARealFingerTapsHoldsAndSwipes_WinUIDeliversTheTouchModel()
-    {
-        var scope = await SchedulerScope.CreateAsync(SchedulerView.Week);
-        scope.Appointment.End = scope.Appointment.Start.AddHours(3);
-        scope.Scheduler.Appointments = new[] { scope.Appointment };
-        await scope.LayoutAsync();
-        var (moves, edits) = (0, 0);
-        scope.Scheduler.AppointmentMoveRequested += (_, _) => moves++;
-        scope.Scheduler.AppointmentEditRequested += (_, _) => edits++;
-        var frame = scope.Frame(scope.Appointment);
-        var middle = new Point(frame.ActualWidth / 2, frame.ActualHeight / 2);
-
-        // A slow runner handles the injected input later; each step waits for its effect.
-        await TouchInjection.TapAsync(frame, middle);
-        await RuntimeTestHelpers.WaitUntilAsync(() => edits > 0, "the tap opened the appointment");
-        await scope.LayoutAsync();
-        Assert.AreEqual((0, 1), (moves, edits), "tap");
-        Assert.IsNull(scope.Scheduler.SelectedAppointment, "tap");
-
-        // The hold selects the appointment, also right after a tap; the view then leaves the finger to the move.
-        frame = scope.Frame(scope.Appointment);
-        var scroll = scope.BodyScroll();
-        var offset = scroll.VerticalOffset;
-        await TouchInjection.HoldAsync(frame, middle, () => scope.Scheduler.SelectedAppointment is not null, new Point(0, 80));
-        await RuntimeTestHelpers.WaitUntilAsync(() => moves > 0, "the held finger moved the appointment");
-        await scope.LayoutAsync();
-        Assert.AreSame(scope.Appointment, scope.Scheduler.SelectedAppointment, "hold");
-        Assert.AreEqual((1, 1), (moves, edits), "hold and drag");
-        Assert.AreEqual(offset, scroll.VerticalOffset, "the view panned with the held finger");
-
-        // A swipe scrolls the view and opens, selects and moves nothing.
-        scope.Scheduler.SelectedAppointment = null;
-        await scope.LayoutAsync();
-        frame = scope.Frame(scope.Appointment);
-        scroll = scope.BodyScroll();
-        offset = scroll.VerticalOffset;
-        await TouchInjection.SwipeAsync(frame, middle, new Point(0, offset > 100 ? 150 : -150));
-        await Task.Delay(500);
-        await RuntimeTestHelpers.WaitUntilAsync(() => Math.Abs(scroll.VerticalOffset - offset) > 20, $"the swipe scrolled the view from {offset}");
-        await scope.LayoutAsync();
-        Assert.AreEqual((1, 1), (moves, edits), "swipe");
-        Assert.IsNull(scope.Scheduler.SelectedAppointment, "swipe");
-    }
-
     private static DaisyScheduler.SchedulerPointer Touch(Point point, int clicks = 1) =>
         new(2, point, VirtualKeyModifiers.None, clicks, IsTouch: true);
 

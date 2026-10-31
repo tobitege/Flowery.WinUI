@@ -62,14 +62,7 @@ namespace Flowery.Helpers
                     HasPinched = false;
                 return;
             }
-            var wasPinching = IsPinching;
-            Press(e.Pointer.PointerId, e.GetCurrentPoint(null).Position);
-            // A scroll viewer would pan with the two fingers, and then sends them no more moves.
-            if (IsPinching && !wasPinching)
-            {
-                FreezeScrolls(e.OriginalSource as DependencyObject);
-                (e.OriginalSource as UIElement)?.CancelDirectManipulations();
-            }
+            Press(e.Pointer.PointerId, e.GetCurrentPoint(null).Position, e.OriginalSource as DependencyObject);
         }
 
         private void OnMoved(object sender, PointerRoutedEventArgs e)
@@ -84,8 +77,9 @@ namespace Flowery.Helpers
                 Lift(e.Pointer.PointerId);
         }
 
-        /// <summary>A finger lands at a window position; runtime tests call it directly.</summary>
-        public void Press(uint pointerId, Point position)
+        /// <summary>A finger lands at a window position, on <paramref name="source"/> when known; runtime tests call it
+        /// directly. The press that starts a pinch freezes the scroll viewers above the source.</summary>
+        public void Press(uint pointerId, Point position, DependencyObject? source = null)
         {
             if (IndexOf(pointerId) >= 0 || _touches.Count >= 2)
                 return;
@@ -97,6 +91,9 @@ namespace Flowery.Helpers
             IsPinching = true;
             HasPinched = true;
             _startDistance = Math.Max(MinimumDistance, Distance());
+            // A scroll viewer would pan with the two fingers, and then sends them no more moves.
+            FreezeScrolls(source);
+            (source as UIElement)?.CancelDirectManipulations();
             Started?.Invoke();
         }
 

@@ -105,6 +105,20 @@ To check a published Kiosk, such as the NativeAOT output, pass its executable; t
 
 `-Configuration` then only names the report and log folders.
 
+## Run the Gallery smoke run
+
+```powershell
+./scripts/test_gallery_smoke.ps1 -Configuration Debug -SkipBuild
+./scripts/test_gallery_smoke.ps1 -Configuration Release -ExecutablePath publish/Flowery.WinUI.Gallery.exe
+```
+
+The script starts the Gallery with `--smoke-test` and an isolated state directory.
+The Gallery opens every category in English, scrolls through it and records per category an exception, a page that does not load, and a localized text (`{Binding [Key]}`) that stays empty.
+WinUI raises `DebugSettings.BindingFailed` only with a debugger attached, so other failed bindings do not show up in the report.
+It leaves the Credential Manager alone and exits with the result.
+Reports are in `TestResults/GallerySmoke/<Configuration>/<run>/gallery-smoke.xml`, logs in `logs/gallery-smoke-<Configuration>-<run>.log`.
+`-Monitor` and `-WindowRegion` place the window as for the other test scripts.
+
 ## Run native tests
 
 ```powershell
@@ -238,7 +252,7 @@ Only its graph update job has repository write access. The workflow does not run
 This workflow does not publish NuGet packages. Only the manually started Release workflow publishes packages.
 The repository's built-in automatic submission remains disabled because its Linux restore fails for these native Windows projects.
 
-The CI workflow is configured to build and check Gallery and Kiosk in Debug and Release with SDK `10.0.402` and `11.0.100-rc.2.26504.105`.
+The CI workflow is configured to build and check Gallery and Kiosk in Debug and Release with SDK `10.0.402` and `11.0.100-rc.2.26504.105`, including the Gallery smoke run.
 It also publishes the Kiosk and Photos with NativeAOT, runs the Kiosk smoke checks on the NativeAOT Kiosk and starts the NativeAOT Photos.
 The release workflow creates the native packages, Gallery output, `Flowery.WinUI.Kiosk-Windows-x64.zip`, `Flowery.WinUI.Photos-Windows-x64.zip` and the Photos installer `Flowery.WinUI.Photos-Setup-<version>-x64.exe`.
 Release publication remains a manual workflow action, with SDK `10.0.402` selected by default and SDK 11 RC2 available as an option.

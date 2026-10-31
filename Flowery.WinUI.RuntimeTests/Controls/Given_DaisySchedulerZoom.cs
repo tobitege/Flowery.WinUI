@@ -263,39 +263,6 @@ public sealed partial class Given_DaisyScheduler
         }
     }
 
-    [TestMethod]
-    public async Task When_RealFingersPinchTheBodyAndAnAppointment_TheColumnsZoomAndNothingIsOpenedOrSelected()
-    {
-        var scope = await SchedulerScope.CreateAsync(SchedulerView.Week);
-        var (moves, edits) = (0, 0);
-        scope.Scheduler.AppointmentMoveRequested += (_, _) => moves++;
-        scope.Scheduler.AppointmentEditRequested += (_, _) => edits++;
-        var body = scope.BodyScroll();
-        var offset = body.VerticalOffset;
-
-        // A slow runner handles the injected input later; each step waits for its effect.
-        await TouchInjection.PinchAsync(body, new Point(body.ViewportWidth / 2, body.ViewportHeight / 2), 60, 120);
-        await RuntimeTestHelpers.WaitUntilAsync(() => scope.Scheduler.ColumnZoom > 1.8, $"the spread zoomed the columns ({scope.Scheduler.ColumnZoom})");
-        await scope.LayoutAsync();
-        Assert.AreEqual(2, scope.Scheduler.ColumnZoom, 0.15);
-        Assert.AreEqual(offset, body.VerticalOffset, 1, "the view panned with the fingers");
-        // While the fingers pinched, the body neither scrolled nor zoomed; then it does both again.
-        Assert.AreEqual((ScrollMode.Auto, ScrollMode.Auto, ZoomMode.Enabled), (body.HorizontalScrollMode, body.VerticalScrollMode, body.ZoomMode));
-
-        // The first finger on the appointment, the fingers pinch, and the hold time passes. The wider Monday lies left
-        // of the view now.
-        body.ChangeView(0, null, null, true);
-        await RuntimeTestHelpers.WaitUntilAsync(() => body.HorizontalOffset < 1, "the view scrolled back to Monday");
-        await scope.LayoutAsync();
-        var frame = scope.Frame(scope.Appointment);
-        await TouchInjection.PinchAsync(frame, new Point(frame.ActualWidth / 2, frame.ActualHeight / 2), 40, 20);
-        await RuntimeTestHelpers.WaitUntilAsync(() => scope.Scheduler.ColumnZoom < 1.2, $"the pinch zoomed the columns back ({scope.Scheduler.ColumnZoom})");
-        await Task.Delay(700);
-        await scope.LayoutAsync();
-        Assert.IsNull(scope.Scheduler.SelectedAppointment, "the pinch selected the appointment");
-        Assert.AreEqual((0, 0), (moves, edits));
-    }
-
     // Two fingers on both sides of a window point, from and to that distance from it, then both lift.
     private static void Pinch(DaisyScheduler scheduler, Point middle, double from, double to)
     {

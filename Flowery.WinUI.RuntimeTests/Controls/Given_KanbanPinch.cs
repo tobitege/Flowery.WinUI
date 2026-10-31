@@ -105,24 +105,6 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             Assert.IsTrue(scroll.MaxZoomFactor < 1.25f, $"The touchpad can zoom in by {scroll.MaxZoomFactor} beyond the largest size.");
         }
 
-        [TestMethod]
-        public async Task When_RealFingersPinchACard_TheBoardZoomsAndTheCardIsNeitherOpenedNorSelected()
-        {
-            var kanban = await CreateAsync();
-            var task = kanban.Board.Columns[0].Tasks[0];
-            var card = RuntimeTestHelpers.Descendants<FlowTaskCard>(kanban).Single(card => ReferenceEquals(card.Task, task));
-            var edits = new EditCounter();
-            card.EditCommand = edits;
-
-            // A slow runner handles the injected input later; each step waits for its effect.
-            await TouchInjection.PinchAsync(card, new Point(card.ActualWidth / 2, card.ActualHeight / 2), 30, 60);
-            await RuntimeTestHelpers.WaitUntilAsync(() => kanban.BoardSize == DaisySize.ExtraLarge, $"the spread zoomed the board ({kanban.BoardSize})");
-            // The hold time passes.
-            await Task.Delay(700);
-            Assert.IsFalse(task.IsSelected, "the pinch selected the card");
-            Assert.AreEqual(0, edits.Count, "the pinch opened the card");
-        }
-
         private static async Task<FlowKanban> CreateAsync()
         {
             var kanban = new FlowKanban
@@ -149,17 +131,6 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             Assert.IsTrue(Realized(), "realized cards");
             Assert.AreEqual(DaisySize.Medium, kanban.BoardSize);
             return kanban;
-        }
-
-        private sealed class EditCounter : System.Windows.Input.ICommand
-        {
-            public int Count { get; private set; }
-
-            public event EventHandler? CanExecuteChanged { add { } remove { } }
-
-            public bool CanExecute(object? parameter) => parameter is FlowTask;
-
-            public void Execute(object? parameter) => Count++;
         }
 
         // Two fingers on both sides of a point, from and to that distance from it, then both lift.

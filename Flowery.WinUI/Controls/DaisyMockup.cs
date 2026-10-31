@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -42,6 +42,7 @@ namespace Flowery.Controls
         private Border? _innerBorder;
         private Border? _headerBorder;
         private Border? _contentBorder;
+        private Border? _appIconHost;
         private TextBlock? _urlTextBlock;
         private object? _userContent;
         private bool _isRebuilding;
@@ -589,8 +590,13 @@ namespace Flowery.Controls
                 {
                     if (AppIcon is FrameworkElement fe)
                     {
+                        // The previous header's container still owns the icon, which neither Parent nor VisualTreeHelper
+                        // report while that tree is not laid out (the rebuild right after OnLoaded).
+                        if (_appIconHost is { } previousHost && ReferenceEquals(previousHost.Child, fe))
+                            previousHost.Child = null;
                         DetachFromParentIfNeeded(fe);
                         iconContainer.Child = fe;
+                        _appIconHost = iconContainer;
                     }
                     else
                     {

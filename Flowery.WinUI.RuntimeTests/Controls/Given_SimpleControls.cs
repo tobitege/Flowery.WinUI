@@ -469,6 +469,39 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             return FindDescendant<T>(root, element => element.Name == name);
         }
 
+        [TestMethod]
+        public async Task When_AWindowMockupWithAnAppIconLoads_TheIconMovesIntoTheRebuiltHeader()
+        {
+            // OnLoaded builds the tree, and OnThemeChanged rebuilds it at once, before layout: the icon still belongs to
+            // the first header then, which VisualTreeHelper does not report yet.
+            var icon = new DaisyIconText { IconSize = 24, IconData = "M12,3L2,12H5V20H19V12H22L12,3Z" };
+            var mockup = new DaisyMockup
+            {
+                Variant = DaisyMockupVariant.Window,
+                ChromeStyle = DaisyChromeStyle.Windows,
+                Width = 300,
+                Height = 160,
+                AppIcon = icon
+            };
+            RuntimeTestHelpers.AttachToHost(mockup);
+            try
+            {
+                await RuntimeTestHelpers.EnsureLoadedAsync(mockup);
+                mockup.ChromeStyle = DaisyChromeStyle.Mac;
+                mockup.ChromeStyle = DaisyChromeStyle.Windows;
+                mockup.UpdateLayout();
+
+                DependencyObject? ancestor = icon;
+                while (ancestor is not null && !ReferenceEquals(ancestor, mockup))
+                    ancestor = VisualTreeHelper.GetParent(ancestor);
+                Assert.AreSame(mockup, ancestor, "The app icon must sit in the header of the mockup's current tree.");
+            }
+            finally
+            {
+                await RuntimeTestHelpers.DetachFromHostAsync(mockup);
+            }
+        }
+
         private static T? FindDescendant<T>(DependencyObject root)
             where T : FrameworkElement
         {
