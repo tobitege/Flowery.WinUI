@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041</TargetFramework>
+    <RootNamespace>Flowery.WinUI.RuntimeTests.Host</RootNamespace>
+    <UseWinUI>true</UseWinUI>
+    <OutputType>WinExe</OutputType>
+    <ApplicationTitle>Flowery.WinUI Runtime Tests</ApplicationTitle>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\Flowery.WinUI.Gallery\app_icon.ico</ApplicationIcon>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <WindowsPackageType>None</WindowsPackageType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DefaultLanguage>en-US</DefaultLanguage>
+    <NoWarn>$(NoWarn);PRI263</NoWarn>
+    <IsPackable>false</IsPackable>
+    <!-- A restore for the runtime (Directory.Build.props always sets one) downloads no ASP.NET Core or Windows Desktop
+         runtime packs, which the SDK fetches in case a reference needs them; the app uses neither framework. -->
+    <DisableTransitiveFrameworkReferenceDownloads>true</DisableTransitiveFrameworkReferenceDownloads>
+  </PropertyGroup>
+
+  <!-- The WinUI process the runtime tests run in: the tests bring the libraries and Gallery.Core along. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Flowery.WinUI.RuntimeTests\Flowery.WinUI.RuntimeTests.csproj" />
+    <Compile Include="..\Flowery.WinUI.Gallery\NativeWindowPlacement.cs" Link="NativeWindowPlacement.cs" />
+  </ItemGroup>
+
+  <Import Project="..\Flowery.WinUI.GalleryAssets.props" />
+  <Import Project="..\Flowery.WinUI.PatternAssets.props" />
+
+  <!-- The same variable fonts as the Gallery, which the font asset tests check. -->
+  <ItemGroup>
+    <Content Remove="..\Flowery.WinUI.Gallery.Core\Assets\Fonts\NotoSans-Regular.ttf" />
+    <Content Remove="..\Flowery.WinUI.Gallery.Core\Assets\Fonts\NotoSansArabic-Regular.ttf" />
+    <Content Remove="..\Flowery.WinUI.Gallery.Core\Assets\Fonts\NotoSansSC-Regular.otf" />
+    <Content Remove="..\Flowery.WinUI.Gallery.Core\Assets\Fonts\NotoSansJP-Regular.otf" />
+    <Content Remove="..\Flowery.WinUI.Gallery.Core\Assets\Fonts\NotoSansKR-Regular.otf" />
+    <Content Remove="..\Flowery.WinUI.Gallery.Core\Assets\Fonts\StaticFonts-OFL.txt" />
+  </ItemGroup>
+</Project>

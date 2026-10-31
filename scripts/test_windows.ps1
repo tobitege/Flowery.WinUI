@@ -34,10 +34,10 @@ if (-not $SkipBuild) {
     }
 }
 
-$galleryPath = Join-Path $repoRoot "bin\$Configuration\Flowery.WinUI.Gallery\$framework\$runtime\Flowery.WinUI.Gallery.exe"
+$hostPath = Join-Path $repoRoot "bin\$Configuration\Flowery.WinUI.RuntimeTests.Host\$framework\$runtime\Flowery.WinUI.RuntimeTests.Host.exe"
 $runnerPath = Join-Path $repoRoot "bin\$Configuration\Flowery.WinUI.RuntimeTests.WindowsRunner\$framework\$runtime\Flowery.WinUI.RuntimeTests.WindowsRunner.exe"
 $unitTestsPath = Join-Path $repoRoot "bin\$Configuration\Flowery.WinUI.UnitTests\$framework\$runtime\Flowery.WinUI.UnitTests.exe"
-foreach ($path in @($galleryPath, $runnerPath, $unitTestsPath)) {
+foreach ($path in @($hostPath, $runnerPath, $unitTestsPath)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw ('Required executable is missing. Build the solution first: {0}' -f $path)
     }
@@ -50,14 +50,14 @@ New-Item -ItemType Directory -Path $resultsDirectory -Force | Out-Null
 New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
 $logPath = Join-Path $logDirectory "tests-$Configuration-$runId.log"
 $runnerArguments = @('--report-trx', '--results-directory', $resultsDirectory)
-$previousGalleryPath = [Environment]::GetEnvironmentVariable('FLOWERY_GALLERY_EXE_PATH', 'Process')
+$previousHostPath = [Environment]::GetEnvironmentVariable('FLOWERY_RUNTIME_TESTS_HOST_PATH', 'Process')
 $previousResultsRoot = [Environment]::GetEnvironmentVariable('FLOWERY_TEST_RESULTS_ROOT', 'Process')
 $previousTestFilter = [Environment]::GetEnvironmentVariable('FLOWERY_RUNTIME_TEST_FILTER', 'Process')
 $previousMonitorDevice = [Environment]::GetEnvironmentVariable('FLOWERY_MONITOR_DEVICE', 'Process')
 $previousMonitorRegion = [Environment]::GetEnvironmentVariable('FLOWERY_MONITOR_REGION', 'Process')
 
 try {
-    [Environment]::SetEnvironmentVariable('FLOWERY_GALLERY_EXE_PATH', $galleryPath, 'Process')
+    [Environment]::SetEnvironmentVariable('FLOWERY_RUNTIME_TESTS_HOST_PATH', $hostPath, 'Process')
     [Environment]::SetEnvironmentVariable('FLOWERY_TEST_RESULTS_ROOT', $resultsDirectory, 'Process')
     [Environment]::SetEnvironmentVariable('FLOWERY_RUNTIME_TEST_FILTER', $TestFilter, 'Process')
     if ($Monitor -gt 0) {
@@ -67,7 +67,7 @@ try {
         [Environment]::SetEnvironmentVariable('FLOWERY_MONITOR_REGION', $monitorRegion, 'Process')
         Write-Host ('Window placement: {0}, {1}' -f $monitorDevice, $WindowRegion)
     }
-    Write-Host ('Gallery: {0}' -f $galleryPath)
+    Write-Host ('Runtime test host: {0}' -f $hostPath)
     Write-Host ('Results: {0}' -f $resultsDirectory)
     # The filter selects runtime tests, so a filtered run skips the unit tests.
     $unitTestExitCode = 0
@@ -85,7 +85,7 @@ try {
     }
 }
 finally {
-    [Environment]::SetEnvironmentVariable('FLOWERY_GALLERY_EXE_PATH', $previousGalleryPath, 'Process')
+    [Environment]::SetEnvironmentVariable('FLOWERY_RUNTIME_TESTS_HOST_PATH', $previousHostPath, 'Process')
     [Environment]::SetEnvironmentVariable('FLOWERY_TEST_RESULTS_ROOT', $previousResultsRoot, 'Process')
     [Environment]::SetEnvironmentVariable('FLOWERY_RUNTIME_TEST_FILTER', $previousTestFilter, 'Process')
     [Environment]::SetEnvironmentVariable('FLOWERY_MONITOR_DEVICE', $previousMonitorDevice, 'Process')

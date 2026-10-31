@@ -2,7 +2,7 @@
   "solution": {
     "path": "Flowery.WinUI.sln",
     "projects": [
-      "Flowery.WinUI.Gallery\\Flowery.WinUI.Gallery.csproj",
+      "Flowery.WinUI.RuntimeTests.Host\\Flowery.WinUI.RuntimeTests.Host.csproj",
       "Flowery.WinUI.RuntimeTests.WindowsRunner\\Flowery.WinUI.RuntimeTests.WindowsRunner.csproj"
     ]
   }

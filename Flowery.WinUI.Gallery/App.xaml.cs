@@ -4,39 +4,28 @@
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
-using System.Xml.Linq;
 using IOPath = System.IO.Path;
 using Flowery.Theming;
 using Flowery.WinUI.Gallery.Localization;
 using Flowery.Services;
-using Flowery.WinUI.RuntimeTests;
 
 namespace Flowery.WinUI.Gallery
 {
     public partial class App : Application
     {
         private Window? _window;
-        internal static string[]? RuntimeArguments { get; set; }
 
         public App()
         {
-            if (RuntimeTestArguments.TryGetRuntimeTestsPath(null, RuntimeArguments ?? Environment.GetCommandLineArgs(), out _))
-                Microsoft.Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride = "en-US";
             InitializeComponent();
             ConfigureCrashLogging();
         }
 
         protected override void OnLaunched(LaunchActivatedEventArgs args)
         {
-            RuntimeArguments ??= Environment.GetCommandLineArgs();
             try
             {
-                RunAppLaunch(args);
-            }
-            catch (Exception ex) when (RuntimeTestArguments.TryGetRuntimeTestsPath(args.Arguments, RuntimeArguments, out var resultPath))
-            {
-                TryWriteRuntimeTestFailure(resultPath, ex);
-                Environment.Exit(1);
+                RunAppLaunch();
             }
             catch (Exception ex) when (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("FLOWERY_MONITOR_DEVICE")))
             {
@@ -45,25 +34,10 @@ namespace Flowery.WinUI.Gallery
             }
         }
 
-        private void RunAppLaunch(LaunchActivatedEventArgs args)
+        private void RunAppLaunch()
         {
-            var isRuntimeTests = RuntimeTestArguments.TryGetRuntimeTestsPath(args.Arguments, RuntimeArguments, out _);
-            EnsureGalleryResources(isRuntimeTests);
+            EnsureGalleryResources();
             DaisyResourceLookup.EnsureTokens();
-            if (isRuntimeTests)
-            {
-                _window = new Window();
-                FlowerySizeManager.MainWindow = _window;
-                FloweryScaleManager.MainWindow = _window;
-                ApplyRequestedWindowPlacement(_window);
-                // Runtime tests must not rely on more room than a 1080p screen offers.
-                var size = _window.AppWindow.Size;
-                if (size.Width > 1920 || size.Height > 1080)
-                    _window.AppWindow.Resize(new Windows.Graphics.SizeInt32(Math.Min(size.Width, 1920), Math.Min(size.Height, 1080)));
-                _window.Activate();
-                StartRuntimeTestsIfRequested(args);
-                return;
-            }
 
             // Ensure GalleryLocalization runs early and registers the custom resolver.
             _ = GalleryLocalization.Instance;
@@ -104,8 +78,7 @@ namespace Flowery.WinUI.Gallery
             StateStorageProvider.Configure(new FileStateStorage(GetStateDirectory()));
         }
 
-        // Runs off the UI thread: the vault lookups must not delay the window. Runtime test launches skip it
-        // (they return before this point), so tests never touch the user's Credential Manager.
+        // Runs off the UI thread: the vault lookups must not delay the window.
         private static void RemoveLegacyKanbanCredentials()
         {
             var stateStorage = StateStorageProvider.Instance;
@@ -128,19 +101,11 @@ namespace Flowery.WinUI.Gallery
             if (placement == null)
                 return;
 
-            var directory = GetDiagnosticDirectory();
+            var directory = GetStateDirectory();
             Directory.CreateDirectory(directory);
             var message = $"[{DateTimeOffset.Now:O}] {placement}{Environment.NewLine}";
             File.AppendAllText(IOPath.Combine(directory, "window-placement.log"), message);
             Debug.WriteLine(message);
-        }
-
-        private static string GetDiagnosticDirectory()
-        {
-            var runtimeReport = Environment.GetEnvironmentVariable("FLOWERY_RUNTIME_TESTS_PATH");
-            return string.IsNullOrWhiteSpace(runtimeReport)
-                ? GetStateDirectory()
-                : IOPath.GetDirectoryName(IOPath.GetFullPath(runtimeReport))!;
         }
 
         private static string GetStateDirectory()
@@ -157,51 +122,6 @@ namespace Flowery.WinUI.Gallery
             }
 
             return IOPath.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Flowery.WinUI.Gallery");
-        }
-
-        private async void StartRuntimeTestsIfRequested(LaunchActivatedEventArgs args)
-        {
-            if (_window == null)
-            {
-                return;
-            }
-
-            if (!RuntimeTestArguments.TryGetRuntimeTestsPath(args.Arguments, RuntimeArguments, out var resultPath))
-            {
-                return;
-            }
-
-            try
-            {
-                var exitCode = await RuntimeTestRunner.RunAsync(_window, resultPath);
-                Environment.Exit(exitCode);
-            }
-            catch (Exception ex)
-            {
-                TryWriteRuntimeTestFailure(resultPath, ex);
-                Environment.Exit(1);
-            }
-        }
-
-        private static void TryWriteRuntimeTestFailure(string resultPath, Exception ex)
-        {
-            try
-            {
-                var report = new XDocument(
-                    new XElement("tests",
-                        new XAttribute("total", 1),
-                        new XAttribute("passed", 0),
-                        new XAttribute("failed", 1),
-                        new XElement("test",
-                            new XAttribute("name", "NativeGallery.Startup"),
-                            new XAttribute("outcome", "Failed"),
-                            new XElement("message", ex.ToString()))));
-                report.Save(resultPath);
-            }
-            catch
-            {
-                // Ignore write failures; exit code still signals failure.
-            }
         }
 
 #if GENERATE_PRODUCT_PALETTES
@@ -232,13 +152,6 @@ namespace Flowery.WinUI.Gallery
             // WinUI apps don't have a visible console by default. Log to VS Output (Debug) and a file.
             UnhandledException += (_, e) =>
             {
-                if (RuntimeTestArguments.TryGetRuntimeTestsPath(null, RuntimeArguments, out var resultPath))
-                {
-                    TryWriteRuntimeTestFailure(resultPath, e.Exception);
-                    Environment.Exit(1);
-                    return;
-                }
-
                 try
                 {
                     LogFatal("Application.UnhandledException", e.Exception);
@@ -282,20 +195,12 @@ namespace Flowery.WinUI.Gallery
             return true;
         }
 
-        private void EnsureGalleryResources(bool isRuntimeTests = false)
+        private void EnsureGalleryResources()
         {
             // GalleryResources includes XamlControlsResources and the native Flowery dictionary.
-            // Load it first so shared dependencies are available before Kanban resources.
-            var galleryOk = TryAddDictionary("ms-appx:///Flowery.WinUI.Gallery.Core/GalleryResources.xaml");
-
-            if (!galleryOk)
+            if (!TryAddDictionary("ms-appx:///Flowery.WinUI.Gallery.Core/GalleryResources.xaml"))
             {
                 throw new InvalidOperationException("Failed to load one or more gallery resource dictionaries.");
-            }
-
-            if (isRuntimeTests && !TryAddDictionary("ms-appx:///Flowery.WinUI.Kanban/Themes/Generic.xaml"))
-            {
-                throw new InvalidOperationException("Failed to load the Kanban runtime test resource dictionary.");
             }
         }
 
@@ -327,7 +232,7 @@ namespace Flowery.WinUI.Gallery
 
             try
             {
-                var dir = GetDiagnosticDirectory();
+                var dir = GetStateDirectory();
 
                 Directory.CreateDirectory(dir);
                 File.AppendAllText(IOPath.Combine(dir, "crash.log"), message);

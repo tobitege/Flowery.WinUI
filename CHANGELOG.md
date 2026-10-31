@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `DaisyResourceLookup.GetPaletteBrushes`, the time and duration parsers of `FloweryTimeHelpers` and the icon exporter compare their fixed prefixes ordinally instead of by the user's culture. The analyzer rule CA1310 reports such calls as warnings.
 - The tour editor and the Kanban task editor list enum values without code that NativeAOT cannot generate.
 - The color picker checkerboards fill whole rows of checks, and the Photos dominant colors sum each cluster in one pass instead of one LINQ pass per cluster, about three times as fast with a twelfth of the allocations; both give the same pixels and colors as before.
+- The runtime tests run in their own WinUI application, `Flowery.WinUI.RuntimeTests.Host`, which loads the Gallery resources, assets and fonts. The Gallery no longer contains the tests, MSTest or a test mode, so its published output ships without them. `test_windows.ps1` starts the host through the runner, which reads its path from `FLOWERY_RUNTIME_TESTS_HOST_PATH` instead of `FLOWERY_GALLERY_EXE_PATH`.
 
 ### Fixed
 

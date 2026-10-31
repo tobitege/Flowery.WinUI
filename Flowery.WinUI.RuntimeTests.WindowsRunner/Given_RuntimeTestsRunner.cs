@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -17,10 +17,10 @@ namespace Flowery.WinUI.RuntimeTests.WindowsRunner
         [TestMethod]
         public async Task When_Running_WindowsRuntimeTests_Succeeds()
         {
-            var executable = Environment.GetEnvironmentVariable("FLOWERY_GALLERY_EXE_PATH");
+            var executable = Environment.GetEnvironmentVariable("FLOWERY_RUNTIME_TESTS_HOST_PATH");
             if (string.IsNullOrWhiteSpace(executable) || !File.Exists(executable))
             {
-                Assert.Fail("Set FLOWERY_GALLERY_EXE_PATH to the prebuilt native Gallery executable. Use scripts/test_windows.ps1.");
+                Assert.Fail("Set FLOWERY_RUNTIME_TESTS_HOST_PATH to the prebuilt Flowery.WinUI.RuntimeTests.Host executable. Use scripts/test_windows.ps1.");
             }
 
             var runDirectory = Environment.GetEnvironmentVariable("FLOWERY_TEST_RESULTS_ROOT");
@@ -109,7 +109,7 @@ namespace Flowery.WinUI.RuntimeTests.WindowsRunner
             // Inconclusive tests could not set up their scenario in this environment; scripts/test_windows.ps1 reports them as warnings.
             Assert.AreEqual(passed, tests.Count(test => (string?)test.Attribute("outcome") == "Passed"));
             Assert.AreEqual(inconclusive, tests.Count(test => (string?)test.Attribute("outcome") == "Inconclusive"));
-            Assert.AreEqual(0, process.ExitCode, "The native Gallery returned a nonzero exit code.");
+            Assert.AreEqual(0, process.ExitCode, "The runtime test host returned a nonzero exit code.");
         }
     }
 }
