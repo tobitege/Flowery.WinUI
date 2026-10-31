@@ -1,9 +1,12 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -63,7 +66,7 @@ namespace Flowery.Effects
         {
             await ReadFrameAsync();
             var result = await _session!.RequestAsync("compile", null);
-            return result.Deserialize<string[]>() ?? [];
+            return result.Deserialize(CarouselGlJsonContext.Default.StringArray) ?? [];
         }
 
         protected static string ReadEmbeddedText(Assembly assembly, string resourceName)
@@ -242,7 +245,8 @@ namespace Flowery.Effects
         public CarouselGlSession(string engineScript, IReadOnlyDictionary<string, string>? shaders)
         {
             var bridge = CarouselGlNativeHost.ReadBridgeScript();
-            var shaderJson = JsonSerializer.Serialize(shaders ?? new Dictionary<string, string>());
+            var shaderJson = JsonSerializer.Serialize(shaders ?? new Dictionary<string, string>(),
+                CarouselGlJsonContext.Default.IReadOnlyDictionaryStringString);
             _document = "<!doctype html><html><head><meta charset='utf-8'><style>"
                 + "html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}"
                 + "canvas{display:block;pointer-events:none}</style></head><body><script>"
@@ -287,10 +291,27 @@ namespace Flowery.Effects
             _requests.Add(id, completion);
             try
             {
-                View.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(new { id, command, payload }));
+                View.CoreWebView2.PostWebMessageAsJson(CreateRequestJson(id, command, payload));
                 return await completion.Task.WaitAsync(TimeSpan.FromSeconds(30));
             }
             finally { _requests.Remove(id); }
+        }
+
+        // Writes { id, command, payload } through the generated JSON metadata, so trimming and AOT keep the payload types.
+        internal static string CreateRequestJson(int id, string command, object? payload)
+        {
+            var buffer = new ArrayBufferWriter<byte>();
+            using (var writer = new Utf8JsonWriter(buffer))
+            {
+                writer.WriteStartObject();
+                writer.WriteNumber("id", id);
+                writer.WriteString("command", command);
+                writer.WritePropertyName("payload");
+                if (payload is null) writer.WriteNullValue();
+                else JsonSerializer.Serialize(writer, payload, payload.GetType(), CarouselGlJsonContext.Default);
+                writer.WriteEndObject();
+            }
+            return Encoding.UTF8.GetString(buffer.WrittenSpan);
         }
 
         private void OnWebMessage(CoreWebView2 sender, CoreWebView2WebMessageReceivedEventArgs args)
@@ -341,4 +362,11 @@ namespace Flowery.Effects
             View.Close();
         }
     }
+
+    [JsonSerializable(typeof(bool))]
+    [JsonSerializable(typeof(double))]
+    [JsonSerializable(typeof(CarouselGlConfiguration))]
+    [JsonSerializable(typeof(IReadOnlyDictionary<string, string>))]
+    [JsonSerializable(typeof(string[]))]
+    internal sealed partial class CarouselGlJsonContext : JsonSerializerContext;
 }

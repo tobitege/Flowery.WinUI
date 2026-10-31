@@ -1,4 +1,4 @@
-using Microsoft.UI.Xaml.Automation.Peers;
+﻿using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Automation.Provider;
 
 namespace Flowery.WinUI.Kanban.Controls
@@ -7,7 +7,7 @@ namespace Flowery.WinUI.Kanban.Controls
     {
         protected override AutomationPeer OnCreateAutomationPeer() => new BoardAutomationPeer(this);
 
-        private sealed class BoardAutomationPeer : FrameworkElementAutomationPeer, ISelectionProvider
+        private sealed partial class BoardAutomationPeer : FrameworkElementAutomationPeer, ISelectionProvider
         {
             private readonly FlowKanban _owner;
             public BoardAutomationPeer(FlowKanban owner) : base(owner) => _owner = owner;
@@ -55,7 +55,7 @@ namespace Flowery.WinUI.Kanban.Controls
             }
         }
 
-        private sealed class VirtualTaskSelectionPeer : FrameworkElementAutomationPeer, ISelectionItemProvider
+        private sealed partial class VirtualTaskSelectionPeer : FrameworkElementAutomationPeer, ISelectionItemProvider
         {
             private readonly FlowKanban _owner;
             private readonly FlowTask _task;

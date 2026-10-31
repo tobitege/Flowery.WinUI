@@ -5,6 +5,11 @@
     <UseWinUI>true</UseWinUI>
     <OutputType>Library</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- WMC1510 asks for x:DataType on every {Binding} of the templates. They bind to dependency properties
+         (TemplatedParent, ElementName, a brush resource) or to the [Bindable] ThemePreviewInfo, which WinUI resolves
+         through the generated XAML metadata, also in a NativeAOT app. -->
+    <NoWarn>$(NoWarn);WMC1510</NoWarn>
     <GenerateLibraryLayout>true</GenerateLibraryLayout>
     <PackageId>Flowery.WinUI</PackageId>
     <Description>Themed native WinUI 3 controls for Windows.</Description>

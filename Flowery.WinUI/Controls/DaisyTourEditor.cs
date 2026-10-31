@@ -843,12 +843,24 @@ public sealed partial class DaisyTourEditor : ContentControl
         return resolved.Value;
     }
 
+    // Enum.GetValues(Type) needs code generated at run time under AOT; the underlying values do not.
+    private static object[] SelectableEnumValues(Type type)
+    {
+        List<object> values = [];
+        foreach (var underlying in Enum.GetValuesAsUnderlyingType(type))
+        {
+            var value = Enum.ToObject(type, underlying);
+            if (value.ToString() != "Default") values.Add(value);
+        }
+        return [.. values];
+    }
+
     private FrameworkElement BuildInput(string name, object? value)
     {
         var type = DaisyTourProfileResolver.ValueType(name);
         if (type?.IsEnum == true)
         {
-            var combo = new DaisySelect { ItemsSource = Enum.GetValues(type).Cast<object>().Where(item => item.ToString() != "Default").ToArray() };
+            var combo = new DaisySelect { ItemsSource = SelectableEnumValues(type) };
             Compact(combo);
             combo.SelectedItem = value;
             combo.SelectionChanged += (_, _) => { if (combo.SelectedItem is { } selected) EditInput(name, selected, combo); };
@@ -1098,7 +1110,7 @@ public sealed partial class DaisyTourEditor : ContentControl
         if (!DispatcherQueue.HasThreadAccess) throw new InvalidOperationException("Tour editor operations require the WinUI dispatcher thread.");
     }
 
-    private sealed class ResizeGrip : Grid
+    private sealed partial class ResizeGrip : Grid
     {
         public ResizeGrip() => ProtectedCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast);
     }

@@ -27,6 +27,13 @@ resharper_check_namespace_highlighting = none
 # Using collection initializers is not possible in these cases.
 dotnet_diagnostic.IDE0028.severity = none
 
+# CA1310: Specify StringComparison for correctness
+# string.Compare, CompareTo, StartsWith(string), EndsWith(string), IndexOf(string) and LastIndexOf(string) compare
+# by the user's culture unless told otherwise, which is slower and differs between cultures. Pass a StringComparison
+# or a StringComparer. CA1307 stays off: it also flags calls that are ordinal already, such as Contains(string),
+# Replace(string, string) and IndexOf(char).
+dotnet_diagnostic.CA1310.severity = warning
+
 # XAML files
 [*.xaml]
 indent_style = space

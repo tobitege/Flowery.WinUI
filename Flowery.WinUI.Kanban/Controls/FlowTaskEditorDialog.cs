@@ -500,7 +500,7 @@ namespace Flowery.WinUI.Kanban.Controls
                 HorizontalAlignment = HorizontalAlignment.Stretch
             };
             AutomationProperties.SetLabeledBy(priorityCombo, priorityLabel);
-            var priorityValues = Enum.GetValues(typeof(FlowTaskPriority)).Cast<FlowTaskPriority>().ToArray();
+            var priorityValues = Enum.GetValues<FlowTaskPriority>();
             foreach (var p in priorityValues)
             {
                 priorityCombo.Items.Add(new DaisySelectItem { Text = p.ToString(), Tag = p });

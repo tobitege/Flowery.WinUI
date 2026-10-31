@@ -5,19 +5,26 @@ param(
     [ValidateRange(0, 16)][int]$Monitor = 0,
     [ValidateSet('Full', 'UpperHalf', 'LowerHalf')][string]$WindowRegion = 'LowerHalf',
     [string]$SdkVersion,
-    [string]$DotNetPath
+    [string]$DotNetPath,
+    [string]$ExecutablePath
 )
 
 $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) { throw 'Run this script in native PowerShell 7 on Windows.' }
 $repoRoot = Split-Path -Parent $PSScriptRoot
-if (-not $SkipBuild) {
-    $buildScript = Join-Path $PSScriptRoot 'build_all.ps1'
-    & $buildScript -Configuration $Configuration -NoRun -SdkVersion $SdkVersion -DotNetPath $DotNetPath
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+if ($ExecutablePath) {
+    # A published Kiosk, such as the NativeAOT output of publish_windows.ps1 -Aot; the script builds nothing.
+    $executable = (Resolve-Path -LiteralPath $ExecutablePath -ErrorAction Stop).Path
 }
-$relative = 'bin\{0}\Flowery.WinUI.Kiosk\net10.0-windows10.0.19041\win-x64\Flowery.WinUI.Kiosk.exe' -f $Configuration
-$executable = Join-Path $repoRoot $relative
+else {
+    if (-not $SkipBuild) {
+        $buildScript = Join-Path $PSScriptRoot 'build_all.ps1'
+        & $buildScript -Configuration $Configuration -NoRun -SdkVersion $SdkVersion -DotNetPath $DotNetPath
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
+    $relative = 'bin\{0}\Flowery.WinUI.Kiosk\net10.0-windows10.0.19041\win-x64\Flowery.WinUI.Kiosk.exe' -f $Configuration
+    $executable = Join-Path $repoRoot $relative
+}
 if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) { throw ('Kiosk executable is missing. Build the solution first: {0}' -f $executable) }
 $runId = '{0}-{1}' -f (Get-Date -Format 'yyyyMMdd-HHmmss-fff'), ([Guid]::NewGuid().ToString('N').Substring(0, 8))
 $resultsRoot = Join-Path $repoRoot ('TestResults\Kiosk\{0}\{1}' -f $Configuration, $runId)

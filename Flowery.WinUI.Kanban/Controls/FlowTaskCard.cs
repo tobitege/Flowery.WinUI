@@ -58,7 +58,7 @@ namespace Flowery.WinUI.Kanban.Controls
 
         protected override AutomationPeer OnCreateAutomationPeer() => new TaskCardAutomationPeer(this);
 
-        private sealed class TaskCardAutomationPeer : FrameworkElementAutomationPeer, IInvokeProvider, ISelectionItemProvider
+        private sealed partial class TaskCardAutomationPeer : FrameworkElementAutomationPeer, IInvokeProvider, ISelectionItemProvider
         {
             private readonly FlowTaskCard _owner;
             public TaskCardAutomationPeer(FlowTaskCard owner) : base(owner) => _owner = owner;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using Flowery.Services;
@@ -536,18 +536,18 @@ namespace Flowery.Controls.ColorPicker
         }
 
 #if WINDOWS
-        [DllImport("user32.dll")]
-        private static extern IntPtr GetDC(IntPtr hwnd);
+        [LibraryImport("user32.dll")]
+        private static partial IntPtr GetDC(IntPtr hwnd);
 
-        [DllImport("user32.dll")]
-        private static extern int ReleaseDC(IntPtr hwnd, IntPtr hdc);
+        [LibraryImport("user32.dll")]
+        private static partial int ReleaseDC(IntPtr hwnd, IntPtr hdc);
 
-        [DllImport("gdi32.dll")]
-        private static extern uint GetPixel(IntPtr hdc, int x, int y);
+        [LibraryImport("gdi32.dll")]
+        private static partial uint GetPixel(IntPtr hdc, int x, int y);
 
-        [DllImport("user32.dll")]
+        [LibraryImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool GetCursorPos(out POINT lpPoint);
+        private static partial bool GetCursorPos(out POINT lpPoint);
 
         [StructLayout(LayoutKind.Sequential)]
         private struct POINT

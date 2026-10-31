@@ -4,6 +4,7 @@ param(
     [ValidateSet('win-x64')][string]$RuntimeIdentifier = 'win-x64',
     [ValidateSet('Gallery', 'Kiosk', 'Photos')][string]$Application = 'Gallery',
     [bool]$SelfContained = $true,
+    [switch]$Aot,
     [string]$OutputDir = 'publish',
     [switch]$VerboseOutput,
     [string]$SdkVersion,
@@ -25,6 +26,13 @@ $publishArgs = @($project, '-t:Publish', '-restore', '-nologo', '-nodeReuse:fals
     ('-p:Configuration={0}' -f $Configuration), ('-p:RuntimeIdentifier={0}' -f $RuntimeIdentifier),
     ('-p:SelfContained={0}' -f $SelfContained.ToString().ToLowerInvariant()), '-p:Platform=x64',
     '-p:WindowsPackageType=None', ('-p:PublishDir={0}' -f $publishDirectory))
+if ($Aot) {
+    # The Gallery stays a JIT app: its runtime tests load into its process, and many example pages bind to plain models.
+    if ($Application -eq 'Gallery') { throw 'Only the Kiosk and Photos have a NativeAOT publish.' }
+    if (-not $SelfContained) { throw 'A NativeAOT publish is always self-contained; omit -SelfContained:$false.' }
+    # The application project turns this into PublishAot (see its project file); the libraries stay normal builds.
+    $publishArgs += '-p:FloweryPublishAot=true'
+}
 if (-not (Invoke-MSBuildOperation -Title ('Publish {0}' -f $projectName) -Arguments $publishArgs)) {
     Write-BuildFailure ('{0} publish' -f $projectName)
     exit 1

@@ -19,6 +19,21 @@ namespace Flowery.WinUI.RuntimeTests.Controls
     public class Given_NativeGl
     {
         [TestMethod]
+        public void When_ARequestIsWritten_ItsJsonMatchesTheReflectionSerializer()
+        {
+            var configuration = new CarouselGlConfiguration("webgl", "transition", "fade", null,
+                new Dictionary<string, string> { ["front"] = "data:image/png;base64,AA==", ["<back>"] = "a\"b" },
+                3.5, 1.25, StaggerMs: 12.5);
+            object?[] payloads = [null, true, false, 0.05, 2d, configuration];
+            foreach (var payload in payloads)
+            {
+                // The engine script reads the names and values that the reflection serializer wrote before.
+                var expected = System.Text.Json.JsonSerializer.Serialize(new { id = 7, command = "configure", payload });
+                Assert.AreEqual(expected, CarouselGlSession.CreateRequestJson(7, "configure", payload), payload?.ToString() ?? "null");
+            }
+        }
+
+        [TestMethod]
         public async Task When_AllRegisteredGlEffectsSelected_NativeGpuDrawsTheirFrames()
         {
             CarouselGlGalleryPresets.EnsureRegistered();

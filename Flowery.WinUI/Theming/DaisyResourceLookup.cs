@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using Flowery.Controls;
@@ -1051,7 +1051,7 @@ namespace Flowery.Theming
             var backgroundBrush = GetBrush($"Daisy{paletteName}Brush");
 
             // Base100/Base200/Base300 all use BaseContent
-            var contentBrushName = paletteName.StartsWith("Base")
+            var contentBrushName = paletteName.StartsWith("Base", StringComparison.Ordinal)
                 ? "DaisyBaseContentBrush"
                 : $"Daisy{paletteName}ContentBrush";
             var contentBrush = GetBrush(contentBrushName);

@@ -6,6 +6,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0] - 2026-10-31
+
+### Added
+
+- NativeAOT for the Kiosk and Photos: `publish_windows.ps1 -Aot` compiles either application ahead of time into one native executable, without the .NET runtime and JIT; the Kiosk window appears in about a third of the time. The release workflow publishes `Flowery.WinUI.Kiosk-Windows-x64.zip`, `Flowery.WinUI.Photos-Windows-x64.zip` and the Photos installer this way. CI publishes both applications with NativeAOT and runs the Kiosk smoke checks on the NativeAOT Kiosk; `test_kiosk.ps1 -ExecutablePath` runs them on any published Kiosk. The Gallery stays a JIT application.
+- `Flowery.WinUI` and `Flowery.WinUI.Win2D` are marked AOT-compatible (`IsAotCompatible`), so their builds run the trimming, AOT and CsWinRT AOT analyzers; both build without such warnings.
+- `FloweryLocalization` carries `[WinRT.GeneratedBindableCustomProperty]`, so `{Binding [Key]}` resolves its texts in a NativeAOT app. `LOCALIZATION.md` shows the attribute on an app's own localization class, and `llms-static/DaisySelect.md` shows how a NativeAOT app passes its own item lists to `ItemsSource`.
+
+### Changed
+
+- The GL hosts (`CarouselGlEffectHost`, Gallery `CarouselGlTransitionHost`) write their requests and shader sources through source-generated JSON metadata instead of reflection; the messages the engine script reads stay the same.
+- Native calls use source-generated `LibraryImport` instead of `DllImport`, in `DaisyScreenColorPicker` and in the Gallery, Kiosk and Photos.
+- `DaisyResourceLookup.GetPaletteBrushes`, the time and duration parsers of `FloweryTimeHelpers` and the icon exporter compare their fixed prefixes ordinally instead of by the user's culture. The analyzer rule CA1310 reports such calls as warnings.
+- The tour editor and the Kanban task editor list enum values without code that NativeAOT cannot generate.
+- The color picker checkerboards fill whole rows of checks, and the Photos dominant colors sum each cluster in one pass instead of one LINQ pass per cluster, about three times as fast with a twelfth of the allocations; both give the same pixels and colors as before.
+
+### Fixed
+
+- `FloweryTimeHelpers.TryParseTime` reads the AM/PM labels of every language: it removes the whole label, whatever its length, and also a label before the time, where `FormatClockTime` puts it in right-to-left languages. Before, it always removed two characters and only at the end, so the clock texts of Arabic and Hebrew did not parse back, and `10:30ص` lost its last digit.
+
 ## [1.12.0] - 2026-10-30
 
 ### Added

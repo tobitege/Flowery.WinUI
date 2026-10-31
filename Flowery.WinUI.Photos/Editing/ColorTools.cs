@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text;
 using Microsoft.Graphics.Canvas;
 
@@ -150,8 +150,12 @@ namespace Flowery.WinUI.Photos.Editing
 
             // Deterministic seeding spread over the sample.
             var k = Math.Min(count, points.Count);
+            if (k == 0)
+                return [];
             var centers = Enumerable.Range(0, k).Select(i => points[i * points.Count / k]).ToArray();
             var assignment = new int[points.Count];
+            var sums = new Vector3[k];
+            var memberCounts = new int[k];
             for (var iteration = 0; iteration < 12; iteration++)
             {
                 for (var p = 0; p < points.Count; p++)
@@ -169,16 +173,23 @@ namespace Flowery.WinUI.Photos.Editing
                     }
                     assignment[p] = best;
                 }
+                // One pass sums every cluster, in the same point order as before.
+                Array.Clear(sums);
+                Array.Clear(memberCounts);
+                for (var p = 0; p < points.Count; p++)
+                {
+                    sums[assignment[p]] += points[p];
+                    memberCounts[assignment[p]]++;
+                }
                 for (var c = 0; c < k; c++)
                 {
-                    var members = points.Where((_, idx) => assignment[idx] == c).ToList();
-                    if (members.Count > 0)
-                        centers[c] = members.Aggregate(Vector3.Zero, (a, v) => a + v) / members.Count;
+                    if (memberCounts[c] > 0)
+                        centers[c] = sums[c] / memberCounts[c];
                 }
             }
 
             return [.. Enumerable.Range(0, k)
-                .OrderByDescending(c => assignment.Count(a => a == c))
+                .OrderByDescending(c => memberCounts[c])
                 .Select(c => Color.FromArgb(255, (byte)centers[c].X, (byte)centers[c].Y, (byte)centers[c].Z))];
         }
 

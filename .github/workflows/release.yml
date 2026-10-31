@@ -128,9 +128,13 @@ jobs:
         run: Compress-Archive -Path ./publish/* -DestinationPath ./Flowery.WinUI.Gallery-Windows-x64.zip
         shell: pwsh
 
-      - name: Publish Kiosk App (Windows)
+      - name: Publish Kiosk App (Windows, NativeAOT)
         shell: pwsh
-        run: ./scripts/publish_windows.ps1 -Application Kiosk -Configuration Release -OutputDir publish-kiosk -SdkVersion '${{ inputs.sdk_version }}'
+        run: ./scripts/publish_windows.ps1 -Application Kiosk -Configuration Release -Aot -OutputDir publish-kiosk -SdkVersion '${{ inputs.sdk_version }}'
+
+      - name: Run native Kiosk tests on the NativeAOT build
+        shell: pwsh
+        run: ./scripts/test_kiosk.ps1 -Configuration Release -ExecutablePath ./publish-kiosk/Flowery.WinUI.Kiosk.exe
 
       - name: Zip Kiosk artifact
         shell: pwsh
@@ -166,8 +170,8 @@ jobs:
             10.0.402
             ${{ inputs.sdk_version }}
 
-      - name: Publish Photos App (Windows)
-        run: ./scripts/publish_windows.ps1 -Application Photos -Configuration Release -OutputDir publish-photos -SdkVersion '${{ inputs.sdk_version }}'
+      - name: Publish Photos App (Windows, NativeAOT)
+        run: ./scripts/publish_windows.ps1 -Application Photos -Configuration Release -Aot -OutputDir publish-photos -SdkVersion '${{ inputs.sdk_version }}'
 
       - name: Zip Photos artifact
         run: |

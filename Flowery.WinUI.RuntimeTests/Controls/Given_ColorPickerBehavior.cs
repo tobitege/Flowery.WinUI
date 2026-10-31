@@ -10,6 +10,28 @@ namespace Flowery.WinUI.RuntimeTests.Controls
     public class Given_ColorPickerBehavior
     {
         [TestMethod]
+        public void When_ACheckerboardIsCreated_EveryPixelHasTheColorOfItsCheck()
+        {
+            var light = Color.FromArgb(255, 250, 240, 230);
+            var dark = Color.FromArgb(200, 10, 20, 30);
+            foreach (var (width, height, checkSize) in new[] { (1, 1, 4), (7, 5, 4), (50, 40, 6), (13, 9, 1), (3, 8, 4) })
+            {
+                var pixels = ColorPickerRendering.CreateCheckerboardPixels(width, height, checkSize, light, dark);
+                Assert.HasCount(width * height * 4, pixels);
+                for (var y = 0; y < height; y++)
+                {
+                    for (var x = 0; x < width; x++)
+                    {
+                        var expected = ((x / checkSize) + (y / checkSize)) % 2 == 0 ? light : dark;
+                        var offset = (y * width + x) * 4;
+                        var actual = Color.FromArgb(pixels[offset + 3], pixels[offset + 2], pixels[offset + 1], pixels[offset]);
+                        Assert.AreEqual(expected, actual, $"{width}x{height}/{checkSize} at {x},{y}");
+                    }
+                }
+            }
+        }
+
+        [TestMethod]
         public void When_ColorEditorColorIsAssigned_ComponentsAndHexFollow()
         {
             // Every assignment raises ColorChanged once: the handlers lock out the nested component updates

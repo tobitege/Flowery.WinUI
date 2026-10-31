@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -18,6 +18,8 @@ namespace Flowery.Localization
     /// Uses embedded JSON resources for cross-platform compatibility.
     /// </summary>
     [Microsoft.UI.Xaml.Data.Bindable]
+    // A NativeAOT build resolves {Binding [Key]} only through the generated property provider.
+    [WinRT.GeneratedBindableCustomProperty]
     public partial class FloweryLocalization : INotifyPropertyChanged
     {
         /// <summary>

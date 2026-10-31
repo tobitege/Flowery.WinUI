@@ -180,7 +180,8 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-public class MyAppLocalization : INotifyPropertyChanged
+[WinRT.GeneratedBindableCustomProperty]
+public partial class MyAppLocalization : INotifyPropertyChanged
 {
     private static CultureInfo _currentCulture = CultureInfo.CurrentUICulture;
     private static readonly Dictionary<string, Dictionary<string, string>> _translations = new();
@@ -254,6 +255,11 @@ internal partial class LocalizationJsonContext : JsonSerializerContext { }
 ```
 
 The JsonSerializerContext source generator avoids reflection-based JSON metadata when trimming or AOT disables that metadata.
+
+`[WinRT.GeneratedBindableCustomProperty]` on the `partial` class makes `{Binding [Key]}` work in a NativeAOT app.
+Without it, the app finds the indexer only through reflection, so a NativeAOT build shows empty texts.
+`[Microsoft.UI.Xaml.Data.Bindable]` alone does not cover the indexer.
+`FloweryLocalization` and the Photos app's `PhotosLocalization` carry the attribute.
 
 ---
 

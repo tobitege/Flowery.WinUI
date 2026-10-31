@@ -1,4 +1,4 @@
-using Flowery.WinUI.Photos.Services;
+﻿using Flowery.WinUI.Photos.Services;
 using Microsoft.UI.Windowing;
 using Windows.Graphics;
 
@@ -12,6 +12,7 @@ namespace Flowery.WinUI.Photos
         private static readonly IntPtr MinimumSizeSubclassId = new(1);
         private IntPtr _windowHandle;
         private SUBCLASSPROC? _minSizeSubclassProc;
+        private IntPtr _minSizeSubclassPointer;
         private bool _isSystemMinSizeActive;
         private bool _suppressBoundsSave;
         private bool _isActive;
@@ -137,9 +138,9 @@ namespace Flowery.WinUI.Photos
             DaisyThemeManager.ThemeChanged -= OnThemeChanged;
             Shell.Shutdown();
 
-            if (_isSystemMinSizeActive && _windowHandle != IntPtr.Zero && _minSizeSubclassProc != null)
+            if (_isSystemMinSizeActive && _windowHandle != IntPtr.Zero && _minSizeSubclassPointer != IntPtr.Zero)
             {
-                RemoveWindowSubclass(_windowHandle, _minSizeSubclassProc, MinimumSizeSubclassId);
+                RemoveWindowSubclass(_windowHandle, _minSizeSubclassPointer, MinimumSizeSubclassId);
                 _isSystemMinSizeActive = false;
             }
         }
@@ -228,8 +229,13 @@ namespace Flowery.WinUI.Photos
             if (_windowHandle == IntPtr.Zero)
                 return;
 
-            _minSizeSubclassProc ??= MinimumSizeSubclassProc;
-            _isSystemMinSizeActive = SetWindowSubclass(_windowHandle, _minSizeSubclassProc, MinimumSizeSubclassId, IntPtr.Zero);
+            if (_minSizeSubclassProc is null)
+            {
+                // The delegate field keeps the callback alive while Windows holds its pointer.
+                _minSizeSubclassProc = MinimumSizeSubclassProc;
+                _minSizeSubclassPointer = Marshal.GetFunctionPointerForDelegate(_minSizeSubclassProc);
+            }
+            _isSystemMinSizeActive = SetWindowSubclass(_windowHandle, _minSizeSubclassPointer, MinimumSizeSubclassId, IntPtr.Zero);
         }
 
         private IntPtr MinimumSizeSubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, IntPtr uIdSubclass, IntPtr dwRefData)
@@ -258,20 +264,22 @@ namespace Flowery.WinUI.Photos
             }
         }
 
-        [DllImport("user32.dll")]
-        private static extern uint GetDpiForWindow(IntPtr hWnd);
+        [LibraryImport("user32.dll")]
+        private static partial uint GetDpiForWindow(IntPtr hWnd);
 
-        [DllImport("dwmapi.dll")]
-        private static extern int DwmSetWindowAttribute(IntPtr hWnd, int attribute, ref uint value, int size);
+        [LibraryImport("dwmapi.dll")]
+        private static partial int DwmSetWindowAttribute(IntPtr hWnd, int attribute, ref uint value, int size);
 
-        [DllImport("comctl32.dll", SetLastError = true)]
-        private static extern bool SetWindowSubclass(IntPtr hWnd, SUBCLASSPROC pfnSubclass, IntPtr uIdSubclass, IntPtr dwRefData);
+        [LibraryImport("comctl32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool SetWindowSubclass(IntPtr hWnd, IntPtr pfnSubclass, IntPtr uIdSubclass, IntPtr dwRefData);
 
-        [DllImport("comctl32.dll")]
-        private static extern bool RemoveWindowSubclass(IntPtr hWnd, SUBCLASSPROC pfnSubclass, IntPtr uIdSubclass);
+        [LibraryImport("comctl32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool RemoveWindowSubclass(IntPtr hWnd, IntPtr pfnSubclass, IntPtr uIdSubclass);
 
-        [DllImport("comctl32.dll")]
-        private static extern IntPtr DefSubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
+        [LibraryImport("comctl32.dll")]
+        private static partial IntPtr DefSubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
 
         private delegate IntPtr SUBCLASSPROC(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, IntPtr uIdSubclass, IntPtr dwRefData);
 

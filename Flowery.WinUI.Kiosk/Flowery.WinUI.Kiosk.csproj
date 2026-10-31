@@ -17,6 +17,12 @@
          runtime packs, which the SDK fetches in case a reference needs them; the app uses neither framework. -->
     <DisableTransitiveFrameworkReferenceDownloads>true</DisableTransitiveFrameworkReferenceDownloads>
   </PropertyGroup>
+  <!-- publish_windows.ps1 -Aot: a NativeAOT publish. The property is not PublishAot itself, which as a global
+       property would also turn the referenced libraries into AOT builds. The native symbols stay in the build output. -->
+  <PropertyGroup Condition="'$(FloweryPublishAot)' == 'true'">
+    <PublishAot>true</PublishAot>
+    <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Flowery.WinUI\Flowery.WinUI.csproj" />
     <ProjectReference Include="..\Flowery.WinUI.Win2D\Flowery.WinUI.Win2D.csproj" />

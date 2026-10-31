@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -10,7 +10,9 @@ namespace Flowery.WinUI.Photos.Localization
     /// Mirrors the Gallery localization pattern: bind with {Binding [Key]} and DataContext = Localization.
     /// </summary>
     [Microsoft.UI.Xaml.Data.Bindable]
-    public class PhotosLocalization : INotifyPropertyChanged
+    // A NativeAOT build resolves {Binding [Key]} only through the generated property provider.
+    [WinRT.GeneratedBindableCustomProperty]
+    public partial class PhotosLocalization : INotifyPropertyChanged
     {
         private static string _currentCultureName = "en";
         private static readonly Dictionary<string, Dictionary<string, string>> _translations = [];

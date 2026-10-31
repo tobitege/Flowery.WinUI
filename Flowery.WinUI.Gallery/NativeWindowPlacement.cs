@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
@@ -6,7 +7,7 @@ using Windows.Graphics;
 
 namespace Flowery.WinUI.Gallery;
 
-internal static class NativeWindowPlacement
+internal static partial class NativeWindowPlacement
 {
     public static string? ApplyIfRequested(Window window)
     {
@@ -28,15 +29,12 @@ internal static class NativeWindowPlacement
         {
             var display = displays[index];
             var monitor = Win32Interop.GetMonitorFromDisplayId(display.DisplayId);
-            var information = new MonitorInfoEx
-            {
-                Size = (uint)Marshal.SizeOf<MonitorInfoEx>(),
-                DeviceName = string.Empty
-            };
+            var information = new MonitorInfoEx { Size = (uint)Marshal.SizeOf<MonitorInfoEx>() };
             if (!GetMonitorInfo(monitor, ref information))
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to read Windows monitor information.");
 
-            if (string.Equals(information.DeviceName, requestedDevice, StringComparison.OrdinalIgnoreCase))
+            ReadOnlySpan<ushort> deviceName = information.DeviceName;
+            if (TrimAtNull(MemoryMarshal.Cast<ushort, char>(deviceName)).Equals(requestedDevice, StringComparison.OrdinalIgnoreCase))
             {
                 selected = display;
                 break;
@@ -77,19 +75,32 @@ internal static class NativeWindowPlacement
 
     private static string Format(RectInt32 bounds) => $"{bounds.X},{bounds.Y},{bounds.Width},{bounds.Height}";
 
-    [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [LibraryImport("user32.dll", EntryPoint = "GetMonitorInfoW", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfoEx information);
+    private static partial bool GetMonitorInfo(IntPtr monitor, ref MonitorInfoEx information);
 
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    [StructLayout(LayoutKind.Sequential)]
     private struct MonitorInfoEx
     {
         public uint Size;
         public NativeRect Monitor;
         public NativeRect WorkArea;
         public uint Flags;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
-        public string DeviceName;
+        public DeviceNameBuffer DeviceName;
+    }
+
+    // MONITORINFOEXW.szDevice: 32 UTF-16 characters, terminated by a null character when shorter. The elements are
+    // ushort, as the generated marshalling copies only blittable structs and does not count char as blittable.
+    [InlineArray(32)]
+    private struct DeviceNameBuffer
+    {
+        private ushort _element;
+    }
+
+    private static ReadOnlySpan<char> TrimAtNull(ReadOnlySpan<char> text)
+    {
+        var end = text.IndexOf('\0');
+        return end < 0 ? text : text[..end];
     }
 
     [StructLayout(LayoutKind.Sequential)]
