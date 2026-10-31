@@ -11,10 +11,10 @@ public sealed class Given_RuntimeTestReport
     [TestMethod]
     public void When_TheHostCannotRunTheTests_ItsReportPassesTheRunnerChecksAndNamesTheCause()
     {
-        var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"runtime-report-{System.Guid.NewGuid():N}.xml");
+        var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"runtime-report-{Guid.NewGuid():N}.xml");
         try
         {
-            RuntimeTestRunner.WriteStartupFailure(path, new System.InvalidOperationException("No window"));
+            RuntimeTestRunner.WriteHostFailure(path, new InvalidOperationException("No window"));
 
             // The checks of Given_RuntimeTestsRunner: every count is present and they add up to the test entries.
             var root = XDocument.Load(path).Root!;
