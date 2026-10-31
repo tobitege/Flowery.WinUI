@@ -12,9 +12,10 @@ namespace Flowery.Helpers
     internal static class WinUIItemsSource
     {
         /// <summary>
-        /// Returns a copy of a plain list as a <see cref="List{T}"/> of <see cref="object"/>, with the same items in the
-        /// same order. WinUI follows no change of a plain list anyway. A collection that reports its changes, a string
-        /// and anything that is no list stay as they are.
+        /// Returns a copy of a sequence (any <see cref="IEnumerable"/>, such as an array, a list or a query) as a
+        /// <see cref="List{T}"/> of <see cref="object"/>, with the same items in the same order; WinUI follows no change
+        /// of such a sequence anyway. A collection that reports its changes, a string and a value that is no sequence
+        /// stay as they are.
         /// </summary>
         public static object? For(object? source) => source switch
         {

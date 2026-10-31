@@ -6,7 +6,7 @@ namespace Flowery.WinUI.Photos.Views
     /// A localized option for <see cref="DaisySelect"/>; ToString provides the display text.
     /// </summary>
     [Microsoft.UI.Xaml.Data.Bindable]
-    public sealed partial class SelectOption(object key, string text)
+    public sealed class SelectOption(object key, string text)
     {
         public object Key { get; } = key;
         public string Text { get; } = text;

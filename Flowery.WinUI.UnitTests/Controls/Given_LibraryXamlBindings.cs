@@ -13,8 +13,11 @@ namespace Flowery.WinUI.UnitTests.Controls
     /// Stands in for the XAML compiler's trimming check WMC1510, which Flowery.WinUI, Flowery.WinUI.Kanban and the
     /// Gallery pages suppress: the XBF generator of this Windows App SDK rejects both remedies the warning names
     /// (x:SuppressXamlTrimWarnings, and x:DataType in a dictionary without code-behind). A {Binding} must reach its source
-    /// without reflection, so a NativeAOT app resolves it: through a dependency property, the generated property provider
-    /// of a localization ({Binding [Key]}), or a [Bindable] item type, whose properties the generated XAML metadata reads.
+    /// without reflection, so a NativeAOT app resolves it: the generated property provider of a localization
+    /// ({Binding [Key]}); item types along the whole path that are [Bindable] (and not nested, which the generated XAML
+    /// metadata leaves out) or have the generated provider; and the generated provider on every Flowery control that a
+    /// binding reads by property name (TemplatedParent, ElementName), whose own XAML metadata covers only the members the
+    /// compiler saw in markup.
     /// </summary>
     [TestClass]
     public class Given_LibraryXamlBindings
@@ -113,14 +116,17 @@ namespace Flowery.WinUI.UnitTests.Controls
                     {
                         if (BindingPath(attribute.Value) is not { Length: > 0 } path || path.StartsWith('(') || path.StartsWith('['))
                             continue;
-                        if (SourceType(attribute, names) is not { } type)
+                        var line = $"{Path.GetFileName(file)}({((IXmlLineInfo)attribute).LineNumber}): {attribute.Value}";
+                        var type = SourceType(attribute, names, out var sourceProblem);
+                        if (sourceProblem is not null)
+                            problems.Add($"{line} - {sourceProblem}");
+                        if (type is null)
                             continue;
 
                         checkedBindings++;
                         var segments = path.Split('.');
                         var name = segments[0].Split('[')[0];
                         var property = type.GetProperty(name, BindingFlags.Public | BindingFlags.Instance);
-                        var line = $"{Path.GetFileName(file)}({((IXmlLineInfo)attribute).LineNumber}): {attribute.Value}";
                         if (property is null)
                             problems.Add($"{line} - {type.Name} has no property {name}");
                         else if (IsFloweryType(property.DeclaringType!) && !HasGeneratedPropertyProvider(type))
@@ -136,14 +142,21 @@ namespace Flowery.WinUI.UnitTests.Controls
         }
 
         // The Flowery type a {Binding} with RelativeSource TemplatedParent or ElementName reads; null for anything else.
-        private static Type? SourceType(XAttribute attribute, Dictionary<string, XElement> names)
+        private static Type? SourceType(XAttribute attribute, Dictionary<string, XElement> names, out string? problem)
         {
+            problem = null;
             var value = attribute.Value;
             XElement? source = null;
             XName? typeName = null;
             if (value.Contains("TemplatedParent", StringComparison.Ordinal))
             {
-                source = attribute.Parent!.Ancestors().FirstOrDefault(static element => element.Name.LocalName == "ControlTemplate");
+                // TemplatedParent is the owner of the nearest template of any kind; only a ControlTemplate names its type.
+                source = attribute.Parent!.Ancestors().FirstOrDefault(static element => element.Name.LocalName is "ControlTemplate" or "DataTemplate" or "ItemsPanelTemplate");
+                if (source is not null && source.Name.LocalName != "ControlTemplate")
+                {
+                    problem = $"TemplatedParent in this {source.Name.LocalName} is not the control; set the value from the control in code";
+                    return null;
+                }
                 typeName = source?.Attribute("TargetType")?.Value is { } target ? ResolveTypeName(source, target) : null;
             }
             else if (Regex.Match(value, @"ElementName=(\w+)") is { Success: true } match
@@ -204,8 +217,8 @@ namespace Flowery.WinUI.UnitTests.Controls
             return "it reads the data context outside an item template";
         }
 
-        // Every type whose property the path reads must be [Bindable] or a dependency object.
-        // The walk ends at object, whose type only the running app knows.
+        // Every type whose property the path reads must be bindable (see IsBindable). The walk ends at object, whose type
+        // only the running app knows.
         private static string? CheckPath(Type type, IEnumerable<string> segments)
         {
             foreach (var segment in segments)
@@ -274,7 +287,7 @@ namespace Flowery.WinUI.UnitTests.Controls
             return path.Contains('=') ? string.Empty : path;
         }
 
-        // These sources are dependency objects, which WinUI reads through the generated XAML metadata.
+        // These bindings read a dependency object rather than the data context; the control-by-name test checks them.
         private static bool ReadsDependencyProperty(string binding) =>
             binding.Contains("RelativeSource=", StringComparison.Ordinal)
             || binding.Contains("ElementName=", StringComparison.Ordinal)

@@ -36,7 +36,9 @@ public partial class DaisyScheduler
     public static readonly DependencyProperty AppointmentColorsProperty = Register<IReadOnlyList<Color>?>(nameof(AppointmentColors), null);
 
     /// <summary>Optional host editor palette. Null or empty hides the palette in the Gallery editor.
-    /// A null appointment BackColor always means the theme default.</summary>
+    /// A null appointment BackColor always means the theme default.
+    /// The property keeps a copy of the colors. A NativeAOT app sets the palette through this property: SetValue, a
+    /// {Binding} or a style setter hand an array of Color to WinUI as it is, which such an app cannot do.</summary>
     public IReadOnlyList<Color>? AppointmentColors
     {
         get => (IReadOnlyList<Color>?)GetValue(AppointmentColorsProperty);
