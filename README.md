@@ -156,11 +156,12 @@ Results and logs are in `TestResults/` and `logs/`.
 | `Flowery.WinUI.Kanban` | Kanban controls, board persistence and the assignee adapter |
 | `Flowery.WinUI.Win2D` | Optional Win2D mask rendering and composition helpers |
 | `Flowery.WinUI.Gallery.Core` | Gallery views, examples, and assets |
-| `Flowery.WinUI.Gallery` | Gallery application and runtime test host |
+| `Flowery.WinUI.Gallery` | Gallery application |
 | `Flowery.WinUI.Kiosk` | Showcase slideshow application |
 | `Flowery.WinUI.Photos` | Photos demo application (library, viewer, editor) |
 | `Flowery.WinUI.UnitTests` | MSTest unit tests without WinUI |
 | `Flowery.WinUI.RuntimeTests` | WinUI runtime tests |
+| `Flowery.WinUI.RuntimeTests.Host` | WinUI application the runtime tests run in |
 | `Flowery.WinUI.RuntimeTests.WindowsRunner` | External process runner and result assertions |
 
 See [Kiosk scripts](scripts/README.md#build-or-run-the-kiosk) for build, run, and verification commands.

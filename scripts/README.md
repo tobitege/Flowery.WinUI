@@ -126,15 +126,16 @@ To use one display, pass its number with `-Monitor` and a region with `-WindowRe
 ./scripts/test_windows.ps1 -Configuration Debug -SkipBuild -Monitor 2 -WindowRegion LowerHalf
 ```
 
-With `-Monitor`, the Gallery resolves the Windows display device before it shows the window.
+With `-Monitor`, the runtime test host resolves the Windows display device before it shows the window.
 If the requested device is absent, the run fails without a fallback to another display.
 
-The Windows runner starts the Gallery and executes tests on its WinUI dispatcher.
+The Windows runner starts `Flowery.WinUI.RuntimeTests.Host`, a WinUI application that only runs the runtime tests, and the tests run on its WinUI dispatcher.
+The host loads the Gallery resources, assets and fonts; the Gallery itself contains no test code.
 The suite includes the original control construction and global neumorphic tests.
 It also includes the existing runtime tests and native resource tests.
 
-The test script uses the matching Gallery and runner executables from the normal build output.
-It sets `FLOWERY_GALLERY_EXE_PATH` and a separate `FLOWERY_TEST_RESULTS_ROOT` for the runner.
+The test script uses the matching host and runner executables from the normal build output.
+It sets `FLOWERY_RUNTIME_TESTS_HOST_PATH` and a separate `FLOWERY_TEST_RESULTS_ROOT` for the runner.
 The script writes test reports under `TestResults/` and process logs under `logs/`.
 
 To run one group of native tests, pass a name substring with `-TestFilter`:
@@ -182,7 +183,7 @@ The publish script uses the native XAML and PRI resource pipeline.
 ```
 
 `-Aot` compiles the Kiosk or Photos ahead of time into one native executable, without the .NET runtime and JIT.
-The releases publish both applications this way. The Gallery stays a JIT application: the runtime tests load into its process, and many example pages bind to plain model classes.
+The releases publish both applications this way. The Gallery stays a JIT application: many of its example pages, such as the Kanban board, bind to plain model classes that a NativeAOT build cannot resolve yet.
 The script passes `FloweryPublishAot=true`, which the application project turns into `PublishAot`; the referenced libraries stay normal builds.
 The native symbols stay in the build output (`bin/Release/<Application>/.../native/`) and are not published.
 A NativeAOT publish needs the Visual Studio C++ build tools (workload "Desktop development with C++") for the native linker.

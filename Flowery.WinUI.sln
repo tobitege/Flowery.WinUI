@@ -23,6 +23,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Flowery.WinUI.Photos", "Flo
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Flowery.WinUI.UnitTests", "Flowery.WinUI.UnitTests\Flowery.WinUI.UnitTests.csproj", "{0708513F-CEB5-43D3-8390-04E12DC82162}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Flowery.WinUI.RuntimeTests.Host", "Flowery.WinUI.RuntimeTests.Host\Flowery.WinUI.RuntimeTests.Host.csproj", "{88A7BC02-8417-4334-9C36-23F2561314D9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -111,6 +113,14 @@ Global
 		{0708513F-CEB5-43D3-8390-04E12DC82162}.Release|x64.Build.0 = Release|x64
 		{0708513F-CEB5-43D3-8390-04E12DC82162}.Release|ARM64.ActiveCfg = Release|ARM64
 		{0708513F-CEB5-43D3-8390-04E12DC82162}.Release|ARM64.Build.0 = Release|ARM64
+		{88A7BC02-8417-4334-9C36-23F2561314D9}.Debug|x64.ActiveCfg = Debug|x64
+		{88A7BC02-8417-4334-9C36-23F2561314D9}.Debug|x64.Build.0 = Debug|x64
+		{88A7BC02-8417-4334-9C36-23F2561314D9}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{88A7BC02-8417-4334-9C36-23F2561314D9}.Debug|ARM64.Build.0 = Debug|ARM64
+		{88A7BC02-8417-4334-9C36-23F2561314D9}.Release|x64.ActiveCfg = Release|x64
+		{88A7BC02-8417-4334-9C36-23F2561314D9}.Release|x64.Build.0 = Release|x64
+		{88A7BC02-8417-4334-9C36-23F2561314D9}.Release|ARM64.ActiveCfg = Release|ARM64
+		{88A7BC02-8417-4334-9C36-23F2561314D9}.Release|ARM64.Build.0 = Release|ARM64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Flowery.WinUI.Kanban.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Flowery.WinUI.RuntimeTests.Controls
@@ -63,10 +64,19 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                             var surface = tile.FindName("PART_BoardOpenSurface") as FrameworkElement;
                             Assert.IsNotNull(surface, "the tile has no open surface");
                             var before = kanban.Board;
-                            await TouchInjection.TapAsync(surface, new Windows.Foundation.Point(surface.ActualWidth / 2, 40));
-                            await RuntimeTestHelpers.WaitUntilAsync(
-                                () => kanban.CurrentView == FlowKanbanView.Board && !ReferenceEquals(kanban.Board, before) && kanban.Board.Id == saved.Id,
-                                "the tapped tile opens its board");
+                            var tapPoint = new Windows.Foundation.Point(surface.ActualWidth / 2, 40);
+                            var hitBefore = DescribeHit(surface, tapPoint);
+                            await TouchInjection.TapAsync(surface, tapPoint);
+                            try
+                            {
+                                await RuntimeTestHelpers.WaitUntilAsync(
+                                    () => kanban.CurrentView == FlowKanbanView.Board && !ReferenceEquals(kanban.Board, before) && kanban.Board.Id == saved.Id,
+                                    "the tapped tile opens its board");
+                            }
+                            catch (TimeoutException timeout)
+                            {
+                                throw new TimeoutException($"{timeout.Message} At the tap point before the tap: {hitBefore}", timeout);
+                            }
                         });
                     }
                 }
@@ -75,6 +85,17 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                     await RuntimeTestHelpers.DetachFromHostAsync(kanban);
                 }
             });
+        }
+
+        // What a finger at the point reaches: open popups above the window, and the topmost elements under the point.
+        private static string DescribeHit(FrameworkElement element, Windows.Foundation.Point point)
+        {
+            var popups = VisualTreeHelper.GetOpenPopupsForXamlRoot(element.XamlRoot)
+                .Select(static popup => $"{popup.GetType().Name}({popup.Child?.GetType().Name})");
+            var hostPoint = element.TransformToVisual(null).TransformPoint(point);
+            var hits = VisualTreeHelper.FindElementsInHostCoordinates(hostPoint, element.XamlRoot.Content)
+                .Take(6).Select(static hit => hit is FrameworkElement { Name.Length: > 0 } named ? $"{hit.GetType().Name} {named.Name}" : hit.GetType().Name);
+            return $"open popups [{string.Join(", ", popups)}]; elements [{string.Join(", ", hits)}]";
         }
 
         // The home view lays its tiles out over several passes after it is shown, so the finger taps a tile only once the

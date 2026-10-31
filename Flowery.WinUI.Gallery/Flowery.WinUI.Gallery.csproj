@@ -23,7 +23,6 @@
     <ProjectReference Include="..\Flowery.WinUI\Flowery.WinUI.csproj" />
     <ProjectReference Include="..\Flowery.WinUI.Kanban\Flowery.WinUI.Kanban.csproj" />
     <ProjectReference Include="..\Flowery.WinUI.Win2D\Flowery.WinUI.Win2D.csproj" />
-    <ProjectReference Include="..\Flowery.WinUI.RuntimeTests\Flowery.WinUI.RuntimeTests.csproj" />
   </ItemGroup>
 
   <Import Project="..\Flowery.WinUI.GalleryAssets.props" />
