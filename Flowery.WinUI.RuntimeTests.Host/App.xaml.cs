@@ -1,7 +1,6 @@
 ﻿using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
-using System.Xml.Linq;
 using Flowery.WinUI.Gallery;
 using IOPath = System.IO.Path;
 
@@ -94,26 +93,8 @@ namespace Flowery.WinUI.RuntimeTests.Host
         }
 
         // A failed start or an unhandled exception becomes a report with one failed test, so the runner shows the cause.
-        private static void WriteStartupFailure(string resultPath, Exception ex)
-        {
-            try
-            {
-                var report = new XDocument(
-                    new XElement("tests",
-                        new XAttribute("total", 1),
-                        new XAttribute("passed", 0),
-                        new XAttribute("failed", 1),
-                        new XElement("test",
-                            new XAttribute("name", "RuntimeTestsHost.Startup"),
-                            new XAttribute("outcome", "Failed"),
-                            new XElement("message", ex.ToString()))));
-                report.Save(resultPath);
-            }
-            catch
-            {
-                // Ignore write failures; the exit code still signals the failure.
-            }
-        }
+        private static void WriteStartupFailure(string resultPath, Exception ex) =>
+            RuntimeTestRunner.WriteStartupFailure(resultPath, ex);
 
         private void ConfigureCrashLogging()
         {
