@@ -2,6 +2,7 @@
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using Flowery.WinUI.Kanban.Controls;
+using Microsoft.UI.Xaml;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Flowery.WinUI.RuntimeTests.Controls
@@ -34,15 +35,22 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         }
 
         [TestMethod]
-        public async Task When_TheBoardGetsANewColumnCollection_TheBoardShowsIt()
+        public Task When_TheBoardGetsANewColumnCollection_TheBoardShowsIt() => RuntimeTestHelpers.WithStateStorageAsync(async () =>
         {
+            // An empty state storage of its own and the board view keep the saved boards of other runs out of the test; a
+            // fixed width keeps the standard layout, which the board picks only after a layout pass.
             var board = new FlowKanbanData { Columns = { new FlowKanbanColumnData { Title = "Todo" } } };
-            var kanban = new FlowKanban { AutoSaveAfterEdits = false, Board = board };
+            var kanban = new FlowKanban
+            {
+                AutoSaveAfterEdits = false, Board = board, Width = 1000, Height = 600,
+                HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top
+            };
             RuntimeTestHelpers.AttachToHost(kanban);
             try
             {
                 await RuntimeTestHelpers.EnsureLoadedAsync(kanban);
-                Assert.AreSame(board.Columns, kanban.StandardColumnsSource, "the board shows no columns");
+                kanban.CurrentView = FlowKanbanView.Board;
+                await RuntimeTestHelpers.WaitUntilAsync(() => ReferenceEquals(kanban.StandardColumnsSource, board.Columns), "the board shows its columns");
 
                 var columns = new ObservableCollection<FlowKanbanColumnData> { new() { Title = "A" }, new() { Title = "B" } };
                 board.Columns = columns;
@@ -52,6 +60,6 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             {
                 await RuntimeTestHelpers.DetachFromHostAsync(kanban);
             }
-        }
+        });
     }
 }
