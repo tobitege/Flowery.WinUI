@@ -1,8 +1,10 @@
-namespace Flowery.Controls.Weather
+﻿namespace Flowery.Controls.Weather
 {
     /// <summary>
     /// Displays weather metrics in a table format (UV, wind, humidity).
     /// </summary>
+    // Bindings read its properties by name, which a NativeAOT app resolves only through the generated provider.
+    [WinRT.GeneratedBindableCustomProperty]
     public partial class DaisyWeatherMetrics : DaisyBaseContentControl
     {
         private Path? _uvIcon;

@@ -1,9 +1,5 @@
 ﻿using Flowery.WinUI.Photos.Localization;
 
-// DaisySelect.ItemsSource hands the list to WinUI as an object, which the CsWinRT generator cannot trace, so a NativeAOT
-// build gets the WinRT marshalling code of the list type from here.
-[assembly: WinRT.GeneratedWinRTExposedExternalType(typeof(System.Collections.Generic.List<Flowery.WinUI.Photos.Views.SelectOption>))]
-
 namespace Flowery.WinUI.Photos.Views
 {
     /// <summary>

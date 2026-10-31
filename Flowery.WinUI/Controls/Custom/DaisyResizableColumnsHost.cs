@@ -1,4 +1,4 @@
-using DispatcherQueueTimer = Microsoft.UI.Dispatching.DispatcherQueueTimer;
+﻿using DispatcherQueueTimer = Microsoft.UI.Dispatching.DispatcherQueueTimer;
 using Microsoft.UI.Input;
 using Windows.Foundation.Collections;
 using Windows.System;
@@ -28,6 +28,8 @@ namespace Flowery.Controls
     /// A reusable host for multi-column layouts that provides a shared resize grip between columns.
     /// Designed to decouple column widths from content and centralize resize logic.
     /// </summary>
+    // Bindings read its properties by name, which a NativeAOT app resolves only through the generated provider.
+    [WinRT.GeneratedBindableCustomProperty]
     public partial class DaisyResizableColumnsHost : ItemsControl
     {
         private const double KeyboardStep = 8.0;

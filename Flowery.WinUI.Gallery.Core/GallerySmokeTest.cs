@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
 
 namespace Flowery.WinUI.Gallery
@@ -6,8 +7,8 @@ namespace Flowery.WinUI.Gallery
     /// <summary>
     /// The Gallery's smoke run (--smoke-test &lt;report.xml&gt;): opens every category, scrolls through it and reports per
     /// category an exception, a page that does not load, or a localized text ({Binding [Key]}) that stays empty. A
-    /// NativeAOT build reports missing marshalling and binding metadata only at run time, so this run is how such a build
-    /// is checked. WinUI raises DebugSettings.BindingFailed only with a debugger attached, so other failed bindings go
+    /// NativeAOT build reports missing marshalling and binding metadata only at run time, as a NotSupportedException that
+    /// WinUI often catches, so the run also records those; this run is how such a build is checked. WinUI raises DebugSettings.BindingFailed only with a debugger attached, so other failed bindings go
     /// unseen.
     /// </summary>
     public sealed class GallerySmokeTest
@@ -29,17 +30,19 @@ namespace Flowery.WinUI.Gallery
             _report = report;
         }
 
-        public static async Task<SmokeReport> RunAsync(Window window, string reportPath)
+        /// <summary>Checks every category behind the first <paramref name="skip"/> ones and saves the report after each, so
+        /// a category that ends the Gallery leaves the results of the categories before it.</summary>
+        public static async Task<SmokeReport> RunAsync(Window window, string reportPath, int skip = 0)
         {
             var view = (window.Content as Panel)?.Children.OfType<MainView>().FirstOrDefault()
                 ?? throw new InvalidOperationException("The Gallery window shows no MainView.");
             var report = new SmokeReport(reportPath);
-            await new GallerySmokeTest(view, report).RunAsync();
+            await new GallerySmokeTest(view, report).RunAsync(skip);
             report.Save();
             return report;
         }
 
-        private async Task RunAsync()
+        private async Task RunAsync(int skip)
         {
             await WaitUntilLoadedAsync(_view, "the Gallery");
             await WaitUntilAsync(_view, static view => view.ActiveCategoryContent is not null, FirstPageTimeout,
@@ -47,21 +50,28 @@ namespace Flowery.WinUI.Gallery
 
             var application = Application.Current;
             application.UnhandledException += OnUnhandledException;
+            AppDomain.CurrentDomain.FirstChanceException += OnFirstChanceException;
             _view.CategoryFailed += OnCategoryFailed;
             try
             {
-                foreach (var category in _view.CategoryNames.ToArray())
+                foreach (var category in _view.CategoryNames.Skip(skip).ToArray())
+                {
                     await CheckCategoryAsync(category);
+                    _report.Save();
+                }
             }
             finally
             {
                 _view.CategoryFailed -= OnCategoryFailed;
                 application.UnhandledException -= OnUnhandledException;
+                AppDomain.CurrentDomain.FirstChanceException -= OnFirstChanceException;
             }
         }
 
         private async Task CheckCategoryAsync(string category)
         {
+            // The script keeps this output, so a run that ends the Gallery names the category it was checking.
+            Console.WriteLine("Checking " + category);
             _errors.Clear();
             List<string> emptyTexts = [];
             try
@@ -92,6 +102,14 @@ namespace Flowery.WinUI.Gallery
         {
             args.Handled = true;
             _errors.Add("Unhandled: " + args.Exception);
+        }
+
+        // A NativeAOT build raises NotSupportedException for marshalling or binding code it lacks, often inside a WinUI
+        // callback, which then reports nothing or only E_FAIL. Only the UI thread loads and lays out the pages.
+        private void OnFirstChanceException(object? sender, FirstChanceExceptionEventArgs args)
+        {
+            if (args.Exception is NotSupportedException exception && _view.DispatcherQueue.HasThreadAccess)
+                _errors.Add("NotSupportedException: " + exception.Message);
         }
 
         private void OnCategoryFailed(string category, Exception exception) =>

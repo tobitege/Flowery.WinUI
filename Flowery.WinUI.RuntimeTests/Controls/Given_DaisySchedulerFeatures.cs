@@ -11,6 +11,26 @@ namespace Flowery.WinUI.RuntimeTests.Controls;
 
 public sealed partial class Given_DaisyScheduler
 {
+    // The property keeps a copy of the colors in a list of the library, which a NativeAOT app can hand to WinUI; an array
+    // of Color it cannot.
+    [TestMethod]
+    public void When_AppointmentColorsAreSetAsAnArray_ThePropertyKeepsTheColorsInOrder()
+    {
+        Windows.UI.Color[] palette = [Microsoft.UI.Colors.Red, Microsoft.UI.Colors.Teal, Microsoft.UI.Colors.Gold];
+        var scheduler = new DaisyScheduler { AppointmentColors = palette };
+
+        CollectionAssert.AreEqual(palette, scheduler.AppointmentColors!.ToArray());
+        Assert.AreNotSame(palette, scheduler.AppointmentColors, "the property holds the array itself");
+        palette[0] = Microsoft.UI.Colors.Black;
+        Assert.AreEqual(Microsoft.UI.Colors.Red, scheduler.AppointmentColors[0], "the property follows a later change of the array");
+
+        var kept = scheduler.AppointmentColors;
+        scheduler.AppointmentColors = kept;
+        Assert.AreSame(kept, scheduler.AppointmentColors, "the property copies its own list again");
+        scheduler.AppointmentColors = null;
+        Assert.IsNull(scheduler.AppointmentColors);
+    }
+
     [TestMethod]
     public async Task When_FormatOverridesChange_AppointmentAndTooltipRefreshWithoutChangingTheUiLanguage()
     {

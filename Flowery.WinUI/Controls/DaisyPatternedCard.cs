@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Flowery.Helpers;
 using Flowery.Services;
 using Flowery.Theming;
@@ -16,6 +16,8 @@ namespace Flowery.Controls
     /// Extends DaisyCard with decorative pattern backgrounds and corner ornaments.
     /// </summary>
     [Bindable]
+    // Bindings read its properties by name, which a NativeAOT app resolves only through the generated provider.
+    [WinRT.GeneratedBindableCustomProperty]
     public partial class DaisyPatternedCard : DaisyCard
     {
         private Canvas? _patternLayer;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -9,6 +9,7 @@ namespace Flowery.WinUI.Kanban.Controls
     /// <summary>
     /// Lightweight metadata for listing available Kanban boards.
     /// </summary>
+    [Microsoft.UI.Xaml.Data.Bindable]
     public sealed class FlowBoardMetadata : INotifyPropertyChanged
     {
         private string _id = string.Empty;

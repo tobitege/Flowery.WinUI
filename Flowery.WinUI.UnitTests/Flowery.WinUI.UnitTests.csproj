@@ -24,5 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Flowery.WinUI\Flowery.WinUI.csproj" />
+    <ProjectReference Include="..\Flowery.WinUI.Kanban\Flowery.WinUI.Kanban.csproj" />
+    <ProjectReference Include="..\Flowery.WinUI.Gallery.Core\Flowery.WinUI.Gallery.Core.csproj" />
   </ItemGroup>
 </Project>

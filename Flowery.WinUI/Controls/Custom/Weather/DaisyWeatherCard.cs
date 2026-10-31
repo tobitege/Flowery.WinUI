@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,6 +16,8 @@ namespace Flowery.Controls.Weather
     /// A composite weather card that can display current weather, forecast, and metrics.
     /// Supports both manual property binding and automatic data fetching via IWeatherService.
     /// </summary>
+    // Bindings read its properties by name, which a NativeAOT app resolves only through the generated provider.
+    [WinRT.GeneratedBindableCustomProperty]
     public partial class DaisyWeatherCard : DaisyBaseContentControl
     {
         private CancellationTokenSource? _loadingCts;

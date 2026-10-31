@@ -1399,6 +1399,7 @@ namespace Flowery.WinUI.Kanban.Controls
         }
     }
 
+    [Microsoft.UI.Xaml.Data.Bindable]
     public sealed class FlowTaskAssigneeOption
     {
         public FlowTaskAssigneeOption(string? id, string displayName, bool isResolved = true)

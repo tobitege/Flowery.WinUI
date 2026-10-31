@@ -114,7 +114,9 @@ To check a published Kiosk, such as the NativeAOT output, pass its executable; t
 
 The script starts the Gallery with `--smoke-test` and an isolated state directory.
 The Gallery opens every category in English, scrolls through it and records per category an exception, a page that does not load, and a localized text (`{Binding [Key]}`) that stays empty.
+It also records a `NotSupportedException` on the UI thread, even a caught one: a NativeAOT build raises it for missing marshalling or binding code, which WinUI often reports only as `E_FAIL` or not at all.
 WinUI raises `DebugSettings.BindingFailed` only with a debugger attached, so other failed bindings do not show up in the report.
+A category that ends the Gallery fails with the entries of `crash.log` that name the cause, and the script starts the Gallery again behind it (`--smoke-skip <count>`), so one run names every such category.
 It leaves the Credential Manager alone and exits with the result.
 Reports are in `TestResults/GallerySmoke/<Configuration>/<run>/gallery-smoke.xml`, logs in `logs/gallery-smoke-<Configuration>-<run>.log`.
 `-Monitor` and `-WindowRegion` place the window as for the other test scripts.
@@ -192,17 +194,18 @@ The publish script uses the native XAML and PRI resource pipeline.
 ### NativeAOT
 
 ```powershell
+./scripts/publish_windows.ps1 -Configuration Release -Aot -OutputDir publish
 ./scripts/publish_windows.ps1 -Configuration Release -Application Kiosk -Aot -OutputDir publish-kiosk
 ./scripts/publish_windows.ps1 -Configuration Release -Application Photos -Aot -OutputDir publish-photos
 ```
 
-`-Aot` compiles the Kiosk or Photos ahead of time into one native executable, without the .NET runtime and JIT.
-The releases publish both applications this way. The Gallery stays a JIT application: many of its example pages, such as the Kanban board, bind to plain model classes that a NativeAOT build cannot resolve yet.
+`-Aot` compiles the Gallery, the Kiosk or Photos ahead of time into one native executable, without the .NET runtime and JIT.
+The releases publish all three applications this way.
 The script passes `FloweryPublishAot=true`, which the application project turns into `PublishAot`; the referenced libraries stay normal builds.
 The native symbols stay in the build output (`bin/Release/<Application>/.../native/`) and are not published.
 A NativeAOT publish needs the Visual Studio C++ build tools (workload "Desktop development with C++") for the native linker.
 
-A NativeAOT build reports a missing marshalling or binding entry only when the code runs, so check the published Photos by starting it:
+A NativeAOT build reports a missing marshalling or binding entry only when the code runs, so check the published Gallery with the smoke run (`test_gallery_smoke.ps1 -ExecutablePath publish/Flowery.WinUI.Gallery.exe`, see above) and the published Photos by starting it:
 
 ```powershell
 ./scripts/test_photos_start.ps1 -ExecutablePath publish-photos/Flowery.WinUI.Photos.exe

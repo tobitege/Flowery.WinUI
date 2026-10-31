@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
@@ -14,7 +14,9 @@ namespace Flowery.WinUI.Gallery.Localization
     /// Provides JSON-based localization services for the Flowery.WinUI.Gallery application.
     /// </summary>
     [Microsoft.UI.Xaml.Data.Bindable]
-    public class GalleryLocalization : INotifyPropertyChanged
+    // A NativeAOT build resolves {Binding [Key]} only through the generated property provider.
+    [WinRT.GeneratedBindableCustomProperty]
+    public partial class GalleryLocalization : INotifyPropertyChanged
     {
         private static string _currentCultureName = "en";
         private static readonly Dictionary<string, Dictionary<string, string>> _translations = [];

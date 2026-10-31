@@ -116,15 +116,19 @@ jobs:
             10.0.402
             ${{ inputs.sdk_version }}
 
-      - name: Publish Gallery App (Windows)
+      - name: Publish Gallery App (Windows, NativeAOT)
         shell: pwsh
         run: |
           ./scripts/publish_windows.ps1 `
             -Configuration Release `
             -RuntimeIdentifier win-x64 `
-            -SelfContained:$true `
+            -Aot `
             -OutputDir publish `
             -SdkVersion '${{ inputs.sdk_version }}'
+
+      - name: Run the Gallery smoke run on the NativeAOT build
+        shell: pwsh
+        run: ./scripts/test_gallery_smoke.ps1 -Configuration Release -ExecutablePath ./publish/Flowery.WinUI.Gallery.exe
 
       - name: Zip Windows artifact
         run: Compress-Archive -Path ./publish/* -DestinationPath ./Flowery.WinUI.Gallery-Windows-x64.zip

@@ -62,23 +62,15 @@ DaisySelect is a styled ComboBox with **9 variants** and **5 size presets**. It 
 
 ## ItemsSource in a NativeAOT App
 
-`ItemsSource` is typed `object`, so the CsWinRT generator of the app cannot see which list type reaches WinUI. In a NativeAOT build, a list of your own items then fails with "Value does not fall within the expected range". Name the list type once in the app and mark the item class `partial`:
+`ItemsSource` is typed `object`, so the CsWinRT generator of the app cannot see which list type reaches WinUI. A plain list of your own items (an array or a `List<T>`) still works in a NativeAOT app: the control hands WinUI a copy as `List<object>`, whose marshalling code every app has, and shows each item through its `ToString()` or the item template. An item template that reads item properties with `{Binding}` needs a bindable item type: `[Microsoft.UI.Xaml.Data.Bindable]` on a class that is not nested, or `[WinRT.GeneratedBindableCustomProperty]` on a `partial` class.
+
+A collection that reports its changes, such as `ObservableCollection<T>`, reaches WinUI unchanged, so the list follows its changes. For your own item type, name the collection type once in the app; otherwise a NativeAOT build fails with "Value does not fall within the expected range":
 
 ```csharp
-[assembly: WinRT.GeneratedWinRTExposedExternalType(typeof(System.Collections.Generic.List<MyApp.SelectOption>))]
-
-namespace MyApp;
-
-[Microsoft.UI.Xaml.Data.Bindable]
-public sealed partial class SelectOption(object key, string text)
-{
-    public object Key { get; } = key;
-    public string Text { get; } = text;
-    public override string ToString() => Text;
-}
+[assembly: WinRT.GeneratedWinRTExposedExternalType(typeof(System.Collections.ObjectModel.ObservableCollection<MyApp.SelectOption>))]
 ```
 
-The same applies to a list of your own that you pass to `ItemsSource` of `DaisySizeDropdown` or `DaisyThemeDropdown`, which share the base class.
+The same applies to `DaisySizeDropdown` and `DaisyThemeDropdown`, which share the base class, and to `DaisyBreadcrumbBar`.
 
 ## Localization Refresh (DaisySelectItem)
 

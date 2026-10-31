@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Flowery.Services;
 using Microsoft.UI.Xaml.Media;
 using Windows.Foundation.Metadata;
@@ -41,6 +41,8 @@ namespace Flowery.Controls
     /// <summary>
     /// A Button control styled after DaisyUI's Button component (WinUI 3).
     /// </summary>
+    // Bindings read its properties by name, which a NativeAOT app resolves only through the generated provider.
+    [WinRT.GeneratedBindableCustomProperty]
     public partial class DaisyButton : Button
     {
         public static readonly DependencyProperty VariantProperty =

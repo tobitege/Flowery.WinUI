@@ -14,8 +14,10 @@ namespace Flowery.WinUI.Gallery
     public partial class App : Application
     {
         private Window? _window;
-        // --smoke-test <report.xml> (scripts/test_gallery_smoke.ps1): open every category in English and exit with the result.
-        private readonly string? _smokeReportPath = GetSmokeReportPath(Environment.GetCommandLineArgs());
+        // --smoke-test <report.xml> [--smoke-skip <count>] (scripts/test_gallery_smoke.ps1): open every category in English,
+        // behind the first <count> ones, and exit with the result.
+        private readonly string? _smokeReportPath = GetArgument(Environment.GetCommandLineArgs(), "--smoke-test");
+        private readonly int _smokeSkip = int.TryParse(GetArgument(Environment.GetCommandLineArgs(), "--smoke-skip"), out var skip) ? skip : 0;
 
         public App()
         {
@@ -25,10 +27,15 @@ namespace Flowery.WinUI.Gallery
             ConfigureCrashLogging();
         }
 
-        private static string? GetSmokeReportPath(string[] arguments)
+        private static string? GetArgument(string[] arguments, string name)
         {
-            var index = Array.FindIndex(arguments, static argument => string.Equals(argument, "--smoke-test", StringComparison.OrdinalIgnoreCase));
-            return index >= 0 && index + 1 < arguments.Length ? arguments[index + 1] : null;
+            for (var index = 0; index + 1 < arguments.Length; index++)
+            {
+                if (string.Equals(arguments[index], name, StringComparison.OrdinalIgnoreCase))
+                    return arguments[index + 1];
+            }
+
+            return null;
         }
 
         protected override void OnLaunched(LaunchActivatedEventArgs args)
@@ -84,15 +91,15 @@ namespace Flowery.WinUI.Gallery
             _window.Activate();
 
             if (_smokeReportPath is not null)
-                RunSmokeTest(_window, _smokeReportPath);
+                RunSmokeTest(_window, _smokeReportPath, _smokeSkip);
         }
 
-        private static async void RunSmokeTest(Window window, string reportPath)
+        private static async void RunSmokeTest(Window window, string reportPath, int skip)
         {
             var exitCode = 1;
             try
             {
-                var report = await GallerySmokeTest.RunAsync(window, reportPath);
+                var report = await GallerySmokeTest.RunAsync(window, reportPath, skip);
                 exitCode = report.Failed == 0 ? 0 : 1;
             }
             catch (Exception ex)
@@ -214,7 +221,9 @@ namespace Flowery.WinUI.Gallery
 
             AppDomain.CurrentDomain.FirstChanceException += (_, e) =>
             {
-                if (e.Exception is COMException comException &&
+                // A NativeAOT build raises NotSupportedException for marshalling or binding code it lacks, often inside a
+                // WinUI callback that turns it into a bare E_FAIL.
+                if (e.Exception is NotSupportedException || e.Exception is COMException comException &&
                     ShouldLogFirstChanceException(comException))
                 {
                     LogFatal("AppDomain.FirstChanceException", e.Exception);

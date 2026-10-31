@@ -1,9 +1,11 @@
-namespace Flowery.Controls
+﻿namespace Flowery.Controls
 {
     /// <summary>
     /// A TextBox control styled after DaisyUI's Input component.
     /// Supports labels, helper text, icons, and floating label mode.
     /// </summary>
+    // Bindings read its properties by name, which a NativeAOT app resolves only through the generated provider.
+    [WinRT.GeneratedBindableCustomProperty]
     public partial class DaisyInput : DaisyBaseContentControl, IFocusableInput
     {
         private Grid? _rootGrid;
