@@ -173,6 +173,9 @@ jobs:
       - name: Publish Photos App (Windows, NativeAOT)
         run: ./scripts/publish_windows.ps1 -Application Photos -Configuration Release -Aot -OutputDir publish-photos -SdkVersion '${{ inputs.sdk_version }}'
 
+      - name: Start the NativeAOT Photos
+        run: ./scripts/test_photos_start.ps1 -ExecutablePath ./publish-photos/Flowery.WinUI.Photos.exe
+
       - name: Zip Photos artifact
         run: |
           New-Item -ItemType Directory -Path ./final -Force | Out-Null

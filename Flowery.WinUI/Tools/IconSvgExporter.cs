@@ -73,7 +73,7 @@ namespace Flowery.Tools
             var icons = new List<(string Key, string PathData)>();
             
             // Get the path to DaisyIcons.xaml relative to the app directory
-            var assemblyDir = AppContext.BaseDirectory;
+            var baseDirectory = AppContext.BaseDirectory;
             
             // Try multiple potential paths for the XAML file
             string? xamlPath = null;
@@ -82,12 +82,12 @@ namespace Flowery.Tools
                 // From Tools/IconGenerator - go up to repo root, then into Flowery.WinUI
                 IOPath.Combine(Environment.CurrentDirectory, "..", "..", "Flowery.WinUI", "Themes", "DaisyIcons.xaml"),
                 // From bin/Debug/net10.0 output folder
-                IOPath.Combine(assemblyDir ?? ".", "..", "..", "..", "..", "..", "Flowery.WinUI", "Themes", "DaisyIcons.xaml"),
+                IOPath.Combine(baseDirectory, "..", "..", "..", "..", "..", "Flowery.WinUI", "Themes", "DaisyIcons.xaml"),
                 // Direct sibling (if running from solution root)
                 IOPath.Combine(Environment.CurrentDirectory, "Flowery.WinUI", "Themes", "DaisyIcons.xaml"),
                 // Other potential locations
-                IOPath.Combine(assemblyDir ?? ".", "..", "..", "..", "Themes", "DaisyIcons.xaml"),
-                IOPath.Combine(assemblyDir ?? ".", "Themes", "DaisyIcons.xaml"),
+                IOPath.Combine(baseDirectory, "..", "..", "..", "Themes", "DaisyIcons.xaml"),
+                IOPath.Combine(baseDirectory, "Themes", "DaisyIcons.xaml"),
             };
             
             foreach (var path in potentialPaths)
@@ -184,7 +184,7 @@ namespace Flowery.Tools
             // Add # if missing
             if (!color.StartsWith('#'))
                 color = "#" + color;
-
+            
             // Validate the hex color format
             if (!HexColorRegex().IsMatch(color))
             {

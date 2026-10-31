@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -53,7 +54,7 @@ namespace Flowery.Effects
             if (_updateTask is not null) await _updateTask;
             if (LastRenderError is not null) throw new InvalidOperationException("The native GL renderer failed.", LastRenderError);
             var session = _session ?? throw new InvalidOperationException("No GL effect is selected.");
-            var result = await session.RequestAsync("sample", elapsedSeconds);
+            var result = await session.RequestAsync("sample", elapsedSeconds, CarouselGlJsonContext.Default.NullableDouble);
             return new CarouselGlFrame(
                 result.GetProperty("renderer").GetString() ?? string.Empty,
                 result.GetProperty("frames").GetInt32(),
@@ -65,7 +66,7 @@ namespace Flowery.Effects
         public async Task<IReadOnlyList<string>> CompileShadersAsync()
         {
             await ReadFrameAsync();
-            var result = await _session!.RequestAsync("compile", null);
+            var result = await _session!.RequestAsync("compile");
             return result.Deserialize(CarouselGlJsonContext.Default.StringArray) ?? [];
         }
 
@@ -109,8 +110,8 @@ namespace Flowery.Effects
                         foreach (var asset in configuration.Assets)
                             assets.Add(asset.Key, await ResolveAssetAsync(asset.Value));
                         configuration = configuration with { Assets = assets };
-                        await session.RequestAsync("configure", configuration);
-                        await session.RequestAsync("active", _inViewport && DaisyMotion.AnimationsEnabled);
+                        await session.RequestAsync("configure", configuration, CarouselGlJsonContext.Default.CarouselGlConfiguration);
+                        await session.RequestAsync("active", _inViewport && DaisyMotion.AnimationsEnabled, CarouselGlJsonContext.Default.Boolean);
                     }
                     // An unload closed this session meanwhile. A reload that came first found this update running and
                     // left the new session to it; after an unload alone the loop ends.
@@ -182,7 +183,7 @@ namespace Flowery.Effects
         {
             var session = _session;
             if (session?.IsInitialized != true) return;
-            try { await session.RequestAsync("active", _inViewport && DaisyMotion.AnimationsEnabled); }
+            try { await session.RequestAsync("active", _inViewport && DaisyMotion.AnimationsEnabled, CarouselGlJsonContext.Default.Boolean); }
             catch (OperationCanceledException) when (!ReferenceEquals(session, _session)) { }
             catch (ObjectDisposedException) when (!ReferenceEquals(session, _session)) { }
             catch (Exception error) { if (ReferenceEquals(session, _session)) OnRendererFailed(this, error); }
@@ -282,7 +283,11 @@ namespace Flowery.Effects
             IsInitialized = true;
         }
 
-        public async Task<JsonElement> RequestAsync(string command, object? payload)
+        public Task<JsonElement> RequestAsync(string command) =>
+            RequestAsync(command, null, CarouselGlJsonContext.Default.NullableBoolean);
+
+        // The JSON metadata of the payload comes from CarouselGlJsonContext, so the compiler checks every payload type.
+        public async Task<JsonElement> RequestAsync<T>(string command, T payload, JsonTypeInfo<T> payloadType)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             await InitializeAsync();
@@ -291,14 +296,14 @@ namespace Flowery.Effects
             _requests.Add(id, completion);
             try
             {
-                View.CoreWebView2.PostWebMessageAsJson(CreateRequestJson(id, command, payload));
+                View.CoreWebView2.PostWebMessageAsJson(CreateRequestJson(id, command, payload, payloadType));
                 return await completion.Task.WaitAsync(TimeSpan.FromSeconds(30));
             }
             finally { _requests.Remove(id); }
         }
 
-        // Writes { id, command, payload } through the generated JSON metadata, so trimming and AOT keep the payload types.
-        internal static string CreateRequestJson(int id, string command, object? payload)
+        // Writes { id, command, payload }, the shape the engine script reads.
+        internal static string CreateRequestJson<T>(int id, string command, T payload, JsonTypeInfo<T> payloadType)
         {
             var buffer = new ArrayBufferWriter<byte>();
             using (var writer = new Utf8JsonWriter(buffer))
@@ -307,8 +312,7 @@ namespace Flowery.Effects
                 writer.WriteNumber("id", id);
                 writer.WriteString("command", command);
                 writer.WritePropertyName("payload");
-                if (payload is null) writer.WriteNullValue();
-                else JsonSerializer.Serialize(writer, payload, payload.GetType(), CarouselGlJsonContext.Default);
+                JsonSerializer.Serialize(writer, payload, payloadType);
                 writer.WriteEndObject();
             }
             return Encoding.UTF8.GetString(buffer.WrittenSpan);
@@ -364,7 +368,8 @@ namespace Flowery.Effects
     }
 
     [JsonSerializable(typeof(bool))]
-    [JsonSerializable(typeof(double))]
+    [JsonSerializable(typeof(bool?))]
+    [JsonSerializable(typeof(double?))]
     [JsonSerializable(typeof(CarouselGlConfiguration))]
     [JsonSerializable(typeof(IReadOnlyDictionary<string, string>))]
     [JsonSerializable(typeof(string[]))]

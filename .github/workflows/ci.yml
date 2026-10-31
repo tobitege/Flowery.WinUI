@@ -66,6 +66,8 @@ jobs:
         run: ./scripts/test_kiosk.ps1 -Configuration Release -ExecutablePath ./publish-kiosk/Flowery.WinUI.Kiosk.exe
       - name: Publish Photos App (Windows, NativeAOT)
         run: ./scripts/publish_windows.ps1 -Application Photos -Configuration Release -Aot -OutputDir publish-photos -SdkVersion '10.0.402'
+      - name: Start the NativeAOT Photos
+        run: ./scripts/test_photos_start.ps1 -ExecutablePath ./publish-photos/Flowery.WinUI.Photos.exe
 
   windows:
     runs-on: windows-2025-vs2026

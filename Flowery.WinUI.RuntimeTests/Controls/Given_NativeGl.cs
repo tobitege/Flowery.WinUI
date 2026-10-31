@@ -24,12 +24,21 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             var configuration = new CarouselGlConfiguration("webgl", "transition", "fade", null,
                 new Dictionary<string, string> { ["front"] = "data:image/png;base64,AA==", ["<back>"] = "a\"b" },
                 3.5, 1.25, StaggerMs: 12.5);
-            object?[] payloads = [null, true, false, 0.05, 2d, configuration];
-            foreach (var payload in payloads)
+            var context = CarouselGlJsonContext.Default;
+            // RequestAsync(command) sends a null payload through the bool? metadata.
+            AssertMatchesReflection(null, context.NullableBoolean);
+            AssertMatchesReflection(true, context.Boolean);
+            AssertMatchesReflection(false, context.Boolean);
+            AssertMatchesReflection(0.05, context.NullableDouble);
+            AssertMatchesReflection(2d, context.NullableDouble);
+            AssertMatchesReflection(null, context.NullableDouble);
+            AssertMatchesReflection(configuration, context.CarouselGlConfiguration);
+
+            // The engine script reads the names and values that the reflection serializer wrote before.
+            static void AssertMatchesReflection<T>(T payload, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> payloadType)
             {
-                // The engine script reads the names and values that the reflection serializer wrote before.
                 var expected = System.Text.Json.JsonSerializer.Serialize(new { id = 7, command = "configure", payload });
-                Assert.AreEqual(expected, CarouselGlSession.CreateRequestJson(7, "configure", payload), payload?.ToString() ?? "null");
+                Assert.AreEqual(expected, CarouselGlSession.CreateRequestJson(7, "configure", payload, payloadType), payload?.ToString() ?? "null");
             }
         }
 
@@ -522,7 +531,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         {
             DaisySystemAppearance.SetMotionPreference(false);
             // The host posts its pause request at once; the engine answers this second one after it.
-            await GetSession(host).RequestAsync("active", false);
+            await GetSession(host).RequestAsync("active", false, CarouselGlJsonContext.Default.Boolean);
         }
 
         private static CarouselGlSession GetSession(CarouselGlNativeHost host) =>

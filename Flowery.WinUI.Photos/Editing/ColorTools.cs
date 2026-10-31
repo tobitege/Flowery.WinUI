@@ -188,9 +188,11 @@ namespace Flowery.WinUI.Photos.Editing
                 }
             }
 
-            return [.. Enumerable.Range(0, k)
-                .OrderByDescending(c => memberCounts[c])
-                .Select(c => Color.FromArgb(255, (byte)centers[c].X, (byte)centers[c].Y, (byte)centers[c].Z))];
+            // Largest cluster first; the stable sort keeps clusters of equal size in their order.
+            return [.. memberCounts
+                .Zip(centers, static (members, center) => (Members: members, Center: center))
+                .OrderByDescending(static cluster => cluster.Members)
+                .Select(static cluster => Color.FromArgb(255, (byte)cluster.Center.X, (byte)cluster.Center.Y, (byte)cluster.Center.Z))];
         }
 
         /// <summary>Writes a Paint Shop Pro (JASC-PAL) palette.</summary>
