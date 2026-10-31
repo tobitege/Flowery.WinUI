@@ -1,11 +1,11 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
 
 namespace Flowery.WinUI.Gallery;
 
 // Shows the icon that ApplicationIcon embeds in the executable, so no icon file has to ship beside it.
-internal static class ExecutableIcon
+internal static partial class ExecutableIcon
 {
     // The .NET SDK stores ApplicationIcon as icon group 32512 in the app host.
     private const int ApplicationIconResourceId = 32512;
@@ -19,9 +19,9 @@ internal static class ExecutableIcon
             appWindow.SetIcon(Win32Interop.GetIconIdFromIcon(icon));
     }
 
-    [DllImport("kernel32.dll", EntryPoint = "GetModuleHandleW", CharSet = CharSet.Unicode)]
-    private static extern IntPtr GetModuleHandle(string? moduleName);
+    [LibraryImport("kernel32.dll", EntryPoint = "GetModuleHandleW", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial IntPtr GetModuleHandle(string? moduleName);
 
-    [DllImport("user32.dll", EntryPoint = "LoadImageW", SetLastError = true)]
-    private static extern IntPtr LoadImage(IntPtr instance, nint name, uint type, int width, int height, uint load);
+    [LibraryImport("user32.dll", EntryPoint = "LoadImageW", SetLastError = true)]
+    private static partial IntPtr LoadImage(IntPtr instance, nint name, uint type, int width, int height, uint load);
 }

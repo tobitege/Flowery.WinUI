@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Flowery.Localization;
 
 #nullable enable
@@ -297,21 +297,9 @@ namespace Flowery.Helpers
 
             input = input.Trim();
 
-            // Check for AM/PM suffix
-            var isAm = false;
-            var isPm = false;
-            var upperInput = input.ToUpperInvariant();
-
-            if (upperInput.EndsWith("AM") || upperInput.EndsWith(GetAmLabel().ToUpperInvariant()))
-            {
-                isAm = true;
-                input = input.Substring(0, input.Length - 2).Trim();
-            }
-            else if (upperInput.EndsWith("PM") || upperInput.EndsWith(GetPmLabel().ToUpperInvariant()))
-            {
-                isPm = true;
-                input = input.Substring(0, input.Length - 2).Trim();
-            }
+            // FormatClockTime writes the AM/PM label after the time, and before it in right-to-left cultures.
+            var isAm = TryRemoveDayPeriod(ref input, "AM") || TryRemoveDayPeriod(ref input, GetAmLabel());
+            var isPm = !isAm && (TryRemoveDayPeriod(ref input, "PM") || TryRemoveDayPeriod(ref input, GetPmLabel()));
 
             // Try to parse as TimeSpan
             if (TimeSpan.TryParse(input, out var ts))
@@ -330,6 +318,24 @@ namespace Flowery.Helpers
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Removes an AM/PM label at the end or start of the input, whatever its length.
+        /// </summary>
+        private static bool TryRemoveDayPeriod(ref string input, string label)
+        {
+            if (string.IsNullOrEmpty(label) || input.Length <= label.Length)
+                return false;
+
+            if (input.EndsWith(label, StringComparison.OrdinalIgnoreCase))
+                input = input[..^label.Length].Trim();
+            else if (input.StartsWith(label, StringComparison.OrdinalIgnoreCase))
+                input = input[label.Length..].Trim();
+            else
+                return false;
+
+            return true;
         }
 
         /// <summary>
@@ -463,7 +469,7 @@ namespace Flowery.Helpers
             input = input.Trim();
 
             // Handle negative durations
-            var negative = input.StartsWith("-");
+            var negative = input.StartsWith('-');
             if (negative)
                 input = input.Substring(1);
 
@@ -546,11 +552,11 @@ namespace Flowery.Helpers
 
             input = input.Trim().ToUpperInvariant();
 
-            var negative = input.StartsWith("-");
+            var negative = input.StartsWith('-');
             if (negative)
                 input = input.Substring(1);
 
-            if (!input.StartsWith("PT"))
+            if (!input.StartsWith("PT", StringComparison.Ordinal))
                 return false;
 
             input = input.Substring(2); // Remove "PT"

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -16,8 +16,14 @@ namespace Flowery.Tools
     /// CLI Usage: dotnet run -- --export-icons &lt;output-folder&gt; &lt;hex-color&gt;
     /// Example:   dotnet run -- --export-icons ./icons #FF5733
     /// </remarks>
-    public static class IconSvgExporter
+    public static partial class IconSvgExporter
     {
+        [GeneratedRegex("([a-z])([A-Z])")]
+        private static partial Regex WordBoundaryRegex();
+
+        [GeneratedRegex("^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$")]
+        private static partial Regex HexColorRegex();
+
         private const int DefaultViewBoxSize = 24;
         
         /// <summary>
@@ -66,8 +72,8 @@ namespace Flowery.Tools
         {
             var icons = new List<(string Key, string PathData)>();
             
-            // Get the path to DaisyIcons.xaml relative to the assembly location
-            var assemblyDir = IOPath.GetDirectoryName(typeof(IconSvgExporter).Assembly.Location);
+            // Get the path to DaisyIcons.xaml relative to the app directory
+            var baseDirectory = AppContext.BaseDirectory;
             
             // Try multiple potential paths for the XAML file
             string? xamlPath = null;
@@ -76,12 +82,12 @@ namespace Flowery.Tools
                 // From Tools/IconGenerator - go up to repo root, then into Flowery.WinUI
                 IOPath.Combine(Environment.CurrentDirectory, "..", "..", "Flowery.WinUI", "Themes", "DaisyIcons.xaml"),
                 // From bin/Debug/net10.0 output folder
-                IOPath.Combine(assemblyDir ?? ".", "..", "..", "..", "..", "..", "Flowery.WinUI", "Themes", "DaisyIcons.xaml"),
+                IOPath.Combine(baseDirectory, "..", "..", "..", "..", "..", "Flowery.WinUI", "Themes", "DaisyIcons.xaml"),
                 // Direct sibling (if running from solution root)
                 IOPath.Combine(Environment.CurrentDirectory, "Flowery.WinUI", "Themes", "DaisyIcons.xaml"),
                 // Other potential locations
-                IOPath.Combine(assemblyDir ?? ".", "..", "..", "..", "Themes", "DaisyIcons.xaml"),
-                IOPath.Combine(assemblyDir ?? ".", "Themes", "DaisyIcons.xaml"),
+                IOPath.Combine(baseDirectory, "..", "..", "..", "Themes", "DaisyIcons.xaml"),
+                IOPath.Combine(baseDirectory, "Themes", "DaisyIcons.xaml"),
             };
             
             foreach (var path in potentialPaths)
@@ -141,9 +147,9 @@ namespace Flowery.Tools
         {
             // Remove common prefixes
             var name = key;
-            if (name.StartsWith("DaisyIcon"))
+            if (name.StartsWith("DaisyIcon", StringComparison.Ordinal))
                 name = name.Substring("DaisyIcon".Length);
-            else if (name.StartsWith("ModifierIcon"))
+            else if (name.StartsWith("ModifierIcon", StringComparison.Ordinal))
                 name = name.Substring("ModifierIcon".Length);
             
             // Convert PascalCase to snake_case
@@ -161,7 +167,7 @@ namespace Flowery.Tools
                 return input;
             
             // Insert underscore before uppercase letters, then lowercase everything
-            var result = Regex.Replace(input, "([a-z])([A-Z])", "$1_$2");
+            var result = WordBoundaryRegex().Replace(input, "$1_$2");
             return result.ToLowerInvariant();
         }
         
@@ -176,11 +182,11 @@ namespace Flowery.Tools
             var color = hexColor.Trim();
             
             // Add # if missing
-            if (!color.StartsWith("#"))
+            if (!color.StartsWith('#'))
                 color = "#" + color;
             
             // Validate the hex color format
-            if (!Regex.IsMatch(color, @"^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$"))
+            if (!HexColorRegex().IsMatch(color))
             {
                 throw new ArgumentException(
                     $"Invalid hex color format: '{hexColor}'. Expected formats: #RGB, #RRGGBB, or #AARRGGBB",

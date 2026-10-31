@@ -60,6 +60,26 @@ DaisySelect is a styled ComboBox with **9 variants** and **5 size presets**. It 
 - Consider width constraints: the dropdown `Popup` inherits the control width; set explicit widths for narrow layouts.
 - For larger option sets, pair with search/filter UI outside the ComboBox for usability.
 
+## ItemsSource in a NativeAOT App
+
+`ItemsSource` is typed `object`, so the CsWinRT generator of the app cannot see which list type reaches WinUI. In a NativeAOT build, a list of your own items then fails with "Value does not fall within the expected range". Name the list type once in the app and mark the item class `partial`:
+
+```csharp
+[assembly: WinRT.GeneratedWinRTExposedExternalType(typeof(System.Collections.Generic.List<MyApp.SelectOption>))]
+
+namespace MyApp;
+
+[Microsoft.UI.Xaml.Data.Bindable]
+public sealed partial class SelectOption(object key, string text)
+{
+    public object Key { get; } = key;
+    public string Text { get; } = text;
+    public override string ToString() => Text;
+}
+```
+
+The same applies to a list of your own that you pass to `ItemsSource` of `DaisySizeDropdown` or `DaisyThemeDropdown`, which share the base class.
+
 ## Localization Refresh (DaisySelectItem)
 
 `DaisySelectItem` is a `DependencyObject` and does not live in the visual tree, so bindings that rely on a parent `DataContext` can fail to refresh when the page resets `DataContext` (e.g., during runtime language changes). This can result in empty dropdown rows even though the items are still present.

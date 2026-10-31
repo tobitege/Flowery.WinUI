@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using Windows.Storage;
@@ -9,7 +9,7 @@ namespace Flowery.WinUI.Photos.Services
     /// <summary>
     /// Windows shell helpers: recycle bin, explorer, wallpaper, clipboard, launching.
     /// </summary>
-    public static class FileOperations
+    public static partial class FileOperations
     {
         public static bool MoveToRecycleBin(string path)
         {
@@ -99,8 +99,9 @@ namespace Flowery.WinUI.Photos.Services
         private const int SpifUpdateIniFile = 0x01;
         private const int SpifSendChange = 0x02;
 
-        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        private static extern bool SystemParametersInfo(int uiAction, int uiParam, string pvParam, int fWinIni);
+        [LibraryImport("user32.dll", EntryPoint = "SystemParametersInfoW", StringMarshalling = StringMarshalling.Utf16, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool SystemParametersInfo(int uiAction, int uiParam, string pvParam, int fWinIni);
 
         public static bool SetAsWallpaper(string path)
         {

@@ -5,6 +5,7 @@
     <UseWinUI>true</UseWinUI>
     <OutputType>Library</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsAotCompatible>true</IsAotCompatible>
     <GenerateLibraryLayout>true</GenerateLibraryLayout>
     <PackageId>Flowery.WinUI.Win2D</PackageId>
     <Description>Native Win2D effects for Flowery WinUI 3 controls.</Description>

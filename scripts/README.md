@@ -96,6 +96,15 @@ The script checks process exit, unique case names, report counts, and individual
 Inconclusive checks are listed as warnings and do not fail the run.
 A scaling checkpoint is inconclusive when only its zoom panel overflows the slide, which depends on the session's text measurement.
 
+To check a published Kiosk, such as the NativeAOT output, pass its executable; the script then builds nothing:
+
+```powershell
+./scripts/publish_windows.ps1 -Configuration Release -Application Kiosk -Aot -OutputDir publish-kiosk
+./scripts/test_kiosk.ps1 -Configuration Release -ExecutablePath publish-kiosk/Flowery.WinUI.Kiosk.exe
+```
+
+`-Configuration` then only names the report and log folders.
+
 ## Run native tests
 
 ```powershell
@@ -165,6 +174,28 @@ The Kiosk example writes native Windows x64 output to `publish-kiosk/`.
 The default output includes the .NET runtime and the Windows App SDK runtime.
 The publish script uses the native XAML and PRI resource pipeline.
 
+### NativeAOT
+
+```powershell
+./scripts/publish_windows.ps1 -Configuration Release -Application Kiosk -Aot -OutputDir publish-kiosk
+./scripts/publish_windows.ps1 -Configuration Release -Application Photos -Aot -OutputDir publish-photos
+```
+
+`-Aot` compiles the Kiosk or Photos ahead of time into one native executable, without the .NET runtime and JIT.
+The releases publish both applications this way. The Gallery stays a JIT application: the runtime tests load into its process, and many example pages bind to plain model classes.
+The script passes `FloweryPublishAot=true`, which the application project turns into `PublishAot`; the referenced libraries stay normal builds.
+The native symbols stay in the build output (`bin/Release/<Application>/.../native/`) and are not published.
+A NativeAOT publish needs the Visual Studio C++ build tools (workload "Desktop development with C++") for the native linker.
+
+A NativeAOT build reports a missing marshalling or binding entry only when the code runs, so check the published Photos by starting it:
+
+```powershell
+./scripts/test_photos_start.ps1 -ExecutablePath publish-photos/Flowery.WinUI.Photos.exe
+```
+
+The script starts Photos with an isolated state directory under `TestResults/PhotosStart/<run>/`.
+It fails when the process ends before or within ten seconds after its window opens (`-SettleSeconds`), when it writes `crash.log`, or when it does not close on request.
+
 ## Build the Photos installer
 
 ```powershell
@@ -207,6 +238,7 @@ This workflow does not publish NuGet packages. Only the manually started Release
 The repository's built-in automatic submission remains disabled because its Linux restore fails for these native Windows projects.
 
 The CI workflow is configured to build and check Gallery and Kiosk in Debug and Release with SDK `10.0.402` and `11.0.100-rc.2.26504.105`.
+It also publishes the Kiosk and Photos with NativeAOT, runs the Kiosk smoke checks on the NativeAOT Kiosk and starts the NativeAOT Photos.
 The release workflow creates the native packages, Gallery output, `Flowery.WinUI.Kiosk-Windows-x64.zip`, `Flowery.WinUI.Photos-Windows-x64.zip` and the Photos installer `Flowery.WinUI.Photos-Setup-<version>-x64.exe`.
 Release publication remains a manual workflow action, with SDK `10.0.402` selected by default and SDK 11 RC2 available as an option.
 

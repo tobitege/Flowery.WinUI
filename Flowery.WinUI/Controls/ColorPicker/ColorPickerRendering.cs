@@ -1,4 +1,5 @@
-using System.IO;
+﻿using System.IO;
+using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.UI;
@@ -15,25 +16,44 @@ namespace Flowery.Controls.ColorPicker
             }
 
             var bitmap = new WriteableBitmap(width, height);
-            var pixels = new byte[width * height * 4];
+            WritePixels(bitmap, CreateCheckerboardPixels(width, height, checkSize, light, dark));
+            return bitmap;
+        }
 
-            for (int y = 0; y < height; y++)
+        /// <summary>
+        /// Returns BGRA pixels of a checkerboard whose top left check is light.
+        /// </summary>
+        internal static byte[] CreateCheckerboardPixels(int width, int height, int checkSize, Color light, Color dark)
+        {
+            var pixels = new byte[width * height * 4];
+            var values = MemoryMarshal.Cast<byte, uint>(pixels.AsSpan());
+            var lightValue = ToBgra(light);
+            var darkValue = ToBgra(dark);
+
+            for (var y = 0; y < height; y++)
             {
-                for (int x = 0; x < width; x++)
+                var row = values.Slice(y * width, width);
+                // The rows of one band of checks are equal, so only the first row of a band is filled.
+                if (y % checkSize != 0)
                 {
-                    bool isLight = ((x / checkSize) + (y / checkSize)) % 2 == 0;
-                    var color = isLight ? light : dark;
-                    int offset = (y * width + x) * 4;
-                    pixels[offset] = color.B;
-                    pixels[offset + 1] = color.G;
-                    pixels[offset + 2] = color.R;
-                    pixels[offset + 3] = color.A;
+                    values.Slice((y - 1) * width, width).CopyTo(row);
+                    continue;
+                }
+
+                var lightFirst = (y / checkSize) % 2 == 0;
+                for (var x = 0; x < width; x += checkSize)
+                {
+                    var isLight = ((x / checkSize) % 2 == 0) == lightFirst;
+                    row.Slice(x, Math.Min(checkSize, width - x)).Fill(isLight ? lightValue : darkValue);
                 }
             }
 
-            WritePixels(bitmap, pixels);
-            return bitmap;
+            return pixels;
         }
+
+        // Windows is little-endian, so B, G, R, A are the bytes of this value in memory order.
+        private static uint ToBgra(Color color) =>
+            color.B | (uint)color.G << 8 | (uint)color.R << 16 | (uint)color.A << 24;
 
         public static void WritePixels(WriteableBitmap bitmap, byte[] pixels)
         {

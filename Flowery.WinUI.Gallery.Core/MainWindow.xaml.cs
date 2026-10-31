@@ -1,4 +1,4 @@
-using Microsoft.UI.Windowing;
+﻿using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Windows.Graphics;
 using System;
@@ -18,6 +18,7 @@ namespace Flowery.WinUI.Gallery
         private static readonly IntPtr MinimumSizeSubclassId = new IntPtr(1);
         private IntPtr _windowHandle;
         private SUBCLASSPROC? _minSizeSubclassProc;
+        private IntPtr _minSizeSubclassPointer;
 #endif
 
         public MainWindow()
@@ -82,9 +83,9 @@ namespace Flowery.WinUI.Gallery
             SaveCurrentWindowBounds();
 
 #if WINDOWS
-            if (_isSystemMinSizeActive && _windowHandle != IntPtr.Zero && _minSizeSubclassProc != null)
+            if (_isSystemMinSizeActive && _windowHandle != IntPtr.Zero && _minSizeSubclassPointer != IntPtr.Zero)
             {
-                RemoveWindowSubclass(_windowHandle, _minSizeSubclassProc, MinimumSizeSubclassId);
+                RemoveWindowSubclass(_windowHandle, _minSizeSubclassPointer, MinimumSizeSubclassId);
                 _isSystemMinSizeActive = false;
             }
 #endif
@@ -238,8 +239,13 @@ namespace Flowery.WinUI.Gallery
                 return;
             }
 
-            _minSizeSubclassProc ??= MinimumSizeSubclassProc;
-            _isSystemMinSizeActive = SetWindowSubclass(_windowHandle, _minSizeSubclassProc, MinimumSizeSubclassId, IntPtr.Zero);
+            if (_minSizeSubclassProc is null)
+            {
+                // The delegate field keeps the callback alive while Windows holds its pointer.
+                _minSizeSubclassProc = MinimumSizeSubclassProc;
+                _minSizeSubclassPointer = Marshal.GetFunctionPointerForDelegate(_minSizeSubclassProc);
+            }
+            _isSystemMinSizeActive = SetWindowSubclass(_windowHandle, _minSizeSubclassPointer, MinimumSizeSubclassId, IntPtr.Zero);
         }
 
         private IntPtr MinimumSizeSubclassProc(
@@ -261,21 +267,23 @@ namespace Flowery.WinUI.Gallery
             return DefSubclassProc(hWnd, uMsg, wParam, lParam);
         }
 
-        [DllImport("comctl32.dll", SetLastError = true)]
-        private static extern bool SetWindowSubclass(
+        [LibraryImport("comctl32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool SetWindowSubclass(
             IntPtr hWnd,
-            SUBCLASSPROC pfnSubclass,
+            IntPtr pfnSubclass,
             IntPtr uIdSubclass,
             IntPtr dwRefData);
 
-        [DllImport("comctl32.dll")]
-        private static extern bool RemoveWindowSubclass(
+        [LibraryImport("comctl32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool RemoveWindowSubclass(
             IntPtr hWnd,
-            SUBCLASSPROC pfnSubclass,
+            IntPtr pfnSubclass,
             IntPtr uIdSubclass);
 
-        [DllImport("comctl32.dll")]
-        private static extern IntPtr DefSubclassProc(
+        [LibraryImport("comctl32.dll")]
+        private static partial IntPtr DefSubclassProc(
             IntPtr hWnd,
             uint uMsg,
             IntPtr wParam,

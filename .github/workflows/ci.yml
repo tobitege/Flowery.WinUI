@@ -60,8 +60,14 @@ jobs:
           dotnet-version: 10.0.402
       - name: Publish Gallery App (Windows)
         run: ./scripts/publish_windows.ps1 -Configuration Release -RuntimeIdentifier win-x64 -SelfContained:$true -OutputDir publish -SdkVersion '10.0.402'
-      - name: Publish Kiosk App (Windows)
-        run: ./scripts/publish_windows.ps1 -Application Kiosk -Configuration Release -OutputDir publish-kiosk -SdkVersion '10.0.402'
+      - name: Publish Kiosk App (Windows, NativeAOT)
+        run: ./scripts/publish_windows.ps1 -Application Kiosk -Configuration Release -Aot -OutputDir publish-kiosk -SdkVersion '10.0.402'
+      - name: Run native Kiosk tests on the NativeAOT build
+        run: ./scripts/test_kiosk.ps1 -Configuration Release -ExecutablePath ./publish-kiosk/Flowery.WinUI.Kiosk.exe
+      - name: Publish Photos App (Windows, NativeAOT)
+        run: ./scripts/publish_windows.ps1 -Application Photos -Configuration Release -Aot -OutputDir publish-photos -SdkVersion '10.0.402'
+      - name: Start the NativeAOT Photos
+        run: ./scripts/test_photos_start.ps1 -ExecutablePath ./publish-photos/Flowery.WinUI.Photos.exe
 
   windows:
     runs-on: windows-2025-vs2026

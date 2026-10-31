@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Data;
 
@@ -9,7 +9,7 @@ namespace Flowery.WinUI.Kanban.Converters;
 /// for the tasks viewport area (Skia/Desktop only). This keeps the column header padded while allowing
 /// cards to sit closer to the column border.
 /// </summary>
-public sealed class KanbanTasksHostMarginConverter : IValueConverter
+public sealed partial class KanbanTasksHostMarginConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, string language)
     {
