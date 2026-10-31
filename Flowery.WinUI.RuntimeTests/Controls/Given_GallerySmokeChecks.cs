@@ -16,10 +16,13 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         [TestMethod]
         public async Task When_ALocalizedBindingFindsNoIndexer_TheSmokeRunReportsItsEmptyText()
         {
-            var localized = Bound("Localized", "[Gallery_Tour_WelcomeTitle]", GalleryLocalization.Instance);
-            var noIndexer = Bound("NoIndexer", "[Gallery_Tour_WelcomeTitle]", new object());
-            var noProperty = Bound("NoProperty", "NoSuchProperty", new object());
-            var page = new StackPanel { Children = { localized, noIndexer, noProperty } };
+            const string Key = "[Gallery_Tour_WelcomeTitle]";
+            var localized = Bound(new TextBlock { Name = "Localized" }, TextBlock.TextProperty, Key, GalleryLocalization.Instance);
+            var noIndexer = Bound(new TextBlock { Name = "NoIndexer" }, TextBlock.TextProperty, Key, new object());
+            var noProperty = Bound(new TextBlock { Name = "NoProperty" }, TextBlock.TextProperty, "NoSuchProperty", new object());
+            var placeholder = Bound(new TextBox { Name = "Placeholder" }, TextBox.PlaceholderTextProperty, Key, new object());
+            var content = Bound(new ContentControl { Name = "Content" }, ContentControl.ContentProperty, Key, new object());
+            var page = new StackPanel { Children = { localized, noIndexer, noProperty, placeholder, content } };
             RuntimeTestHelpers.AttachToHost(page);
             try
             {
@@ -27,7 +30,12 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                 List<string> emptyTexts = [];
                 GallerySmokeTest.CollectEmptyTexts(page, emptyTexts);
                 Assert.IsFalse(string.IsNullOrEmpty(localized.Text), "the Gallery localization gives no text");
-                CollectionAssert.AreEqual(new[] { "TextBlock NoIndexer.Text {Binding [Gallery_Tour_WelcomeTitle]}" }, emptyTexts);
+                CollectionAssert.AreEquivalent(new[]
+                {
+                    $"TextBlock NoIndexer.Text {{Binding {Key}}}",
+                    $"TextBox Placeholder.PlaceholderText {{Binding {Key}}}",
+                    $"ContentControl Content.Content {{Binding {Key}}}"
+                }, emptyTexts);
             }
             finally
             {
@@ -35,11 +43,10 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             }
         }
 
-        private static TextBlock Bound(string name, string path, object source)
+        private static T Bound<T>(T element, DependencyProperty property, string path, object source) where T : FrameworkElement
         {
-            var text = new TextBlock { Name = name };
-            text.SetBinding(TextBlock.TextProperty, new Binding { Path = new PropertyPath(path), Source = source });
-            return text;
+            element.SetBinding(property, new Binding { Path = new PropertyPath(path), Source = source });
+            return element;
         }
     }
 }

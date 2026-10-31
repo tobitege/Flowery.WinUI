@@ -59,6 +59,11 @@ namespace Flowery.WinUI.Kanban.Controls
                 _boardRepeater.ElementClearing -= OnBoardElementClearing;
             }
 
+            // The old repeater clears none of its tiles, which leave the view with it.
+            foreach (var surface in _tappableSurfaces)
+                surface.Tapped -= OnBoardSurfaceTapped;
+            _tappableSurfaces.Clear();
+
             _boardRepeater = GetTemplateChild("PART_BoardGrid") as ItemsRepeater;
             if (_boardRepeater != null)
             {

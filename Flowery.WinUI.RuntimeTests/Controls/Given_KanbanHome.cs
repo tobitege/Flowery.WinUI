@@ -79,6 +79,48 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             });
         }
 
+        // A template applied again brings a new repeater and new tiles; the view lets the old tiles go.
+        [TestMethod]
+        public async Task When_TheHomeTemplateIsAppliedAgain_OnlyTheNewTilesTakeTaps()
+        {
+            await RuntimeTestHelpers.WithStateStorageAsync(async () =>
+            {
+                var store = new FlowKanbanBoardStore(StateStorageProvider.Instance);
+                var saved = new FlowKanbanData { Title = "Saved", Columns = { new FlowKanbanColumnData { Title = "Todo" } } };
+                Assert.IsTrue(store.TrySaveBoard(saved, out var saveError), saveError?.Message);
+                var kanban = new FlowKanban
+                {
+                    BoardStore = store, Width = 1000, Height = 600,
+                    HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top
+                };
+                RuntimeTestHelpers.AttachToHost(kanban);
+                try
+                {
+                    await RuntimeTestHelpers.EnsureLoadedAsync(kanban);
+                    kanban.CurrentView = FlowKanbanView.Home;
+                    var oldSurface = (FrameworkElement)(await TileAsync(kanban, saved.Id)).FindName("PART_BoardOpenSurface");
+                    var home = RuntimeTestHelpers.Descendants<FlowKanbanHome>(kanban).Single();
+
+                    var template = home.Template;
+                    home.Template = null;
+                    home.UpdateLayout();
+                    home.Template = template;
+                    home.UpdateLayout();
+
+                    var newSurface = (FrameworkElement)(await TileAsync(kanban, saved.Id)).FindName("PART_BoardOpenSurface");
+                    Assert.AreNotSame(oldSurface, newSurface, "the template built no new tile");
+                    Assert.IsFalse(home.TapBoardSurface(oldSurface), "the view still handles taps on a tile of the old template");
+                    Assert.IsTrue(home.TapBoardSurface(newSurface), "the view handles no tap on the new tile");
+                    await RuntimeTestHelpers.WaitUntilAsync(
+                        () => kanban.CurrentView == FlowKanbanView.Board && kanban.Board.Id == saved.Id, "the tapped tile opens its board");
+                }
+                finally
+                {
+                    await RuntimeTestHelpers.DetachFromHostAsync(kanban);
+                }
+            });
+        }
+
         // The home view lays its tiles out over several passes after it is shown, so a tile counts only once the same tile
         // stays in place for a pass.
         private static async Task<FrameworkElement> TileAsync(FlowKanban kanban, string boardId)

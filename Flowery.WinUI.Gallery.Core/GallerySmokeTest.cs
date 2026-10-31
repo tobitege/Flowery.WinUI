@@ -13,7 +13,7 @@ namespace Flowery.WinUI.Gallery
     public sealed class GallerySmokeTest
     {
         private const int MaxScrollSteps = 60;
-        private const int MaxListedTexts = 20;
+        private const int MaxListedProblems = 20;
         // The first page builds the shell as well, so it may take longer than a category.
         private static readonly TimeSpan FirstPageTimeout = TimeSpan.FromSeconds(30);
         private static readonly TimeSpan LoadTimeout = TimeSpan.FromSeconds(20);
@@ -78,11 +78,11 @@ namespace Flowery.WinUI.Gallery
                 _errors.Add(exception.ToString());
             }
 
-            var problems = _errors.Distinct().Take(MaxListedTexts).ToList();
+            var problems = _errors.Distinct().Take(MaxListedProblems).ToList();
             if (emptyTexts.Count > 0)
             {
-                problems.Add($"{emptyTexts.Count} localized texts are empty: " + string.Join("; ", emptyTexts.Take(MaxListedTexts))
-                    + (emptyTexts.Count > MaxListedTexts ? "; ..." : string.Empty));
+                problems.Add($"{emptyTexts.Count} localized texts are empty: " + string.Join("; ", emptyTexts.Take(MaxListedProblems))
+                    + (emptyTexts.Count > MaxListedProblems ? "; ..." : string.Empty));
             }
             _report.Add("Category." + category, problems.Count == 0,
                 problems.Count == 0 ? "Opened and scrolled through; every localized text is set." : string.Join(Environment.NewLine, problems));

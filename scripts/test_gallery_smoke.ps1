@@ -1,7 +1,7 @@
 #requires -Version 7.0
 # Runs the Gallery's smoke run (--smoke-test): it opens every category, scrolls through it and reports per category
-# an exception, a page that does not load, or a bound text that stays empty. Use -ExecutablePath for a published
-# Gallery, such as the NativeAOT output of publish_windows.ps1 -Aot.
+# an exception, a page that does not load, or a localized text ({Binding [Key]}) that stays empty. Use -ExecutablePath
+# for a published Gallery, such as the output of publish_windows.ps1.
 param(
     [ValidateSet('Debug', 'Release')][string]$Configuration = 'Debug',
     [switch]$SkipBuild,
