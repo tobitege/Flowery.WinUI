@@ -5,6 +5,11 @@
     <UseWinUI>true</UseWinUI>
     <OutputType>Library</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- WMC1510 asks for x:DataType on every {Binding}. The example pages bind their texts to the localization
+         ({Binding [Key]}), which the smoke run checks for empty texts; the unit test Given_LibraryXamlBindings checks the
+         other bindings, which read dependency properties or [Bindable] item types. -->
+    <NoWarn>$(NoWarn);WMC1510</NoWarn>
     <GenerateLibraryLayout>true</GenerateLibraryLayout>
     <IsPackable>false</IsPackable>
   </PropertyGroup>

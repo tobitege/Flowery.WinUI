@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Flowery.Controls.Scheduler.Models;
 using Flowery.Localization;
 using Microsoft.UI.Xaml;
@@ -36,11 +36,13 @@ public partial class DaisyScheduler
     public static readonly DependencyProperty AppointmentColorsProperty = Register<IReadOnlyList<Color>?>(nameof(AppointmentColors), null);
 
     /// <summary>Optional host editor palette. Null or empty hides the palette in the Gallery editor.
-    /// A null appointment BackColor always means the theme default.</summary>
+    /// A null appointment BackColor always means the theme default.
+    /// The property keeps a copy of the colors. A NativeAOT app sets the palette through this property: SetValue, a
+    /// {Binding} or a style setter hand an array of Color to WinUI as it is, which such an app cannot do.</summary>
     public IReadOnlyList<Color>? AppointmentColors
     {
         get => (IReadOnlyList<Color>?)GetValue(AppointmentColorsProperty);
-        set => SetValue(AppointmentColorsProperty, value);
+        set => SetValue(AppointmentColorsProperty, value is null or AppointmentColorList ? value : new AppointmentColorList(value));
     }
 
     public static readonly DependencyProperty TimeSlotStartProperty = Register(nameof(TimeSlotStart), TimeSpan.FromHours(7));
@@ -109,4 +111,20 @@ public partial class DaisyScheduler
             slots.Add(time);
         return slots.ToArray();
     }
+}
+
+// A dependency property hands its value to WinUI. A NativeAOT app cannot do that for an array of Color (CsWinRT has no
+// IReferenceArray<Color> there), nor for a list type without generated marshalling code; for this list of the library
+// the code is generated, so AppointmentColors keeps a copy of the colors in it.
+internal sealed partial class AppointmentColorList(IReadOnlyList<Color> colors) : IReadOnlyList<Color>
+{
+    private readonly Color[] _colors = [.. colors];
+
+    public Color this[int index] => _colors[index];
+
+    public int Count => _colors.Length;
+
+    public IEnumerator<Color> GetEnumerator() => ((IEnumerable<Color>)_colors).GetEnumerator();
+
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }

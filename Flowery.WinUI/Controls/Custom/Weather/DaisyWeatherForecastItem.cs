@@ -1,4 +1,4 @@
-using Flowery.Controls.Weather.Models;
+﻿using Flowery.Controls.Weather.Models;
 using Flowery.Services;
 using Flowery.Theming;
 using Microsoft.UI.Xaml;
@@ -10,6 +10,8 @@ namespace Flowery.Controls.Weather
     /// Represents a single day in the weather forecast strip.
     /// This control supports Size-based visual states for responsive sizing.
     /// </summary>
+    // Bindings read its properties by name, which a NativeAOT app resolves only through the generated provider.
+    [WinRT.GeneratedBindableCustomProperty]
     public partial class DaisyWeatherForecastItem : DaisyBaseContentControl
     {
         private Border? _itemBorder;

@@ -2357,7 +2357,7 @@
                                                                 Foreground="{ThemeResource DaisyBaseContentBrush}" />
                                         <TextBlock Foreground="{ThemeResource DaisyBaseContentBrush}"
                                                    VerticalAlignment="Center">
-                                            <Run Text="{Binding Board.Columns.Count, RelativeSource={RelativeSource TemplatedParent}}"
+                                            <Run Text="{Binding Board.ColumnCount, RelativeSource={RelativeSource TemplatedParent}}"
                                                  FontWeight="SemiBold" />
                                             <Run Text=" " />
                                             <Run Text="{Binding [Kanban_Sections]}" />

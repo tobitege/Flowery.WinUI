@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -23,6 +23,8 @@ namespace Flowery.WinUI.Kanban.Controls
     /// <summary>
     /// A column container for the Kanban board that supports drop operations.
     /// </summary>
+    // Bindings read its properties by name, which a NativeAOT app resolves only through the generated provider.
+    [WinRT.GeneratedBindableCustomProperty]
     public partial class FlowKanbanColumn : DaisyBaseContentControl
     {
         private ItemsControl? _tasksItemsControl;

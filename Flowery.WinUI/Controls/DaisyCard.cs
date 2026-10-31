@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Flowery.Skia;
 using Flowery.Theming;
 using Microsoft.UI;
@@ -17,6 +17,8 @@ namespace Flowery.Controls
     /// A Card control styled after DaisyUI's Card component.
     /// Supports glass effects with optional Skia-based backdrop blur.
     /// </summary>
+    // Bindings read its properties by name, which a NativeAOT app resolves only through the generated provider.
+    [WinRT.GeneratedBindableCustomProperty]
     public partial class DaisyCard : DaisyBaseContentControl
     {
         private Border? _solidBackground;

@@ -1,4 +1,4 @@
-using Flowery.Enums;
+﻿using Flowery.Enums;
 using Flowery.Services;
 using Flowery.Theming;
 using Microsoft.UI.Xaml;
@@ -249,7 +249,7 @@ namespace Flowery.Controls
             if (_breadcrumbBar == null)
                 return;
 
-            _breadcrumbBar.ItemsSource = ItemsSource;
+            _breadcrumbBar.ItemsSource = WinUIItemsSource.For(ItemsSource);
 
             if (ItemTemplate == null)
             {

@@ -20,6 +20,8 @@ namespace Flowery.WinUI.Kanban.Controls
     /// <summary>
     /// A lightweight task card for the Kanban board.
     /// </summary>
+    // Bindings read its properties by name, which a NativeAOT app resolves only through the generated provider.
+    [WinRT.GeneratedBindableCustomProperty]
     public partial class FlowTaskCard : DaisyBaseContentControl
     {
         private FlowKanban? _parentKanban;

@@ -1,8 +1,10 @@
-namespace Flowery.Controls.Weather
+﻿namespace Flowery.Controls.Weather
 {
     /// <summary>
     /// Displays current weather conditions including temperature, feels-like, condition icon, and date/time info.
     /// </summary>
+    // Bindings read its properties by name, which a NativeAOT app resolves only through the generated provider.
+    [WinRT.GeneratedBindableCustomProperty]
     public partial class DaisyWeatherCurrent : DaisyBaseContentControl
     {
         [GeneratedRegex(@"[yY]+")]

@@ -721,6 +721,7 @@ namespace Flowery.WinUI.Kanban.Controls
     /// <summary>
     /// Represents a swimlane row for grouping tasks.
     /// </summary>
+    [Microsoft.UI.Xaml.Data.Bindable]
     public class FlowKanbanLane : INotifyPropertyChanged
     {
         private string _id = Guid.NewGuid().ToString();
@@ -776,6 +777,7 @@ namespace Flowery.WinUI.Kanban.Controls
         private string _createdBy = string.Empty;
         private ObservableCollection<string> _tags = new();
         private ObservableCollection<FlowKanbanLane> _lanes = new();
+        private ObservableCollection<FlowKanbanColumnData> _columns = new();
         private FlowKanbanGroupBy _groupBy = FlowKanbanGroupBy.None;
         private string? _archiveColumnId;
         private bool _isArchiveColumnHidden;
@@ -783,6 +785,11 @@ namespace Flowery.WinUI.Kanban.Controls
         private bool _autoArchiveDoneEnabled;
         private int _autoArchiveDoneDays = 14;
         private int _nextWorkItemNumber = 1;
+
+        public FlowKanbanData()
+        {
+            _columns.CollectionChanged += OnColumnsChanged;
+        }
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -903,7 +910,28 @@ namespace Flowery.WinUI.Kanban.Controls
         }
 
         [JsonPropertyName("columns")]
-        public ObservableCollection<FlowKanbanColumnData> Columns { get; set; } = new();
+        public ObservableCollection<FlowKanbanColumnData> Columns
+        {
+            get => _columns;
+            set
+            {
+                var columns = value ?? new ObservableCollection<FlowKanbanColumnData>();
+                if (ReferenceEquals(_columns, columns)) return;
+                _columns.CollectionChanged -= OnColumnsChanged;
+                _columns = columns;
+                _columns.CollectionChanged += OnColumnsChanged;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Columns)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ColumnCount)));
+            }
+        }
+
+        /// <summary>The number of columns. Bindings read this instead of Columns.Count, which a NativeAOT app cannot read
+        /// by name.</summary>
+        [JsonIgnore]
+        public int ColumnCount => _columns.Count;
+
+        private void OnColumnsChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ColumnCount)));
 
         /// <summary>Extensible fields for custom board data without schema changes.</summary>
         [JsonPropertyName("customFields")]
@@ -1121,6 +1149,7 @@ namespace Flowery.WinUI.Kanban.Controls
     /// <summary>
     /// A saved filter preset with name and criteria.
     /// </summary>
+    [Microsoft.UI.Xaml.Data.Bindable]
     public sealed class FlowKanbanFilterPreset
     {
         public const int MaxNameLength = 50;

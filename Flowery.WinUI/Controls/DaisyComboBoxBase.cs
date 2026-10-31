@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -271,7 +271,7 @@ namespace Flowery.Controls
                  combo._isInteracting = true;
                  try
                  {
-                     var itemsSource = e.NewValue ?? combo.Items;
+                     var itemsSource = WinUIItemsSource.For(e.NewValue ?? combo.Items);
                      if (combo._listView != null)
                      {
                          combo._listView.ItemsSource = itemsSource;
@@ -680,7 +680,7 @@ namespace Flowery.Controls
                     _listBox = new ListBox
                     {
                         SelectionMode = SelectionMode.Single,
-                        ItemsSource = ItemsSource ?? Items,
+                        ItemsSource = WinUIItemsSource.For(ItemsSource ?? Items),
                         Padding = new Thickness(0)
                     };
                     _listBox.SelectionChanged += OnListViewSelectionChanged;
@@ -698,7 +698,7 @@ namespace Flowery.Controls
                     {
                         SelectionMode = ListViewSelectionMode.Single,
                         IsItemClickEnabled = true,
-                        ItemsSource = ItemsSource ?? Items,
+                        ItemsSource = WinUIItemsSource.For(ItemsSource ?? Items),
                         Padding = new Thickness(0)
                     };
                     _listView.SelectionChanged += OnListViewSelectionChanged;

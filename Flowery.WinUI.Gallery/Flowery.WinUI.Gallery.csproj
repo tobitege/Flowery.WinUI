@@ -18,6 +18,14 @@
     <DisableTransitiveFrameworkReferenceDownloads>true</DisableTransitiveFrameworkReferenceDownloads>
   </PropertyGroup>
 
+  <!-- publish_windows.ps1 -Aot: a NativeAOT publish. The property is not PublishAot itself, which as a global
+       property would also turn the referenced libraries into AOT builds. The native symbols stay in the build
+       output; stack traces in crash.log keep their method names without them. -->
+  <PropertyGroup Condition="'$(FloweryPublishAot)' == 'true'">
+    <PublishAot>true</PublishAot>
+    <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Flowery.WinUI.Gallery.Core\Flowery.WinUI.Gallery.Core.csproj" />
     <ProjectReference Include="..\Flowery.WinUI\Flowery.WinUI.csproj" />

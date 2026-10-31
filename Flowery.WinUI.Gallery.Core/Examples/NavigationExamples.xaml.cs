@@ -1,4 +1,4 @@
-using Flowery.Controls;
+﻿using Flowery.Controls;
 using Flowery.Helpers;
 using Microsoft.UI.Xaml.Controls;
 using System.Collections.Generic;
@@ -21,7 +21,9 @@ namespace Flowery.WinUI.Gallery.Examples
             new BreadcrumbBarIconItem("Data", FloweryPathHelpers.GetIconPathData("DaisyIconDocument"))
         };
 
-        public sealed class BreadcrumbBarIconItem
+        // A nested type is missing from the generated XAML metadata, so its item template reads it through the provider.
+        [WinRT.GeneratedBindableCustomProperty]
+        public sealed partial class BreadcrumbBarIconItem
         {
             public BreadcrumbBarIconItem(string text, string? iconData)
             {

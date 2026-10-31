@@ -18,6 +18,8 @@ namespace Flowery.WinUI.Kanban.Controls
     /// <summary>
     /// Home screen view for listing and managing available Kanban boards.
     /// </summary>
+    // Bindings read its properties by name, which a NativeAOT app resolves only through the generated provider.
+    [WinRT.GeneratedBindableCustomProperty]
     public partial class FlowKanbanHome : DaisyBaseContentControl
     {
         private readonly HashSet<FlowBoardMetadata> _trackedBoards = new();

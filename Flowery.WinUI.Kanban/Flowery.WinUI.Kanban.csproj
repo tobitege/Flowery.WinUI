@@ -5,6 +5,11 @@
     <UseWinUI>true</UseWinUI>
     <OutputType>Library</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- WMC1510 asks for x:DataType on every {Binding} of the board templates, which the XBF generator of this Windows
+         App SDK rejects in a dictionary without code-behind (see Flowery.WinUI.csproj). The bindings read dependency
+         properties, the localization or [Bindable] item types; the unit test Given_LibraryXamlBindings checks each. -->
+    <NoWarn>$(NoWarn);WMC1510</NoWarn>
     <GenerateLibraryLayout>true</GenerateLibraryLayout>
     <PackageId>Flowery.WinUI.Kanban</PackageId>
     <Description>Native WinUI 3 Kanban controls for Flowery.</Description>

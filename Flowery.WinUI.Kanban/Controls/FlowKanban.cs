@@ -26,6 +26,8 @@ namespace Flowery.WinUI.Kanban.Controls
     /// A Kanban board container that manages columns and task cards.
     /// Supports JSON persistence and column rearrangement.
     /// </summary>
+    // Bindings read its properties by name, which a NativeAOT app resolves only through the generated provider.
+    [WinRT.GeneratedBindableCustomProperty]
     public partial class FlowKanban : DaisyBaseContentControl
     {
         /// <summary>
@@ -2530,6 +2532,7 @@ namespace Flowery.WinUI.Kanban.Controls
     /// <summary>
     /// View model for a swimlane row with per-column lane cells.
     /// </summary>
+    [Microsoft.UI.Xaml.Data.Bindable]
     public sealed class FlowKanbanLaneRowView
     {
         public FlowKanbanLaneRowView(FlowKanbanLane lane, ObservableCollection<FlowKanbanLaneCellView> cells)
@@ -2545,6 +2548,7 @@ namespace Flowery.WinUI.Kanban.Controls
     /// <summary>
     /// View model for a swimlane cell, bound to a column and lane filter.
     /// </summary>
+    [Microsoft.UI.Xaml.Data.Bindable]
     public sealed class FlowKanbanLaneCellView : INotifyPropertyChanged
     {
         public FlowKanbanLaneCellView(FlowKanbanColumnData column, string? laneId)
