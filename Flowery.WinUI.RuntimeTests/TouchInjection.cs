@@ -11,6 +11,8 @@ namespace Flowery.WinUI.RuntimeTests
     /// Injects a real Windows touch contact into the runner window, so a test sees what WinUI makes of a finger: its
     /// scroll views, Holding, and drag and drop. Points are relative to an element. A test whose point lies outside the
     /// runner window or under another window, or that runs where Windows refuses touch injection, is inconclusive.
+    /// During a gesture the runner window is topmost: Windows delivers injected touch to the window at the point, and
+    /// another window on the desktop, such as one the user works in, would otherwise take the hold, move or drop.
     /// </summary>
     internal static class TouchInjection
     {
@@ -21,6 +23,7 @@ namespace Flowery.WinUI.RuntimeTests
         /// on the UI thread, and a busy runner would stretch it into a hold.</summary>
         public static async Task TapAsync(UIElement element, Point point)
         {
+            using var topmost = new TopmostRunnerWindow();
             var contact = Down(element, point);
             Inject(ref contact, PointerFlagUp);
             await SettleAsync();
@@ -30,6 +33,7 @@ namespace Flowery.WinUI.RuntimeTests
         /// injected with the touch, so the finger leaves the tap tolerance before a busy runner could time a hold.</summary>
         public static async Task SwipeAsync(UIElement element, Point point, Point offset, int steps = 10)
         {
+            using var topmost = new TopmostRunnerWindow();
             var contact = Down(element, point);
             await MoveAsync(element, offset, steps, contact, firstAtOnce: true);
             await SettleAsync();
@@ -39,6 +43,7 @@ namespace Flowery.WinUI.RuntimeTests
         /// <paramref name="offset"/> if given, rests it there, and lifts it.</summary>
         public static async Task HoldAsync(UIElement element, Point point, Func<bool> held, Point? offset = null)
         {
+            using var topmost = new TopmostRunnerWindow();
             var contact = Down(element, point);
             var deadline = DateTime.UtcNow.AddSeconds(3);
             while (!held() && DateTime.UtcNow < deadline)
@@ -65,6 +70,7 @@ namespace Flowery.WinUI.RuntimeTests
         /// frame, as a touch screen reports them.</summary>
         public static async Task PinchAsync(UIElement element, Point center, double from, double to, int steps = 12)
         {
+            using var topmost = new TopmostRunnerWindow();
             var contacts = new[]
             {
                 Contact(element, new Point(center.X - from, center.Y), 0),
@@ -205,6 +211,22 @@ namespace Flowery.WinUI.RuntimeTests
             return location;
         }
 
+        // Keeps the runner window above all other windows for one gesture, without activating it, and returns it to
+        // the normal z-order afterwards, so the user's desktop is only covered while a finger is injected.
+        private readonly struct TopmostRunnerWindow : IDisposable
+        {
+            private readonly IntPtr _window;
+
+            public TopmostRunnerWindow()
+            {
+                _window = WinRT.Interop.WindowNative.GetWindowHandle(RuntimeTestContext.Window);
+                SetWindowPos(_window, HwndTopmost, 0, 0, 0, 0, SwpNoMove | SwpNoSize | SwpNoActivate);
+            }
+
+            public void Dispose() =>
+                SetWindowPos(_window, HwndNoTopmost, 0, 0, 0, 0, SwpNoMove | SwpNoSize | SwpNoActivate);
+        }
+
         // The runner's dispatcher handles the injected input while the test waits.
         private static Task FrameAsync() => Task.Delay(FrameMilliseconds);
 
@@ -221,6 +243,11 @@ namespace Flowery.WinUI.RuntimeTests
         private const uint TouchMaskPressure = 0x4;
         private const uint TouchFeedbackNone = 0x3;
         private const uint GetAncestorRoot = 2;
+        private static readonly IntPtr HwndTopmost = new(-1);
+        private static readonly IntPtr HwndNoTopmost = new(-2);
+        private const uint SwpNoSize = 0x1;
+        private const uint SwpNoMove = 0x2;
+        private const uint SwpNoActivate = 0x10;
 
         [StructLayout(LayoutKind.Sequential)]
         private struct NativePoint
@@ -279,6 +306,10 @@ namespace Flowery.WinUI.RuntimeTests
 
         [DllImport("user32.dll")]
         private static extern IntPtr WindowFromPoint(NativePoint point);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool SetWindowPos(IntPtr window, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
 
         [DllImport("user32.dll")]
         private static extern IntPtr GetAncestor(IntPtr window, uint flags);
