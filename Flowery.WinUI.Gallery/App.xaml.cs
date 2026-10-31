@@ -14,11 +14,21 @@ namespace Flowery.WinUI.Gallery
     public partial class App : Application
     {
         private Window? _window;
+        // --smoke-test <report.xml> (scripts/test_gallery_smoke.ps1): open every category in English and exit with the result.
+        private readonly string? _smokeReportPath = GetSmokeReportPath(Environment.GetCommandLineArgs());
 
         public App()
         {
+            if (_smokeReportPath is not null)
+                Microsoft.Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride = "en-US";
             InitializeComponent();
             ConfigureCrashLogging();
+        }
+
+        private static string? GetSmokeReportPath(string[] arguments)
+        {
+            var index = Array.FindIndex(arguments, static argument => string.Equals(argument, "--smoke-test", StringComparison.OrdinalIgnoreCase));
+            return index >= 0 && index + 1 < arguments.Length ? arguments[index + 1] : null;
         }
 
         protected override void OnLaunched(LaunchActivatedEventArgs args)
@@ -50,11 +60,13 @@ namespace Flowery.WinUI.Gallery
 #endif
 
             ConfigureStateStorage();
-            RemoveLegacyKanbanCredentials();
+            // A smoke run leaves the user's Credential Manager alone.
+            if (_smokeReportPath is null)
+                RemoveLegacyKanbanCredentials();
 
             // Apply language BEFORE creating MainWindow so FloweryLocalization.CurrentCultureName
             // is already set when the sidebar reads it during construction.
-            var savedLanguage = GallerySettings.LoadLanguage();
+            var savedLanguage = _smokeReportPath is null ? GallerySettings.LoadLanguage() : "en-US";
             if (!string.IsNullOrWhiteSpace(savedLanguage))
             {
                 FloweryLocalization.SetCulture(savedLanguage);
@@ -71,6 +83,32 @@ namespace Flowery.WinUI.Gallery
             ApplyRequestedWindowPlacement(_window);
             _window.Activate();
 
+            if (_smokeReportPath is not null)
+                RunSmokeTest(_window, _smokeReportPath);
+        }
+
+        private static async void RunSmokeTest(Window window, string reportPath)
+        {
+            var exitCode = 1;
+            try
+            {
+                var report = await GallerySmokeTest.RunAsync(window, reportPath);
+                exitCode = report.Failed == 0 ? 0 : 1;
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    var report = new SmokeReport(reportPath);
+                    report.Add("SmokeRun", false, ex.ToString());
+                    report.Save();
+                }
+                catch (Exception reportError)
+                {
+                    Console.Error.WriteLine(reportError);
+                }
+            }
+            Environment.Exit(exitCode);
         }
 
         private static void ConfigureStateStorage()

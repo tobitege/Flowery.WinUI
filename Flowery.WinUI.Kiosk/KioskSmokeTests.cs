@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Storage.Streams;
 using Windows.Graphics.Imaging;
 using Flowery.Controls.ColorPicker;
+using Flowery.WinUI.Gallery;
 using Flowery.WinUI.Kiosk.Slides;
 
 namespace Flowery.WinUI.Kiosk;
@@ -20,7 +21,7 @@ internal static partial class KioskSmokeTests
     private static readonly IntPtr IconSmall = 0;
     private static readonly IntPtr IconBig = 1;
 
-    internal static async Task RunAsync(KioskMainPage page, KioskSmokeReport report)
+    internal static async Task RunAsync(KioskMainPage page, SmokeReport report)
     {
         using var lifetime = new CancellationTokenSource(TimeSpan.FromMinutes(3));
         var token = lifetime.Token;
@@ -227,7 +228,7 @@ internal static partial class KioskSmokeTests
         return $"Natural sequence {DescribeCycle()}; elapsed {stopwatch.Elapsed.TotalSeconds:F3}s; no advance before the eight-second interval.";
     }
 
-    private static async Task CheckAsync(KioskSmokeReport report, string name, Func<Task> check)
+    private static async Task CheckAsync(SmokeReport report, string name, Func<Task> check)
     {
         try
         {
@@ -236,7 +237,7 @@ internal static partial class KioskSmokeTests
         }
         catch (InconclusiveException exception)
         {
-            report.Add(name, KioskSmokeOutcome.Inconclusive, exception.Message);
+            report.Add(name, SmokeOutcome.Inconclusive, exception.Message);
         }
         catch (Exception exception)
         {
@@ -288,7 +289,7 @@ internal static partial class KioskSmokeTests
         Require(Find<FrameworkElement>(slide, "WeatherCard").IsLoaded, "The weather card is not loaded.");
     }
 
-    private static async Task CheckScalingAsync(ScalingSlide slide, KioskSmokeReport report, CancellationToken token)
+    private static async Task CheckScalingAsync(ScalingSlide slide, SmokeReport report, CancellationToken token)
     {
         await slide.ZoomFinished.WaitAsync(TimeSpan.FromSeconds(12), token);
         Require(Find<DaisyRadialProgress>(slide, "ZoomProgress").Value == 200 && FloweryScaleManager.OverrideScaleFactor == 2,
@@ -322,8 +323,8 @@ internal static partial class KioskSmokeTests
             }
             catch (Exception exception)
             {
-                var outcome = exception is InconclusiveException ? KioskSmokeOutcome.Inconclusive : KioskSmokeOutcome.Failed;
-                if (outcome == KioskSmokeOutcome.Inconclusive) inconclusive++;
+                var outcome = exception is InconclusiveException ? SmokeOutcome.Inconclusive : SmokeOutcome.Failed;
+                if (outcome == SmokeOutcome.Inconclusive) inconclusive++;
                 else failed++;
                 if (!captureAttempted)
                 {

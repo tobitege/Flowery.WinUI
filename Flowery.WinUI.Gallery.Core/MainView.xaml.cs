@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -48,6 +48,12 @@ namespace Flowery.WinUI.Gallery
         private bool _initialRestoreQueued;
         private string? _deferredInitialTabHeader;
         private string? _deferredInitialSectionId;
+
+        // Entry points of the smoke run (GallerySmokeTest), which opens every category.
+        internal event Action<string, Exception>? CategoryFailed;
+        internal IReadOnlyCollection<string> CategoryNames => _categoryFactories.Keys;
+        internal FrameworkElement? ActiveCategoryContent => _activeCategoryContent;
+        internal void ShowCategory(string tabHeader) => NavigateToCategory(tabHeader);
 
         public MainView()
         {
@@ -469,6 +475,7 @@ namespace Flowery.WinUI.Gallery
 
         private void ReportCategoryFailure(string tabHeader, Exception ex)
         {
+            CategoryFailed?.Invoke(tabHeader, ex);
             var message = FormatCategoryFailureMessage(tabHeader, ex);
             AppendDiagnosticsMessage(message);
             _ = LogCategoryFailureAsync(message);

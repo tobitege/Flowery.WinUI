@@ -1,12 +1,13 @@
 ﻿using System.IO;
 using System.Threading;
+using Flowery.WinUI.Gallery;
 
 namespace Flowery.WinUI.Kiosk;
 
 public partial class App : Application
 {
     private readonly KioskOptions _options = new(false, null);
-    private readonly KioskSmokeReport? _report;
+    private readonly SmokeReport? _report;
     private MainWindow? _window;
     private int _finishing;
 
@@ -16,7 +17,7 @@ public partial class App : Application
         try
         {
             _options = KioskOptions.Parse(Environment.GetCommandLineArgs()[1..]);
-            _report = _options.SmokeReport is { } path ? new KioskSmokeReport(path) : null;
+            _report = _options.SmokeReport is { } path ? new SmokeReport(path) : null;
             if (_report is not null)
             {
                 Microsoft.Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride = "en-US";

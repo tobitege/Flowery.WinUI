@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - NativeAOT for the Kiosk and Photos: `publish_windows.ps1 -Aot` compiles either application ahead of time into one native executable, without the .NET runtime and JIT; the Kiosk window appears in about a third of the time. The release workflow publishes `Flowery.WinUI.Kiosk-Windows-x64.zip`, `Flowery.WinUI.Photos-Windows-x64.zip` and the Photos installer this way. CI publishes both applications with NativeAOT, runs the Kiosk smoke checks on the NativeAOT Kiosk and starts the NativeAOT Photos; `test_kiosk.ps1 -ExecutablePath` runs the smoke checks on any published Kiosk, and the new `test_photos_start.ps1` fails when a published Photos ends early or writes `crash.log`. The release workflow runs both checks before it packages the applications. The Gallery stays a JIT application.
 - `Flowery.WinUI` and `Flowery.WinUI.Win2D` are marked AOT-compatible (`IsAotCompatible`), so their builds run the trimming, AOT and CsWinRT AOT analyzers; both build without such warnings.
 - `FloweryLocalization` carries `[WinRT.GeneratedBindableCustomProperty]`, so `{Binding [Key]}` resolves its texts in a NativeAOT app. `LOCALIZATION.md` shows the attribute on an app's own localization class, and `llms-static/DaisySelect.md` shows how a NativeAOT app passes its own item lists to `ItemsSource`.
+- Gallery smoke run: `--smoke-test <report.xml>` makes the Gallery open every category in English, scroll through it and record per category an exception, a page that does not load, a binding whose path does not resolve and a localized text that stays empty. `test_gallery_smoke.ps1` runs it with an isolated state directory, also on a published Gallery (`-ExecutablePath`), and CI runs it in every Windows build. The Kiosk and the Gallery write their smoke reports through the shared `SmokeReport` of `Flowery.WinUI.Gallery.Core`.
 
 ### Changed
 
@@ -26,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `FloweryTimeHelpers.TryParseTime` reads the AM/PM labels of every language: it removes the whole label, whatever its length, and also a label before the time, where `FormatClockTime` puts it in right-to-left languages. Before, it always removed two characters and only at the end, so the clock texts of Arabic and Hebrew did not parse back, and `10:30ص` lost its last digit.
+- `DaisyMockup` with `ChromeStyle="Windows"` and an `AppIcon` element no longer throws when it loads or changes its chrome: the rebuild right after `OnLoaded` moved the icon into a new header while the previous header still held it, which neither `Parent` nor `VisualTreeHelper` reports before layout. The mockup now releases the icon from the header it gave it. The Gallery smoke run found the crash on the Layout page.
 
 ## [1.12.0] - 2026-10-30
 

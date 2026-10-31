@@ -99,6 +99,9 @@ jobs:
       - name: Run native Kiosk tests
         shell: pwsh
         run: ./scripts/test_kiosk.ps1 -Configuration ${{ matrix.configuration }} -SdkVersion '${{ matrix.sdk.version }}' -SkipBuild
+      - name: Run the Gallery smoke run
+        shell: pwsh
+        run: ./scripts/test_gallery_smoke.ps1 -Configuration ${{ matrix.configuration }} -SkipBuild
       - name: Upload test results and logs
         if: always()
         uses: actions/upload-artifact@v7

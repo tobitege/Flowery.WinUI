@@ -84,6 +84,8 @@ jobs:
         run: ./scripts/test_windows.ps1 -Configuration Release -SkipBuild
       - name: Run native Kiosk tests
         run: ./scripts/test_kiosk.ps1 -Configuration Release -SkipBuild
+      - name: Run the Gallery smoke run
+        run: ./scripts/test_gallery_smoke.ps1 -Configuration Release -SkipBuild
 
       - name: Create library zip
         run: |

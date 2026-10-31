@@ -3,29 +3,33 @@ using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 
-namespace Flowery.WinUI.Kiosk;
+namespace Flowery.WinUI.Gallery;
 
-internal enum KioskSmokeOutcome { Passed, Failed, Inconclusive }
+public enum SmokeOutcome { Passed, Failed, Inconclusive }
 
-internal sealed class KioskSmokeReport(string path)
+/// <summary>
+/// The XML report of a smoke run (Kiosk --smoke-test, Gallery --smoke-test), as test_kiosk.ps1 and
+/// test_gallery_smoke.ps1 read it: one entry per check with its outcome and message.
+/// </summary>
+public sealed class SmokeReport(string path)
 {
-    private readonly List<KioskSmokeResult> _results = [];
-    internal string Path { get; } = System.IO.Path.GetFullPath(path);
-    internal int Failed => _results.Count(result => result.Outcome == KioskSmokeOutcome.Failed);
-    internal int Inconclusive => _results.Count(result => result.Outcome == KioskSmokeOutcome.Inconclusive);
+    private readonly List<SmokeResult> _results = [];
+    public string Path { get; } = System.IO.Path.GetFullPath(path);
+    public int Failed => _results.Count(result => result.Outcome == SmokeOutcome.Failed);
+    public int Inconclusive => _results.Count(result => result.Outcome == SmokeOutcome.Inconclusive);
 
-    internal void Add(string name, bool passed, string message) =>
-        Add(name, passed ? KioskSmokeOutcome.Passed : KioskSmokeOutcome.Failed, message);
+    public void Add(string name, bool passed, string message) =>
+        Add(name, passed ? SmokeOutcome.Passed : SmokeOutcome.Failed, message);
 
-    internal void Add(string name, KioskSmokeOutcome outcome, string message)
+    public void Add(string name, SmokeOutcome outcome, string message)
     {
         var uniqueName = name;
         for (var suffix = 2; _results.Any(result => result.Name == uniqueName); suffix++)
             uniqueName = $"{name}.{suffix}";
-        _results.Add(new KioskSmokeResult(uniqueName, outcome, message));
+        _results.Add(new SmokeResult(uniqueName, outcome, message));
     }
 
-    internal void Save()
+    public void Save()
     {
         var document = new XDocument(new XElement("tests",
             new XAttribute("total", _results.Count),
@@ -46,14 +50,14 @@ internal sealed class KioskSmokeReport(string path)
             stream.Flush(flushToDisk: true);
         }
         File.Move(pendingPath, Path, overwrite: true);
-        var saved = XDocument.Load(Path).Root ?? throw new InvalidDataException("The kiosk report has no root element.");
+        var saved = XDocument.Load(Path).Root ?? throw new InvalidDataException("The smoke report has no root element.");
         if (saved.Name != "tests" || (int?)saved.Attribute("total") != _results.Count ||
             (int?)saved.Attribute("failed") != Failed || (int?)saved.Attribute("inconclusive") != Inconclusive ||
             saved.Elements("test").Count() != _results.Count)
-            throw new InvalidDataException("The published kiosk report failed readback validation.");
+            throw new InvalidDataException("The published smoke report failed readback validation.");
         File.WriteAllLines(Path + ".log", _results.Select(result =>
             $"{result.Outcome} {result.Name}: {result.Message}"), new UTF8Encoding(false));
     }
 
-    private sealed record KioskSmokeResult(string Name, KioskSmokeOutcome Outcome, string Message);
+    private sealed record SmokeResult(string Name, SmokeOutcome Outcome, string Message);
 }
