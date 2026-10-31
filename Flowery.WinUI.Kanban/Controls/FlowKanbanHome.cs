@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -21,6 +21,8 @@ namespace Flowery.WinUI.Kanban.Controls
     public partial class FlowKanbanHome : DaisyBaseContentControl
     {
         private readonly HashSet<FlowBoardMetadata> _trackedBoards = new();
+        // The tile open surfaces whose Tapped this view handles, from ElementPrepared until ElementClearing.
+        private readonly HashSet<FrameworkElement> _tappableSurfaces = new();
         private ItemsRepeater? _boardRepeater;
         private bool _isSyncingSortMode;
         private bool _isLocalizationSubscribed;
@@ -636,6 +638,7 @@ namespace Flowery.WinUI.Kanban.Controls
             {
                 openSurface.Tapped -= OnBoardSurfaceTapped;
                 openSurface.Tapped += OnBoardSurfaceTapped;
+                _tappableSurfaces.Add(openSurface);
             }
 
             if (element.FindName("PART_BoardMenuButton") is DaisyButton menuButton)
@@ -662,6 +665,7 @@ namespace Flowery.WinUI.Kanban.Controls
             if (element.FindName("PART_BoardOpenSurface") is FrameworkElement openSurface)
             {
                 openSurface.Tapped -= OnBoardSurfaceTapped;
+                _tappableSurfaces.Remove(openSurface);
             }
 
             if (element.FindName("PART_BoardMenuButton") is DaisyButton menuButton &&
@@ -696,15 +700,24 @@ namespace Flowery.WinUI.Kanban.Controls
 
         private void OnBoardSurfaceTapped(object sender, TappedRoutedEventArgs e)
         {
-            if (IsMenuButtonSource(e.OriginalSource))
-                return;
+            if (!IsMenuButtonSource(e.OriginalSource) && sender is FrameworkElement surface)
+                OpenBoardFromSurface(surface);
+        }
 
-            if (sender is FrameworkElement element &&
-                element.DataContext is FlowBoardMetadata board &&
-                OpenBoardCommand?.CanExecute(board) == true)
-            {
+        /// <summary>What a tap on a tile's open surface does, for runtime tests, which cannot raise Tapped: returns
+        /// false when this view handles no tap on the surface, such as a tile it prepared before the template built it.</summary>
+        internal bool TapBoardSurface(FrameworkElement surface)
+        {
+            if (!_tappableSurfaces.Contains(surface))
+                return false;
+            OpenBoardFromSurface(surface);
+            return true;
+        }
+
+        private void OpenBoardFromSurface(FrameworkElement surface)
+        {
+            if (surface.DataContext is FlowBoardMetadata board && OpenBoardCommand?.CanExecute(board) == true)
                 OpenBoardCommand.Execute(board);
-            }
         }
 
         private static bool IsMenuButtonSource(object? source)

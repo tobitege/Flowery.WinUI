@@ -113,7 +113,8 @@ To check a published Kiosk, such as the NativeAOT output, pass its executable; t
 ```
 
 The script starts the Gallery with `--smoke-test` and an isolated state directory.
-The Gallery opens every category in English, scrolls through it and records per category an exception, a page that does not load, a binding whose path does not resolve (`DebugSettings.BindingFailed`), and a localized text (`{Binding [Key]}`) that stays empty.
+The Gallery opens every category in English, scrolls through it and records per category an exception, a page that does not load, and a localized text (`{Binding [Key]}`) that stays empty.
+WinUI raises `DebugSettings.BindingFailed` only with a debugger attached, so other failed bindings do not show up in the report.
 It leaves the Credential Manager alone and exits with the result.
 Reports are in `TestResults/GallerySmoke/<Configuration>/<run>/gallery-smoke.xml`, logs in `logs/gallery-smoke-<Configuration>-<run>.log`.
 `-Monitor` and `-WindowRegion` place the window as for the other test scripts.

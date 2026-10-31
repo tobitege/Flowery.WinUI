@@ -1,17 +1,24 @@
-﻿using System.Threading.Tasks;
+﻿using System.Diagnostics;
+using System.Threading.Tasks;
 
 namespace Flowery.WinUI.Gallery
 {
     /// <summary>
     /// The Gallery's smoke run (--smoke-test &lt;report.xml&gt;): opens every category, scrolls through it and reports per
-    /// category an exception, a page that does not load, a binding whose path does not resolve, or a localized text
-    /// ({Binding [Key]}) that stays empty. A NativeAOT build reports missing marshalling and binding metadata only at
-    /// run time, so this run is how such a build is checked.
+    /// category an exception, a page that does not load, or a localized text ({Binding [Key]}) that stays empty. A
+    /// NativeAOT build reports missing marshalling and binding metadata only at run time, so this run is how such a build
+    /// is checked. WinUI raises DebugSettings.BindingFailed only with a debugger attached, so other failed bindings go
+    /// unseen.
     /// </summary>
     public sealed class GallerySmokeTest
     {
         private const int MaxScrollSteps = 60;
         private const int MaxListedTexts = 20;
+        // The first page builds the shell as well, so it may take longer than a category.
+        private static readonly TimeSpan FirstPageTimeout = TimeSpan.FromSeconds(30);
+        private static readonly TimeSpan LoadTimeout = TimeSpan.FromSeconds(20);
+        private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(50);
+        private static readonly TimeSpan SettleDelay = TimeSpan.FromMilliseconds(100);
         private readonly MainView _view;
         private readonly SmokeReport _report;
         private readonly List<string> _errors = [];
@@ -35,15 +42,10 @@ namespace Flowery.WinUI.Gallery
         private async Task RunAsync()
         {
             await WaitUntilLoadedAsync(_view, "the Gallery");
-            for (var attempt = 0; _view.ActiveCategoryContent is null; attempt++)
-            {
-                if (attempt > 600) throw new TimeoutException("The Gallery showed no first page within 30 seconds.");
-                await Task.Delay(50);
-            }
+            await WaitUntilAsync(_view, static view => view.ActiveCategoryContent is not null, FirstPageTimeout,
+                "The Gallery showed no first page");
 
             var application = Application.Current;
-            application.DebugSettings.IsBindingTracingEnabled = true;
-            application.DebugSettings.BindingFailed += OnBindingFailed;
             application.UnhandledException += OnUnhandledException;
             _view.CategoryFailed += OnCategoryFailed;
             try
@@ -55,7 +57,6 @@ namespace Flowery.WinUI.Gallery
             {
                 _view.CategoryFailed -= OnCategoryFailed;
                 application.UnhandledException -= OnUnhandledException;
-                application.DebugSettings.BindingFailed -= OnBindingFailed;
             }
         }
 
@@ -84,7 +85,7 @@ namespace Flowery.WinUI.Gallery
                     + (emptyTexts.Count > MaxListedTexts ? "; ..." : string.Empty));
             }
             _report.Add("Category." + category, problems.Count == 0,
-                problems.Count == 0 ? "Opened and scrolled through; every binding resolved." : string.Join(Environment.NewLine, problems));
+                problems.Count == 0 ? "Opened and scrolled through; every localized text is set." : string.Join(Environment.NewLine, problems));
         }
 
         private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs args)
@@ -93,18 +94,19 @@ namespace Flowery.WinUI.Gallery
             _errors.Add("Unhandled: " + args.Exception);
         }
 
-        private void OnBindingFailed(object? sender, BindingFailedEventArgs args) =>
-            _errors.Add("Binding failed: " + args.Message);
-
         private void OnCategoryFailed(string category, Exception exception) =>
             _errors.Add($"Creating {category} failed: {exception}");
 
-        private static async Task WaitUntilLoadedAsync(FrameworkElement element, string description)
+        private static Task WaitUntilLoadedAsync(FrameworkElement element, string description) =>
+            WaitUntilAsync(element, static loading => loading.IsLoaded, LoadTimeout, $"{description} did not load");
+
+        private static async Task WaitUntilAsync<T>(T state, Func<T, bool> condition, TimeSpan timeout, string failure)
         {
-            for (var attempt = 0; !element.IsLoaded; attempt++)
+            var watch = Stopwatch.StartNew();
+            while (!condition(state))
             {
-                if (attempt > 400) throw new TimeoutException($"{description} did not load within 20 seconds.");
-                await Task.Delay(50);
+                if (watch.Elapsed > timeout) throw new TimeoutException($"{failure} within {timeout.TotalSeconds:0} seconds.");
+                await Task.Delay(PollInterval);
             }
         }
 
@@ -113,7 +115,7 @@ namespace Flowery.WinUI.Gallery
         {
             await NextFrameAsync();
             await NextFrameAsync();
-            await Task.Delay(100);
+            await Task.Delay(SettleDelay);
         }
 
         private static Task NextFrameAsync() => new RenderedFrame().Task;
@@ -163,7 +165,7 @@ namespace Flowery.WinUI.Gallery
 
         // A localization indexer returns at least its key, so an empty {Binding [Key]} target means the binding found no
         // indexer, as in a NativeAOT build without the generated property provider.
-        private static void CollectEmptyTexts(DependencyObject root, List<string> emptyTexts)
+        internal static void CollectEmptyTexts(DependencyObject root, List<string> emptyTexts)
         {
             Stack<DependencyObject> pending = new([root]);
             while (pending.Count > 0)

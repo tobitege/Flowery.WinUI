@@ -7,8 +7,9 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Flowery.WinUI.RuntimeTests.Controls
 {
-    // The home view wires up every board tile when its ItemsRepeater prepares it: the tile menu has its texts and commands,
-    // also after the board is attached again. Flowery.NET looked a tile up before its item template had built it.
+    // The home view wires up every board tile when its ItemsRepeater prepares it: a tap on the tile opens the board, and
+    // the tile menu has its texts and commands, also after the board is attached again. Flowery.NET looked a tile up
+    // before its item template had built it.
     [TestClass]
     public class Given_KanbanHome
     {
@@ -16,7 +17,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             ["Kanban_Home_Open", "Kanban_Home_Rename", "Kanban_Home_Duplicate", "Kanban_Home_Export", "Kanban_Home_Delete"];
 
         [TestMethod]
-        public async Task When_ABoardTileShows_ItsMenuHasEveryEntry()
+        public async Task When_ABoardTileIsTapped_TheBoardOpensAndItsMenuHasEveryEntry()
         {
             await RuntimeTestHelpers.WithStateStorageAsync(async () =>
             {
@@ -59,6 +60,15 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                                 Assert.AreEqual(saved.Id, (item.CommandParameter as FlowBoardMetadata)?.Id, $"{item.LocalizationKey} has no board");
                             }
 
+                            // The view handles taps on this tile's open surface, and a tap there opens the board.
+                            var surface = tile.FindName("PART_BoardOpenSurface") as FrameworkElement;
+                            Assert.IsNotNull(surface, "the tile has no open surface");
+                            var home = RuntimeTestHelpers.Descendants<FlowKanbanHome>(kanban).Single();
+                            var before = kanban.Board;
+                            Assert.IsTrue(home.TapBoardSurface(surface), "the home view handles no tap on the tile");
+                            await RuntimeTestHelpers.WaitUntilAsync(
+                                () => kanban.CurrentView == FlowKanbanView.Board && !ReferenceEquals(kanban.Board, before) && kanban.Board.Id == saved.Id,
+                                "the tapped tile opens its board");
                         });
                     }
                 }

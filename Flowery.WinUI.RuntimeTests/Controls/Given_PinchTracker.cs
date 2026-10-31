@@ -1,5 +1,7 @@
 ﻿using Flowery.Helpers;
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Windows.Foundation;
 
@@ -68,6 +70,36 @@ public sealed class Given_PinchTracker
         tracker.Lift(1);
         Assert.HasCount(1, scales, "The last move of the pinch was lost with the lift.");
         Assert.AreEqual(0.5, scales[0], 1e-9);
+    }
+
+    [TestMethod]
+    public async Task When_TwoFingersPinchInAScrollViewer_ItNeitherScrollsNorZooms_UntilThePinchEnds()
+    {
+        var content = new Border { Width = 2000, Height = 2000 };
+        var scroll = new ScrollViewer { Width = 400, Height = 300, HorizontalScrollMode = ScrollMode.Enabled, Content = content };
+        RuntimeTestHelpers.AttachToHost(scroll);
+        try
+        {
+            await RuntimeTestHelpers.CompleteLayoutAsync(scroll);
+            var tracker = new FloweryPinchTracker();
+            tracker.Press(1, new Point(100, 100), content);
+            Assert.AreEqual(ScrollMode.Enabled, scroll.HorizontalScrollMode, "One finger froze the scroll viewer.");
+
+            tracker.Press(2, new Point(200, 100), content);
+            Assert.AreEqual(ScrollMode.Disabled, scroll.HorizontalScrollMode);
+            Assert.AreEqual(ScrollMode.Disabled, scroll.VerticalScrollMode);
+            Assert.AreEqual(ZoomMode.Disabled, scroll.ZoomMode);
+
+            // The scroll viewer gets its own values back: a local value stays local, a default stays a default.
+            tracker.Lift(2);
+            Assert.AreEqual(ScrollMode.Enabled, scroll.ReadLocalValue(ScrollViewer.HorizontalScrollModeProperty));
+            Assert.AreEqual(DependencyProperty.UnsetValue, scroll.ReadLocalValue(ScrollViewer.VerticalScrollModeProperty));
+            Assert.AreEqual(DependencyProperty.UnsetValue, scroll.ReadLocalValue(ScrollViewer.ZoomModeProperty));
+        }
+        finally
+        {
+            await RuntimeTestHelpers.DetachFromHostAsync(scroll);
+        }
     }
 
     [TestMethod]
