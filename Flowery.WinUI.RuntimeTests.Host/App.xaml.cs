@@ -38,7 +38,7 @@ namespace Flowery.WinUI.RuntimeTests.Host
             }
             catch (Exception ex)
             {
-                WriteStartupFailure(resultPath, ex);
+                WriteHostFailure(resultPath, ex);
                 Environment.Exit(1);
             }
         }
@@ -71,7 +71,7 @@ namespace Flowery.WinUI.RuntimeTests.Host
             }
             catch (Exception ex)
             {
-                WriteStartupFailure(resultPath, ex);
+                WriteHostFailure(resultPath, ex);
                 Environment.Exit(1);
             }
         }
@@ -93,15 +93,15 @@ namespace Flowery.WinUI.RuntimeTests.Host
         }
 
         // A failed start or an unhandled exception becomes a report with one failed test, so the runner shows the cause.
-        private static void WriteStartupFailure(string resultPath, Exception ex) =>
-            RuntimeTestRunner.WriteStartupFailure(resultPath, ex);
+        private static void WriteHostFailure(string resultPath, Exception ex) =>
+            RuntimeTestRunner.WriteHostFailure(resultPath, ex);
 
         private void ConfigureCrashLogging()
         {
             UnhandledException += (_, e) =>
             {
                 if (_resultPath is { } resultPath)
-                    WriteStartupFailure(resultPath, e.Exception);
+                    WriteHostFailure(resultPath, e.Exception);
                 Environment.Exit(1);
             };
 
