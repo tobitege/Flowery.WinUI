@@ -9,6 +9,7 @@ using Flowery.Theming;
 using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -438,6 +439,237 @@ namespace Flowery.WinUI.RuntimeTests.Controls
 
             timeline.SelectedDate = null;
             Assert.AreEqual(DateTime.Today.ToString("MMMM yyyy", timeline.Locale), timeline.HeaderText, "HeaderText falls back to today without a selection");
+        }
+
+        [TestMethod]
+        public async Task When_DateTimeline_PropertiesSetBeforeLoad_LoadAppliesThem()
+        {
+            // The timeline builds its items once on Loaded instead of for each property set from XAML.
+            var first = DateTime.Today.AddDays(-3);
+            var timeline = new DaisyDateTimeline
+            {
+                FirstDate = first,
+                LastDate = first.AddDays(9),
+                HeaderType = DateTimelineHeaderType.None,
+                ItemWidth = 80
+            };
+            FlowerySizeManager.SetIgnoreGlobalSize(timeline, true);
+
+            RuntimeTestHelpers.AttachToHost(timeline);
+            await RuntimeTestHelpers.EnsureLoadedAsync(timeline);
+
+            var items = RuntimeTestHelpers.Descendants<DaisyDateTimelineItem>(timeline).ToList();
+            CollectionAssert.AreEqual(
+                Enumerable.Range(0, 10).Select(day => first.AddDays(day)).ToList(),
+                items.Select(item => item.Date).ToList());
+            Assert.IsTrue(items.All(item => item.Width == 80), "The explicit item width must reach every item.");
+            Assert.AreEqual(80.0, timeline.ItemWidth);
+            var header = RuntimeTestHelpers.Descendants<TextBlock>(timeline).Single(text => text.Text == timeline.HeaderText);
+            Assert.AreEqual(Visibility.Collapsed, ((UIElement)VisualTreeHelper.GetParent(header)).Visibility,
+                "HeaderType None must hide the header.");
+        }
+
+        [TestMethod]
+        public async Task When_DateTimeline_Loads_BuildsItemsOnce()
+        {
+            var timeline = new DaisyDateTimeline
+            {
+                FirstDate = DateTime.Today.AddDays(-3),
+                LastDate = DateTime.Today.AddDays(6),
+                HeaderType = DateTimelineHeaderType.None,
+                Size = DaisySize.Large
+            };
+            FlowerySizeManager.SetIgnoreGlobalSize(timeline, true);
+            Assert.AreEqual(0, timeline.ItemBuildCount, "Properties set before loading must not build the items.");
+
+            RuntimeTestHelpers.AttachToHost(timeline);
+            await RuntimeTestHelpers.EnsureLoadedAsync(timeline);
+
+            Assert.AreEqual(1, timeline.ItemBuildCount, "Loading must build the items once.");
+        }
+
+        [TestMethod]
+        public async Task When_DateTimeline_ThemeChanges_ColorsFollowWithoutRebuild()
+        {
+            // A theme switch changes the color of the brushes in Application.Resources in place, so a control that keeps
+            // its brush follows it without doing anything. The test puts new brush instances there first: the header and
+            // the items follow only if they fetch their brushes again on the theme change.
+            const string headerKey = "DaisyBaseContentBrush";
+            const string itemKey = "DaisyBase200Brush";
+            var resources = Application.Current.Resources;
+            var previous = DaisyThemeManager.CurrentThemeName;
+            var originalHeaderBrush = resources[headerKey];
+            var originalItemBrush = resources[itemKey];
+            try
+            {
+                Assert.IsTrue(DaisyThemeManager.ApplyTheme("Light"));
+                var timeline = new DaisyDateTimeline
+                {
+                    FirstDate = DateTime.Today.AddDays(-3),
+                    LastDate = DateTime.Today.AddDays(6),
+                    SelectedDate = DateTime.Today.AddDays(1)
+                };
+                RuntimeTestHelpers.AttachToHost(timeline);
+                await RuntimeTestHelpers.CompleteLayoutAsync(timeline);
+
+                var header = RuntimeTestHelpers.Descendants<TextBlock>(timeline).Single(text => text.Text == timeline.HeaderText);
+                var item = RuntimeTestHelpers.Descendants<DaisyDateTimelineItem>(timeline)
+                    .First(candidate => !candidate.IsSelected && !candidate.IsToday);
+                // Each item builds its background in its own Loaded handler, which WinUI may raise after the timeline's layout.
+                await RuntimeTestHelpers.WaitUntilAsync(() => item.Content is Border { Background: SolidColorBrush },
+                    "the date item to build its background");
+                var itemBackground = (Border)item.Content;
+                var builds = timeline.ItemBuildCount;
+
+                var headerBrush = new SolidColorBrush(((SolidColorBrush)originalHeaderBrush).Color);
+                var itemBrush = new SolidColorBrush(((SolidColorBrush)originalItemBrush).Color);
+                resources[headerKey] = headerBrush;
+                resources[itemKey] = itemBrush;
+                Assert.IsTrue(DaisyThemeManager.ApplyTheme("Dark"));
+                await RuntimeTestHelpers.CompleteLayoutAsync(timeline);
+
+                Assert.AreEqual(builds, timeline.ItemBuildCount, "A theme change must not rebuild the items.");
+                Assert.IsTrue(RuntimeTestHelpers.Descendants<DaisyDateTimelineItem>(timeline).Contains(item), "The items must stay.");
+                Assert.AreSame(headerBrush, header.Foreground, "The header must fetch its brush again on a theme change.");
+                Assert.AreSame(itemBrush, itemBackground.Background, "The items must fetch their brushes again on a theme change.");
+            }
+            finally
+            {
+                RuntimeTestHelpers.GetHostPanel().Children.Clear();
+                resources[headerKey] = originalHeaderBrush;
+                resources[itemKey] = originalItemBrush;
+                // ApplyTheme skips the current theme; switching away first sets the colors of the restored brushes.
+                var restore = previous ?? "Light";
+                DaisyThemeManager.ApplyTheme(string.Equals(restore, "Dark", StringComparison.OrdinalIgnoreCase) ? "Light" : "Dark");
+                DaisyThemeManager.ApplyTheme(restore);
+            }
+        }
+
+        [TestMethod]
+        public async Task When_DateTimeline_GlobalSizeChanges_ItemsTakeTheNewSize()
+        {
+            var previousSize = FlowerySizeManager.CurrentSize;
+            var previousDefault = FlowerySizeManager.UseGlobalSizeByDefault;
+            try
+            {
+                FlowerySizeManager.UseGlobalSizeByDefault = true;
+                FlowerySizeManager.ApplySize(DaisySize.Small);
+                var timeline = new DaisyDateTimeline
+                {
+                    FirstDate = DateTime.Today.AddDays(-3),
+                    LastDate = DateTime.Today.AddDays(6)
+                };
+                RuntimeTestHelpers.AttachToHost(timeline);
+                await RuntimeTestHelpers.EnsureLoadedAsync(timeline);
+
+                Assert.IsTrue(RuntimeTestHelpers.Descendants<DaisyDateTimelineItem>(timeline).All(item => item.Size == DaisySize.Small));
+                var smallWidth = timeline.ItemWidth;
+                var builds = timeline.ItemBuildCount;
+
+                FlowerySizeManager.ApplySize(DaisySize.ExtraLarge);
+
+                Assert.AreEqual(builds + 1, timeline.ItemBuildCount, "A new resolved size must rebuild the items once.");
+                Assert.AreNotEqual(smallWidth, timeline.ItemWidth, "ExtraLarge must resolve another item width than Small.");
+                var items = RuntimeTestHelpers.Descendants<DaisyDateTimelineItem>(timeline).ToList();
+                Assert.HasCount(10, items);
+                Assert.IsTrue(items.All(item => item.Size == DaisySize.ExtraLarge), "Every item must take the new size.");
+                Assert.IsTrue(items.All(item => item.Width == timeline.ItemWidth), "Every item must take the new width.");
+            }
+            finally
+            {
+                RuntimeTestHelpers.GetHostPanel().Children.Clear();
+                FlowerySizeManager.ApplySize(previousSize);
+                FlowerySizeManager.UseGlobalSizeByDefault = previousDefault;
+            }
+        }
+
+        [TestMethod]
+        public async Task When_DateTimeline_ResolvesItemWidth_ItemsUseTheResolvedWidth()
+        {
+            // ApplySizing resolves the width while the items are built; the items must not keep the default width.
+            var timeline = new DaisyDateTimeline { Size = DaisySize.ExtraLarge };
+            FlowerySizeManager.SetIgnoreGlobalSize(timeline, true);
+
+            RuntimeTestHelpers.AttachToHost(timeline);
+            await RuntimeTestHelpers.EnsureLoadedAsync(timeline);
+
+            Assert.AreNotEqual(64.0, timeline.ItemWidth, "ExtraLarge must resolve a width other than the default.");
+            var items = RuntimeTestHelpers.Descendants<DaisyDateTimelineItem>(timeline).ToList();
+            Assert.IsNotEmpty(items);
+            Assert.IsTrue(items.All(item => item.Width == timeline.ItemWidth), "Every item must use the resolved width.");
+        }
+
+        [TestMethod]
+        public async Task When_DateTimeline_LocaleChanges_HeaderFollows()
+        {
+            var date = new DateTime(2026, 3, 15);
+            var locale = CultureInfo.GetCultureInfo("fr-FR");
+            var frenchHeader = date.ToString("MMMM yyyy", locale);
+            Assert.AreNotEqual(date.ToString("MMMM yyyy", CultureInfo.CurrentCulture), frenchHeader,
+                "The test needs a locale that formats differently from the current culture.");
+
+            // Set before load, as from XAML: the header text is public and must not wait for Loaded.
+            var timeline = new DaisyDateTimeline { SelectedDate = date, Locale = locale };
+            Assert.AreEqual(frenchHeader, timeline.HeaderText);
+
+            RuntimeTestHelpers.AttachToHost(timeline);
+            await RuntimeTestHelpers.EnsureLoadedAsync(timeline);
+
+            Assert.IsTrue(RuntimeTestHelpers.Descendants<TextBlock>(timeline).Any(text => text.Text == frenchHeader));
+            Assert.AreEqual(frenchHeader, AutomationProperties.GetName(timeline));
+
+            var english = CultureInfo.GetCultureInfo("en-US");
+            timeline.Locale = english;
+            Assert.AreEqual(date.ToString("MMMM yyyy", english), timeline.HeaderText);
+        }
+
+        [TestMethod]
+        public async Task When_IgnoreGlobalSizeChanges_OnlyThatSubtreeRefreshes()
+        {
+            const double untouched = 99;
+            var inside = new Border();
+            var outside = new Border();
+            var insideText = new TextBlock { Text = "Inside" };
+            var outsideText = new TextBlock { Text = "Outside" };
+            FlowerySizeManager.SetResponsiveFont(insideText, ResponsiveFontTier.Primary);
+            FlowerySizeManager.SetResponsiveFont(outsideText, ResponsiveFontTier.Primary);
+            var scope = new StackPanel { Children = { inside, insideText } };
+            var host = new StackPanel { Children = { scope, outside, outsideText } };
+            var refreshes = new int[2];
+            FlowerySizeManager.Register(inside, () => refreshes[0]++, static () => DaisySize.Medium);
+            FlowerySizeManager.Register(outside, () => refreshes[1]++, static () => DaisySize.Medium);
+            try
+            {
+                RuntimeTestHelpers.AttachToHost(host);
+                await RuntimeTestHelpers.CompleteLayoutAsync(host, inside, outside, insideText, outsideText);
+                var (insideBefore, outsideBefore) = (refreshes[0], refreshes[1]);
+                // The responsive text blocks get their size from the manager; a font size it never sets shows which it updated.
+                insideText.FontSize = untouched;
+                outsideText.FontSize = untouched;
+
+                FlowerySizeManager.SetIgnoreGlobalSize(scope, true);
+                Assert.IsGreaterThan(insideBefore, refreshes[0], "A control below the changed element must refresh.");
+                Assert.AreEqual(outsideBefore, refreshes[1], "A control outside the changed element must not refresh.");
+                Assert.AreEqual(untouched, outsideText.FontSize, "A text block outside the changed element must not be updated.");
+
+                // A page built from XAML sets the property before it is in the tree: no loaded control depends on it.
+                insideBefore = refreshes[0];
+                FlowerySizeManager.SetIgnoreGlobalSize(new StackPanel(), true);
+                Assert.AreEqual(insideBefore, refreshes[0]);
+                Assert.AreEqual(outsideBefore, refreshes[1]);
+
+                FlowerySizeManager.SetIgnoreGlobalSize(inside, false);
+                Assert.IsGreaterThan(insideBefore, refreshes[0], "Opting back in must refresh the control itself.");
+                Assert.AreEqual(outsideBefore, refreshes[1]);
+
+                FlowerySizeManager.SetIgnoreGlobalSize(scope, false);
+                Assert.AreNotEqual(untouched, insideText.FontSize, "A text block below the changed element must take the global size.");
+                Assert.AreEqual(untouched, outsideText.FontSize, "A text block outside the changed element must not be updated.");
+            }
+            finally
+            {
+                RuntimeTestHelpers.GetHostPanel().Children.Clear();
+            }
         }
 
         [TestMethod]

@@ -1,4 +1,4 @@
-// CsWinRT1028: Generic collection implementations expose WinRT projection diagnostics.
+﻿// CsWinRT1028: Generic collection implementations expose WinRT projection diagnostics.
 #pragma warning disable CsWinRT1028
 
 using System;
@@ -63,14 +63,63 @@ namespace Flowery.Controls
             control.SetValue(IgnoreGlobalSizeProperty, value);
             // A new local false changes inherited policy even when the native effective value stays false.
             if (changesInheritedPolicy && control is not FrameworkElement { IsLoaded: false })
-                RefreshAllSizes();
+                RefreshIgnoreScope(control);
         }
 
         private static void OnIgnoreGlobalSizeChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
         {
             // Unloaded elements resolve their policy when registered on load.
             if (sender is not FrameworkElement { IsLoaded: false })
-                RefreshAllSizes();
+                RefreshIgnoreScope(sender);
+        }
+
+        // The policy is inherited, so only the element itself and its loaded descendants can change. Refreshing every
+        // loaded control instead made each change on a loaded element pay for all loaded controls.
+        private static void RefreshIgnoreScope(DependencyObject scope)
+        {
+            RefreshRegistrations(scope, includeScope: true);
+            UpdateResponsiveTextBlocks(_currentSize, scope);
+        }
+
+        // Refreshes the loaded controls below scope, and scope itself with includeScope; every loaded control without a scope.
+        private static void RefreshRegistrations(DependencyObject? scope, bool includeScope)
+        {
+            foreach (var registration in new List<SizeRegistration>(LoadedControls))
+            {
+                if (LoadedControls.Contains(registration) && IsInScope(registration.Owner, scope, includeScope))
+                    registration.Refresh();
+            }
+        }
+
+        // Walks the same chain as ShouldIgnoreGlobalSize, so the refreshed controls are exactly those whose policy changed.
+        private static bool IsInScope(DependencyObject element, DependencyObject? scope, bool includeScope)
+        {
+            if (scope is null)
+                return true;
+
+            for (var current = includeScope ? element : GetPolicyParent(element); current != null; current = GetPolicyParent(current))
+            {
+                if (ReferenceEquals(current, scope))
+                    return true;
+            }
+            return false;
+        }
+
+        // The visual parent, or the logical Parent where the visual tree ends (popup content).
+        private static DependencyObject? GetPolicyParent(DependencyObject element)
+        {
+            DependencyObject? parent = null;
+            try
+            {
+                parent = VisualTreeHelper.GetParent(element);
+            }
+            catch { }
+
+            if (parent == null && element is FrameworkElement fe)
+            {
+                try { parent = fe.Parent; } catch { }
+            }
+            return parent;
         }
 
         /// <summary>
@@ -83,8 +132,7 @@ namespace Flowery.Controls
                 return requested;
 
             DaisySize? scopeFallback = null;
-            var parent = VisualTreeHelper.GetParent(owner) ?? owner.Parent;
-            while (parent != null)
+            for (var parent = GetPolicyParent(owner); parent != null; parent = GetPolicyParent(parent))
             {
                 if (parent is IDaisySizeScope scope)
                 {
@@ -92,31 +140,12 @@ namespace Flowery.Controls
                         return inheritedSize;
                     scopeFallback ??= scope.ChildSizeFallback;
                 }
-                parent = VisualTreeHelper.GetParent(parent) ?? (parent as FrameworkElement)?.Parent;
             }
 
             return UseGlobalSizeByDefault && !ShouldIgnoreGlobalSize(owner) ? _currentSize : scopeFallback ?? fallback;
         }
 
-        internal static void RefreshSizeScope(FrameworkElement scope)
-        {
-            foreach (var registration in new List<SizeRegistration>(LoadedControls))
-            {
-                if (!LoadedControls.Contains(registration))
-                    continue;
-
-                var parent = VisualTreeHelper.GetParent(registration.Owner) ?? registration.Owner.Parent;
-                while (parent != null)
-                {
-                    if (ReferenceEquals(parent, scope))
-                    {
-                        registration.Refresh();
-                        break;
-                    }
-                    parent = VisualTreeHelper.GetParent(parent) ?? (parent as FrameworkElement)?.Parent;
-                }
-            }
-        }
+        internal static void RefreshSizeScope(FrameworkElement scope) => RefreshRegistrations(scope, includeScope: false);
 
         internal static void Register(FrameworkElement owner, Action refresh, Func<DaisySize> getResolvedSize)
         {
@@ -175,19 +204,7 @@ namespace Flowery.Controls
                         return GetIgnoreGlobalSize(current);
                     }
 
-                    // Fallback: Check if it's a FrameworkElement's Parent property if VisualTreeHelper fails
-                    DependencyObject? next = null;
-                    try
-                    {
-                        next = VisualTreeHelper.GetParent(current);
-                    }
-                    catch { }
-
-                    if (next == null && current is FrameworkElement fe)
-                    {
-                        try { next = fe.Parent; } catch { }
-                    }
-                    current = next;
+                    current = GetPolicyParent(current);
                 }
             }
             catch
@@ -330,7 +347,7 @@ namespace Flowery.Controls
                     if (LoadedControls.Contains(registration) && registration.ResolvedSize != previousSize)
                         registration.Refresh();
                 }
-                UpdateResponsiveTextBlocks(size);
+                UpdateResponsiveTextBlocks(size, null);
             }
             SizeChanged?.Invoke(null, size);
         }
@@ -346,18 +363,18 @@ namespace Flowery.Controls
         /// </summary>
         public static void RefreshAllSizes()
         {
-            foreach (var registration in new List<SizeRegistration>(LoadedControls))
-            {
-                if (LoadedControls.Contains(registration))
-                    registration.Refresh();
-            }
-            UpdateResponsiveTextBlocks(_currentSize);
+            RefreshRegistrations(null, includeScope: true);
+            UpdateResponsiveTextBlocks(_currentSize, null);
         }
 
-        private static void UpdateResponsiveTextBlocks(DaisySize size)
+        // Updates the responsive text blocks in scope, or all of them without a scope.
+        private static void UpdateResponsiveTextBlocks(DaisySize size, DependencyObject? scope)
         {
             foreach (var tb in ResponsiveTextBlocks)
             {
+                if (!IsInScope(tb, scope, includeScope: true))
+                    continue;
+
                 // Respect IgnoreGlobalSize on the TextBlock or its ancestors
                 if (ShouldIgnoreGlobalSize(tb))
                     continue;
