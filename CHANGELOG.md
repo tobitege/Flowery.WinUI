@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.13.0] - 2026-10-31
+## [1.13.0] - 2026-11-01
 
 ### Added
 
@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The runtime tests run in their own WinUI application, `Flowery.WinUI.RuntimeTests.Host`, which loads the Gallery resources, assets and fonts. The Gallery no longer contains the tests, MSTest or a test mode, so its published output ships without them. `test_windows.ps1` starts the host through the runner, which reads its path from `FLOWERY_RUNTIME_TESTS_HOST_PATH` instead of `FLOWERY_GALLERY_EXE_PATH`.
 - `DaisySelect` (with `DaisySizeDropdown` and `DaisyThemeDropdown`) and `DaisyBreadcrumbBar` hand a plain list to WinUI as a copy in a `List<object>`, with the same items in the same order; a collection that reports its changes passes unchanged. In a NativeAOT app a list of the app's own item type failed with "Value does not fall within the expected range", or "not a supported vector" in the breadcrumb bar, because the app has no marshalling code for that list type behind the `object` property. Photos no longer names its option list for this.
 - `DaisyScheduler.AppointmentColors` keeps a copy of the colors in a list of its own. A NativeAOT app cannot hand WinUI an array of `Color` as a dependency property value, so setting the palette as an array threw `NotSupportedException` there. The copy happens in the property setter: `SetValue`, a `{Binding}` or a style setter still hand an array to WinUI as it is.
+- `DaisyDateTimeline` builds its date items (about 120 with the default range) once when it loads. Before, it built them again for every property set before loading, such as from XAML, and three times on load: a theme change now only recolors the header, as the items follow the theme themselves, and the size refresh on load rebuilds only when the resolved size differs from the one the items were built with. When the timeline resolves its item width or spacing itself, it builds the items once instead of twice. A `Locale` change still updates `HeaderText` and the accessible name at once, also before loading. Runtime tests count the builds and check that properties set before loading apply, that the items use a resolved width, that the header follows `Locale`, and that a theme or global size change still reaches the items.
+- `FlowerySizeManager`: changing `IgnoreGlobalSize` (the attached property or `SetIgnoreGlobalSize`) on a loaded element refreshes only that element and the loaded controls below it, the only ones whose policy can change, instead of every loaded control.
 
 ### Fixed
 
