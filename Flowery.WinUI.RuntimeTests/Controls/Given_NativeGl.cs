@@ -636,7 +636,7 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                         return;
                 }
                 // The WebView2 closed during the call; the next round reads the renderer's error.
-                catch (System.Runtime.InteropServices.COMException) when (host.LastRenderError is not null) { }
+                catch (COMException) when (host.LastRenderError is not null) { }
                 if (watch.Elapsed > TimeSpan.FromSeconds(10))
                     throw new TimeoutException("Timed out waiting for " + description + ".");
                 await Task.Delay(20);

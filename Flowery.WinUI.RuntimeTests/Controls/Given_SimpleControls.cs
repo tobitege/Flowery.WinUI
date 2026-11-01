@@ -491,7 +491,15 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         [TestMethod]
         public async Task When_DateTimeline_ThemeChanges_ColorsFollowWithoutRebuild()
         {
+            // A theme switch changes the color of the brushes in Application.Resources in place, so a control that keeps
+            // its brush follows it without doing anything. The test puts new brush instances there first: the header and
+            // the items follow only if they fetch their brushes again on the theme change.
+            const string headerKey = "DaisyBaseContentBrush";
+            const string itemKey = "DaisyBase200Brush";
+            var resources = Application.Current.Resources;
             var previous = DaisyThemeManager.CurrentThemeName;
+            var originalHeaderBrush = resources[headerKey];
+            var originalItemBrush = resources[itemKey];
             try
             {
                 Assert.IsTrue(DaisyThemeManager.ApplyTheme("Light"));
@@ -505,28 +513,35 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                 await RuntimeTestHelpers.CompleteLayoutAsync(timeline);
 
                 var header = RuntimeTestHelpers.Descendants<TextBlock>(timeline).Single(text => text.Text == timeline.HeaderText);
-                var item = RuntimeTestHelpers.Descendants<DaisyDateTimelineItem>(timeline).First(item => !item.IsSelected);
+                var item = RuntimeTestHelpers.Descendants<DaisyDateTimelineItem>(timeline)
+                    .First(candidate => !candidate.IsSelected && !candidate.IsToday);
                 // Each item builds its background in its own Loaded handler, which WinUI may raise after the timeline's layout.
                 await RuntimeTestHelpers.WaitUntilAsync(() => item.Content is Border { Background: SolidColorBrush },
                     "the date item to build its background");
                 var itemBackground = (Border)item.Content;
-                // Theme changes mutate the shared brushes, so capture the colors before switching.
-                var lightHeader = ((SolidColorBrush)header.Foreground).Color;
-                var lightItem = ((SolidColorBrush)itemBackground.Background).Color;
                 var builds = timeline.ItemBuildCount;
 
+                var headerBrush = new SolidColorBrush(((SolidColorBrush)originalHeaderBrush).Color);
+                var itemBrush = new SolidColorBrush(((SolidColorBrush)originalItemBrush).Color);
+                resources[headerKey] = headerBrush;
+                resources[itemKey] = itemBrush;
                 Assert.IsTrue(DaisyThemeManager.ApplyTheme("Dark"));
                 await RuntimeTestHelpers.CompleteLayoutAsync(timeline);
 
                 Assert.AreEqual(builds, timeline.ItemBuildCount, "A theme change must not rebuild the items.");
                 Assert.IsTrue(RuntimeTestHelpers.Descendants<DaisyDateTimelineItem>(timeline).Contains(item), "The items must stay.");
-                Assert.AreNotEqual(lightHeader, ((SolidColorBrush)header.Foreground).Color, "The header color must follow the theme.");
-                Assert.AreNotEqual(lightItem, ((SolidColorBrush)itemBackground.Background).Color, "The item color must follow the theme.");
+                Assert.AreSame(headerBrush, header.Foreground, "The header must fetch its brush again on a theme change.");
+                Assert.AreSame(itemBrush, itemBackground.Background, "The items must fetch their brushes again on a theme change.");
             }
             finally
             {
                 RuntimeTestHelpers.GetHostPanel().Children.Clear();
-                DaisyThemeManager.ApplyTheme(previous ?? "Light");
+                resources[headerKey] = originalHeaderBrush;
+                resources[itemKey] = originalItemBrush;
+                // ApplyTheme skips the current theme; switching away first sets the colors of the restored brushes.
+                var restore = previous ?? "Light";
+                DaisyThemeManager.ApplyTheme(string.Equals(restore, "Dark", StringComparison.OrdinalIgnoreCase) ? "Light" : "Dark");
+                DaisyThemeManager.ApplyTheme(restore);
             }
         }
 
@@ -611,22 +626,31 @@ namespace Flowery.WinUI.RuntimeTests.Controls
         [TestMethod]
         public async Task When_IgnoreGlobalSizeChanges_OnlyThatSubtreeRefreshes()
         {
+            const double untouched = 99;
             var inside = new Border();
             var outside = new Border();
-            var scope = new StackPanel { Children = { inside } };
-            var host = new StackPanel { Children = { scope, outside } };
+            var insideText = new TextBlock { Text = "Inside" };
+            var outsideText = new TextBlock { Text = "Outside" };
+            FlowerySizeManager.SetResponsiveFont(insideText, ResponsiveFontTier.Primary);
+            FlowerySizeManager.SetResponsiveFont(outsideText, ResponsiveFontTier.Primary);
+            var scope = new StackPanel { Children = { inside, insideText } };
+            var host = new StackPanel { Children = { scope, outside, outsideText } };
             var refreshes = new int[2];
             FlowerySizeManager.Register(inside, () => refreshes[0]++, static () => DaisySize.Medium);
             FlowerySizeManager.Register(outside, () => refreshes[1]++, static () => DaisySize.Medium);
             try
             {
                 RuntimeTestHelpers.AttachToHost(host);
-                await RuntimeTestHelpers.CompleteLayoutAsync(host, inside, outside);
+                await RuntimeTestHelpers.CompleteLayoutAsync(host, inside, outside, insideText, outsideText);
                 var (insideBefore, outsideBefore) = (refreshes[0], refreshes[1]);
+                // The responsive text blocks get their size from the manager; a font size it never sets shows which it updated.
+                insideText.FontSize = untouched;
+                outsideText.FontSize = untouched;
 
                 FlowerySizeManager.SetIgnoreGlobalSize(scope, true);
                 Assert.IsGreaterThan(insideBefore, refreshes[0], "A control below the changed element must refresh.");
                 Assert.AreEqual(outsideBefore, refreshes[1], "A control outside the changed element must not refresh.");
+                Assert.AreEqual(untouched, outsideText.FontSize, "A text block outside the changed element must not be updated.");
 
                 // A page built from XAML sets the property before it is in the tree: no loaded control depends on it.
                 insideBefore = refreshes[0];
@@ -637,6 +661,10 @@ namespace Flowery.WinUI.RuntimeTests.Controls
                 FlowerySizeManager.SetIgnoreGlobalSize(inside, false);
                 Assert.IsGreaterThan(insideBefore, refreshes[0], "Opting back in must refresh the control itself.");
                 Assert.AreEqual(outsideBefore, refreshes[1]);
+
+                FlowerySizeManager.SetIgnoreGlobalSize(scope, false);
+                Assert.AreNotEqual(untouched, insideText.FontSize, "A text block below the changed element must take the global size.");
+                Assert.AreEqual(untouched, outsideText.FontSize, "A text block outside the changed element must not be updated.");
             }
             finally
             {
