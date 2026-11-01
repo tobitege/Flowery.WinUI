@@ -42,6 +42,7 @@
     function createContext(canvas) {
         const gl = canvas.getContext("webgl", { alpha: true, premultipliedAlpha: false, preserveDrawingBuffer: true });
         if (!gl) throw new Error("WebGL GPU context is unavailable in WebView2.");
+        canvas._nativeGl = gl;
         if (!contexts.has(gl)) {
             canvas.addEventListener("webglcontextlost", event => {
                 if (canvas !== currentCanvas()) return;
@@ -103,6 +104,13 @@
     }
 
     function fail(canvas, error) {
+        // A lost context fails every GL call: a shader compiles without a log ("Shader compile failed"). The engine
+        // sets up its program only after its images load, so a GPU process restart can fall in between. The restore
+        // sets the overlay up again and answers the waiters, so this is no failure of the renderer.
+        if (canvas === currentCanvas() && canvas._nativeGl && canvas._nativeGl.isContextLost()) {
+            whenRestored();
+            return;
+        }
         canvas._nativeError = String(error && error.message || error);
         const waiters = canvas._nativeWaiters || [];
         canvas._nativeWaiters = [];

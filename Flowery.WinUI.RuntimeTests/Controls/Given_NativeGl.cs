@@ -494,6 +494,42 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             }
         }
 
+        [TestMethod]
+        public async Task When_TheWebGlContextIsLostWhileAShaderCompiles_TheHostDrawsAfterTheRestore()
+        {
+            // The engine compiles a program after its images and transition loaded. A GPU process restart in between
+            // fails the compile without a log ("Shader compile failed", seen on CI); the restore sets the overlay up
+            // again, so the failed compile must not end the renderer.
+            var originalMotion = DaisyMotion.AnimationsEnabled;
+            var host = new CarouselGlTransitionHost { Width = 160, Height = 100, TransitionName = "fade", IntervalSeconds = 0, TransitionSeconds = 1 };
+            try
+            {
+                DaisySystemAppearance.SetMotionPreference(true);
+                RuntimeTestHelpers.AttachToHost(host);
+                await RuntimeTestHelpers.EnsureLoadedAsync(host);
+                AssertFrame(await host.ReadFrameAsync(0), "fade");
+
+                // The next shader compile loses the context first; the context comes back 100 ms later.
+                await ExecuteScriptAsync(host, "(() => { const proto = WebGLRenderingContext.prototype; const compile = proto.compileShader;"
+                    + " proto.compileShader = function (shader) { proto.compileShader = compile; window.floweryLostOnCompile = true;"
+                    + " const extension = this.getExtension('WEBGL_lose_context'); extension.loseContext();"
+                    + " setTimeout(() => extension.restoreContext(), 100); return compile.call(this, shader); }; })()");
+                host.TransitionName = "pixelize";
+                await WaitForScriptAsync(host, "window.floweryLostOnCompile === true", "the pixelize compile to lose the context");
+
+                var restored = await host.ReadFrameAsync(0).WaitAsync(TimeSpan.FromSeconds(10));
+                AssertFrame(restored, "restored");
+                Assert.IsNull(host.LastRenderError, "A context lost during a compile must not end the renderer.");
+                Assert.IsTrue(host.IsRendererInitialized);
+            }
+            finally
+            {
+                DaisySystemAppearance.SetMotionPreference(originalMotion);
+                RuntimeTestHelpers.GetHostPanel().Children.Clear();
+                await FlushAsync(host.DispatcherQueue);
+            }
+        }
+
         private static async Task<string?> CheckPausedHostShowsAFrameAfterResizeAsync(CarouselGlNativeHost host, string name)
         {
             try
@@ -584,6 +620,27 @@ namespace Flowery.WinUI.RuntimeTests.Controls
             if (host.Content is not WebView2 { CoreWebView2: { } core })
                 throw new AssertFailedException("The GL host must show its WebView2.");
             await core.ExecuteScriptAsync(script);
+        }
+
+        // A renderer that fails meanwhile closes its WebView2; the wait then reports that error instead.
+        private static async Task WaitForScriptAsync(CarouselGlNativeHost host, string condition, string description)
+        {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            while (true)
+            {
+                if (host.LastRenderError is { } error)
+                    throw new AssertFailedException($"The renderer failed while waiting for {description}: {error.Message}");
+                try
+                {
+                    if (host.Content is WebView2 { CoreWebView2: { } core } && await core.ExecuteScriptAsync(condition) == "true")
+                        return;
+                }
+                // The WebView2 closed during the call; the next round reads the renderer's error.
+                catch (System.Runtime.InteropServices.COMException) when (host.LastRenderError is not null) { }
+                if (watch.Elapsed > TimeSpan.FromSeconds(10))
+                    throw new TimeoutException("Timed out waiting for " + description + ".");
+                await Task.Delay(20);
+            }
         }
 
         private static int MaxDifference(byte[] first, byte[] second) => first.Zip(second, (a, b) => Math.Abs(a - b)).Max();
