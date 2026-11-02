@@ -13,18 +13,21 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <!-- Left: Header and zoom level - excluded from scaling -->
-            <StackPanel x:Name="ZoomPanel" Spacing="12" Width="180" HorizontalAlignment="Center" VerticalAlignment="Center" services:FloweryScaleManager.EnableScaling="False">
-                <StackPanel Spacing="6">
-                    <TextBlock Text="RUNTIME SCALING" HorizontalAlignment="Center" Foreground="{ThemeResource DaisyPrimaryBrush}" FontWeight="Bold" CharacterSpacing="200" FontSize="10" />
-                    <TextBlock Text="FloweryScaleManager Demo" TextWrapping="Wrap" TextAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{ThemeResource DaisyBaseContentBrush}" />
-                    <TextBlock Text="Watch controls scale in real-time" TextWrapping="Wrap" TextAlignment="Center" FontSize="12" Opacity="0.7" Foreground="{ThemeResource DaisyBaseContentBrush}" />
-                </StackPanel>
-                <daisy:DaisyRadialProgress x:Name="ZoomProgress" Value="50" Maximum="200" Size="Medium" Variant="Primary" ShowValue="True" Width="140" Height="140" />
+            <!-- Left: Header and zoom level - excluded from scaling. The panel needs about 390 pixels of height; the
+                 Viewbox shrinks it in a smaller window, where it would otherwise reach past the slide. -->
+            <Viewbox StretchDirection="DownOnly" VerticalAlignment="Center">
+                <StackPanel x:Name="ZoomPanel" Spacing="12" Width="180" HorizontalAlignment="Center" VerticalAlignment="Center" services:FloweryScaleManager.EnableScaling="False">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="RUNTIME SCALING" HorizontalAlignment="Center" Foreground="{ThemeResource DaisyPrimaryBrush}" FontWeight="Bold" CharacterSpacing="200" FontSize="10" />
+                        <TextBlock Text="FloweryScaleManager Demo" TextWrapping="Wrap" TextAlignment="Center" FontSize="22" FontWeight="Bold" Foreground="{ThemeResource DaisyBaseContentBrush}" />
+                        <TextBlock Text="Watch controls scale in real-time" TextWrapping="Wrap" TextAlignment="Center" FontSize="12" Opacity="0.7" Foreground="{ThemeResource DaisyBaseContentBrush}" />
+                    </StackPanel>
+                    <daisy:DaisyRadialProgress x:Name="ZoomProgress" Value="50" Maximum="200" Size="Medium" Variant="Primary" ShowValue="True" Width="140" Height="140" />
                 
-                <TextBlock Text="FloweryScaleManager" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource DaisyBaseContentBrush}" />
-                <TextBlock Text="Real-time UI scaling" FontSize="10" Opacity="0.6" HorizontalAlignment="Center" Foreground="{ThemeResource DaisyBaseContentBrush}" />
-            </StackPanel>
+                    <TextBlock Text="FloweryScaleManager" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource DaisyBaseContentBrush}" />
+                    <TextBlock Text="Real-time UI scaling" FontSize="10" Opacity="0.6" HorizontalAlignment="Center" Foreground="{ThemeResource DaisyBaseContentBrush}" />
+                </StackPanel>
+            </Viewbox>
 
             <!-- Right: Demo Controls that will scale -->
             <daisy:DaisyCard x:Name="DemoCard" Grid.Column="1" BodyPadding="18" MaxWidth="640" VerticalAlignment="Center">

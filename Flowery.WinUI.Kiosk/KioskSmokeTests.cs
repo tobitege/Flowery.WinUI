@@ -235,10 +235,6 @@ internal static partial class KioskSmokeTests
             await check();
             report.Add(name, true, "The native runtime check completed successfully.");
         }
-        catch (InconclusiveException exception)
-        {
-            report.Add(name, SmokeOutcome.Inconclusive, exception.Message);
-        }
         catch (Exception exception)
         {
             report.Add(name, false, exception.ToString());
@@ -300,7 +296,6 @@ internal static partial class KioskSmokeTests
             (100, DaisySize.Medium), (120, DaisySize.Large), (160, DaisySize.ExtraLarge), (200, DaisySize.ExtraLarge)
         };
         var failed = 0;
-        var inconclusive = 0;
         foreach (var checkpoint in checkpoints)
         {
             var diagnostics = "Layout measurement did not complete.";
@@ -323,9 +318,7 @@ internal static partial class KioskSmokeTests
             }
             catch (Exception exception)
             {
-                var outcome = exception is InconclusiveException ? SmokeOutcome.Inconclusive : SmokeOutcome.Failed;
-                if (outcome == SmokeOutcome.Inconclusive) inconclusive++;
-                else failed++;
+                failed++;
                 if (!captureAttempted)
                 {
                     try
@@ -338,12 +331,10 @@ internal static partial class KioskSmokeTests
                         diagnostics += $"\nScreenshot failed: {captureException}";
                     }
                 }
-                report.Add($"Scaling.Geometry.{checkpoint.Percent}", outcome, $"{exception}\n{diagnostics}");
+                report.Add($"Scaling.Geometry.{checkpoint.Percent}", false, $"{exception}\n{diagnostics}");
             }
         }
         Require(failed == 0, $"{failed} scaling geometry checkpoints failed; see Scaling.Geometry entries.");
-        if (inconclusive > 0)
-            throw new InconclusiveException($"{inconclusive} scaling geometry checkpoints were inconclusive; see Scaling.Geometry entries.");
     }
 
     private static async Task ApplyScalingAndRenderAsync(ScalingSlide slide, double percent, CancellationToken token)
@@ -387,14 +378,9 @@ internal static partial class KioskSmokeTests
         Require(Find<DaisyRadialProgress>(slide, "ZoomProgress").Value == percent,
             "The zoom indicator differs from the applied zoom.");
         var zoomPanel = Find<StackPanel>(slide, "ZoomPanel");
-        // The zoom panel's text measures taller in local console sessions than over Remote Desktop, and the panel
-        // then overflows the slide. That overflow is inconclusive; the remaining checks still apply.
-        string? clippedZoomPanel = null;
-        try { RequireContained(slide, zoomPanel, "Zoom panel within slide"); }
-        catch (InvalidOperationException exception) { clippedZoomPanel = exception.Message; }
-        if (clippedZoomPanel is null)
-            foreach (var text in Descendants<TextBlock>(zoomPanel).Where(IsVisibleText))
-                CheckTextVisible(text, zoomPanel, $"Zoom panel text '{text.Text}'", probes);
+        RequireContained(slide, zoomPanel, "Zoom panel within slide");
+        foreach (var text in Descendants<TextBlock>(zoomPanel).Where(IsVisibleText))
+            CheckTextVisible(text, zoomPanel, $"Zoom panel text '{text.Text}'", probes);
         RequireContained(slide, card, "Card within slide");
         RequireContained(body, content, "Demo content within card body");
         CheckTextVisible(title, content, "Complete demo title", probes);
@@ -435,8 +421,6 @@ internal static partial class KioskSmokeTests
             foreach (var label in Descendants<TextBlock>(badge).Where(IsVisibleText))
                 CheckTextVisible(label, badge, $"Badge {index} text '{label.Text}'", probes);
         }
-        if (clippedZoomPanel is not null)
-            throw new InconclusiveException(clippedZoomPanel);
     }
 
     private static bool IsVisibleText(TextBlock text) => !string.IsNullOrEmpty(text.Text) &&
@@ -688,9 +672,6 @@ internal static partial class KioskSmokeTests
         if (!condition)
             throw new InvalidOperationException(message);
     }
-
-    // A check whose result depends on the session rather than the code; it is reported without failing the run.
-    private sealed class InconclusiveException(string message) : Exception(message);
 
     [LibraryImport("user32.dll", EntryPoint = "SendMessageW")]
     private static partial IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);

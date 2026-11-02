@@ -5,37 +5,30 @@ using System.Xml.Linq;
 
 namespace Flowery.WinUI.Gallery;
 
-public enum SmokeOutcome { Passed, Failed, Inconclusive }
-
 /// <summary>
 /// The XML report of a smoke run (Kiosk --smoke-test, Gallery --smoke-test), as test_kiosk.ps1 and
-/// test_gallery_smoke.ps1 read it: one entry per check with its outcome and message.
+/// test_gallery_smoke.ps1 read it: one entry per check, passed or failed, with its message.
 /// </summary>
 public sealed class SmokeReport(string path)
 {
     private readonly List<SmokeResult> _results = [];
     public string Path { get; } = System.IO.Path.GetFullPath(path);
-    public int Failed => _results.Count(result => result.Outcome == SmokeOutcome.Failed);
-    public int Inconclusive => _results.Count(result => result.Outcome == SmokeOutcome.Inconclusive);
+    public int Failed => _results.Count(result => !result.Passed);
 
-    public void Add(string name, bool passed, string message) =>
-        Add(name, passed ? SmokeOutcome.Passed : SmokeOutcome.Failed, message);
-
-    public void Add(string name, SmokeOutcome outcome, string message)
+    public void Add(string name, bool passed, string message)
     {
         var uniqueName = name;
         for (var suffix = 2; _results.Any(result => result.Name == uniqueName); suffix++)
             uniqueName = $"{name}.{suffix}";
-        _results.Add(new SmokeResult(uniqueName, outcome, message));
+        _results.Add(new SmokeResult(uniqueName, passed, message));
     }
 
     public void Save()
     {
         var document = new XDocument(new XElement("tests",
             new XAttribute("total", _results.Count),
-            new XAttribute("passed", _results.Count - Failed - Inconclusive),
+            new XAttribute("passed", _results.Count - Failed),
             new XAttribute("failed", Failed),
-            new XAttribute("inconclusive", Inconclusive),
             _results.Select(result => new XElement("test",
                 new XAttribute("name", result.Name),
                 new XAttribute("outcome", result.Outcome),
@@ -52,12 +45,14 @@ public sealed class SmokeReport(string path)
         File.Move(pendingPath, Path, overwrite: true);
         var saved = XDocument.Load(Path).Root ?? throw new InvalidDataException("The smoke report has no root element.");
         if (saved.Name != "tests" || (int?)saved.Attribute("total") != _results.Count ||
-            (int?)saved.Attribute("failed") != Failed || (int?)saved.Attribute("inconclusive") != Inconclusive ||
-            saved.Elements("test").Count() != _results.Count)
+            (int?)saved.Attribute("failed") != Failed || saved.Elements("test").Count() != _results.Count)
             throw new InvalidDataException("The published smoke report failed readback validation.");
         File.WriteAllLines(Path + ".log", _results.Select(result =>
             $"{result.Outcome} {result.Name}: {result.Message}"), new UTF8Encoding(false));
     }
 
-    private sealed record SmokeResult(string Name, SmokeOutcome Outcome, string Message);
+    private sealed record SmokeResult(string Name, bool Passed, string Message)
+    {
+        public string Outcome => Passed ? "Passed" : "Failed";
+    }
 }

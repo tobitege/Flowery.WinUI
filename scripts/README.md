@@ -93,8 +93,6 @@ The script launches the native Kiosk with an isolated state directory and an abs
 Reports are in `TestResults/Kiosk/<Configuration>/<run>/kiosk-smoke.xml`.
 Logs are in `logs/kiosk-tests-<Configuration>-<run>.log`.
 The script checks process exit, unique case names, report counts, and individual outcomes.
-Inconclusive checks are listed as warnings and do not fail the run.
-A scaling checkpoint is inconclusive when only its zoom panel overflows the slide, which depends on the session's text measurement.
 
 To check a published Kiosk, such as the NativeAOT output, pass its executable; the script then builds nothing:
 
