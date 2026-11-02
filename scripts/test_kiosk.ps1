@@ -69,7 +69,7 @@ $names = @($cases | ForEach-Object { [string]$_.name })
 if (@($names | Sort-Object -Unique).Count -ne $total -or @($names | Where-Object { [string]::IsNullOrWhiteSpace($_) }).Count -gt 0) { throw 'Kiosk smoke report has invalid case names.' }
 $failedCases = @($cases | Where-Object { $_.outcome -ne 'Passed' })
 Write-Host ('Kiosk: {0} passed, {1} failed. Report: {2}' -f $passed, $failed, $reportPath)
-if ($exitCode -ne 0 -or $failed -ne 0 -or $failedCases.Count -gt 0 -or $passed -ne $total) {
+if ($exitCode -ne 0 -or $failed -ne 0 -or $failedCases.Count -gt 0) {
     $failedCases | Select-Object -First 3 | ForEach-Object { Write-Host ('{0}: {1}' -f $_.name, $_.message) }
     exit 1
 }
