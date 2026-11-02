@@ -135,20 +135,19 @@ for ($part = 1; ; $part++) {
 }
 
 $total = $results.Count
-$failedCases = @($results | Where-Object { $_.Outcome -eq 'Failed' })
-$inconclusive = @($results | Where-Object { $_.Outcome -eq 'Inconclusive' }).Count
+$failedCases = @($results | Where-Object { $_.Outcome -ne 'Passed' })
 $failed = $failedCases.Count
-$passed = $total - $failed - $inconclusive
+$passed = $total - $failed
 $document = [Xml.Linq.XDocument]::new([Xml.Linq.XElement]::new('tests',
     [Xml.Linq.XAttribute]::new('total', $total), [Xml.Linq.XAttribute]::new('passed', $passed),
-    [Xml.Linq.XAttribute]::new('failed', $failed), [Xml.Linq.XAttribute]::new('inconclusive', $inconclusive),
+    [Xml.Linq.XAttribute]::new('failed', $failed),
     [object[]]@($results | ForEach-Object {
         [Xml.Linq.XElement]::new('test', [Xml.Linq.XAttribute]::new('name', $_.Name), [Xml.Linq.XAttribute]::new('outcome', $_.Outcome),
             [Xml.Linq.XElement]::new('message', $_.Message))
     })))
 $document.Save($reportPath)
 if ($total -lt 1) { throw 'Gallery smoke report has no entries.' }
-Write-Host ('Gallery: {0} passed, {1} failed, {2} inconclusive. Report: {3}' -f $passed, $failed, $inconclusive, $reportPath)
+Write-Host ('Gallery: {0} passed, {1} failed. Report: {2}' -f $passed, $failed, $reportPath)
 foreach ($case in $failedCases) {
     $text = '{0}: {1}' -f $case.Name, (($case.Message -split "`n" | Select-Object -First 3) -join ' ')
     if ($env:GITHUB_ACTIONS -eq 'true') { Write-Host ('::error title=Gallery smoke run::{0}' -f $text.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')) }

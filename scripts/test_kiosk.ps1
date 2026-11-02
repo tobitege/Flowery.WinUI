@@ -64,15 +64,12 @@ $cases = @($report.tests.test)
 $total = [int]$report.tests.total
 $passed = [int]$report.tests.passed
 $failed = [int]$report.tests.failed
-$inconclusive = [int]$report.tests.inconclusive
-if ($total -lt 6 -or $cases.Count -ne $total -or $passed + $failed + $inconclusive -ne $total) { throw 'Kiosk smoke report has invalid counts.' }
+if ($total -lt 6 -or $cases.Count -ne $total -or $passed + $failed -ne $total) { throw 'Kiosk smoke report has invalid counts.' }
 $names = @($cases | ForEach-Object { [string]$_.name })
 if (@($names | Sort-Object -Unique).Count -ne $total -or @($names | Where-Object { [string]::IsNullOrWhiteSpace($_) }).Count -gt 0) { throw 'Kiosk smoke report has invalid case names.' }
-$failedCases = @($cases | Where-Object { $_.outcome -ne 'Passed' -and $_.outcome -ne 'Inconclusive' })
-$inconclusiveCases = @($cases | Where-Object { $_.outcome -eq 'Inconclusive' })
-Write-Host ('Kiosk: {0} passed, {1} failed, {2} inconclusive. Report: {3}' -f $passed, $failed, $inconclusive, $reportPath)
-$inconclusiveCases | ForEach-Object { Write-Warning ('{0}: {1}' -f $_.name, ($_.message -split "`n")[0]) }
-if ($exitCode -ne 0 -or $failed -ne 0 -or $failedCases.Count -gt 0 -or $passed + $inconclusive -ne $total -or $inconclusiveCases.Count -ne $inconclusive) {
+$failedCases = @($cases | Where-Object { $_.outcome -ne 'Passed' })
+Write-Host ('Kiosk: {0} passed, {1} failed. Report: {2}' -f $passed, $failed, $reportPath)
+if ($exitCode -ne 0 -or $failed -ne 0 -or $failedCases.Count -gt 0 -or $passed -ne $total) {
     $failedCases | Select-Object -First 3 | ForEach-Object { Write-Host ('{0}: {1}' -f $_.name, $_.message) }
     exit 1
 }
