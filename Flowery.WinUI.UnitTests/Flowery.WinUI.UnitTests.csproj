@@ -27,4 +27,11 @@
     <ProjectReference Include="..\Flowery.WinUI.Kanban\Flowery.WinUI.Kanban.csproj" />
     <ProjectReference Include="..\Flowery.WinUI.Gallery.Core\Flowery.WinUI.Gallery.Core.csproj" />
   </ItemGroup>
+
+  <!-- Pure logic of the Photos app (no WinUI types), compiled in here so the tests need no reference to the app. -->
+  <ItemGroup>
+    <Compile Include="..\Flowery.WinUI.Photos\Editing\CropAspectLock.cs" Link="Photos\CropAspectLock.cs" />
+    <Compile Include="..\Flowery.WinUI.Photos\Views\ViewerMath.cs" Link="Photos\ViewerMath.cs" />
+    <Compile Include="..\Flowery.WinUI.Photos\Views\WindowCloseGuard.cs" Link="Photos\WindowCloseGuard.cs" />
+  </ItemGroup>
 </Project>
