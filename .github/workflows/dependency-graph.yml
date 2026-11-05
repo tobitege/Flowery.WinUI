@@ -27,12 +27,12 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.402'
+          dotnet-version: '10.0.403'
       - name: Restore every C# project with the native Windows toolchain
         shell: pwsh
         run: |
           . ./scripts/build_core.ps1
-          Initialize-BuildEnvironment -HeadName 'dependency graph' -LogFileName 'dependency-restore' -Configuration Release -SdkVersion '10.0.402'
+          Initialize-BuildEnvironment -HeadName 'dependency graph' -LogFileName 'dependency-restore' -Configuration Release -SdkVersion '10.0.403'
           $gitArguments = @('ls-files', '--', '*.csproj')
           $projects = @(& git @gitArguments)
           if ($LASTEXITCODE -ne 0 -or $projects.Count -eq 0) {
