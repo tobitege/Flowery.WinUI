@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.13.0] - 2026-11-02
+## [1.13.0] - 2026-11-05
 
 ### Added
 
@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A board whose `FlowKanbanData.Columns` gets a new collection shows the new columns: the property now raises `PropertyChanged`, which `FlowKanban` waits for to rebuild its columns, and follows the new collection.
 - The GL carousel hosts (`CarouselGlEffectHost`, Gallery `CarouselGlTransitionHost`) draw again after their WebGL context was lost while they compiled a shader, such as when the GPU process restarts. The engines compile a program only after their images and the transition have loaded, and a context lost in between failed the compile without a log ("Shader compile failed"), which ended the renderer for good, although the browser restores the context and the host sets itself up again then. A runtime test loses the context during a compile; CI hit it once.
 - Kiosk: the zoom panel of the scaling slide fits the slide at every window size. It needs about 390 pixels of height and now shrinks in a smaller window; in the normal window (a slide of 480 pixels) it reached past the slide, so its headline was cut off at the top and its last line ran into the slide title. The Kiosk smoke checks test the panel as a hard check again instead of reporting the seven scaling checkpoints and the scaling slide as inconclusive. That was the only use of an inconclusive outcome, so the smoke reports of the Kiosk and the Gallery (`SmokeReport`, `test_kiosk.ps1`, `test_gallery_smoke.ps1`) now only know passed and failed.
+- `DaisyAlert` wraps a long text `Message` within its width, for example a toast with `MaxWidth`, instead of cutting it off.
+- Photos: the crop aspect ratio belongs to the photo it was chosen for. It is reset on the next photo and on Revert, and a quarter turn swaps it (16:9 becomes 9:16), also when the turn is undone, so the highlighted button and the crop handles match the photo.
+- Photos: in the Markup tab with the before/after comparison on, a drag on the divider moves it instead of drawing a stroke into the hidden "before" half. The pointer shows the same order.
+- Photos: closing the window with unsaved edits asks whether to save a copy or discard them, as closing the viewer does. Closing during a slideshow only stops it and frees the images instead of restoring the window first.
 
 ## [1.12.0] - 2026-10-30
 

@@ -1,4 +1,5 @@
 ﻿using Flowery.WinUI.Photos.Services;
+using Flowery.WinUI.Photos.Views;
 using Microsoft.UI.Windowing;
 using Windows.Graphics;
 
@@ -16,6 +17,7 @@ namespace Flowery.WinUI.Photos
         private bool _isSystemMinSizeActive;
         private bool _suppressBoundsSave;
         private bool _isActive;
+        private readonly WindowCloseGuard _closeGuard = new();
         private const int DwmwaBorderColor = 34;
         private const uint DwmColorDefault = 0xFFFFFFFF;
 
@@ -42,6 +44,7 @@ namespace Flowery.WinUI.Photos
             if (GetSafeAppWindow() is { } window)
             {
                 window.Changed += OnAppWindowChanged;
+                window.Closing += OnAppWindowClosing;
             }
 
             Closed += OnWindowClosed;
@@ -130,6 +133,38 @@ namespace Flowery.WinUI.Photos
             var accent = WindowsAccent.Color;
             var color = _isActive ? (uint)(accent.R | (accent.G << 8) | (accent.B << 16)) : DwmColorDefault;
             DwmSetWindowAttribute(_windowHandle, DwmwaBorderColor, ref color, sizeof(uint));
+        }
+
+        /// <summary>Closing the window with unsaved edits asks first, like closing the viewer.</summary>
+        private void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
+        {
+            switch (_closeGuard.OnClosing(Shell.HasUnsavedEdits))
+            {
+                case CloseDecision.Cancel:
+                    args.Cancel = true;
+                    break;
+                case CloseDecision.CancelAndAsk:
+                    args.Cancel = true;
+                    DispatcherQueue.TryEnqueue(AskBeforeClosing);
+                    break;
+            }
+        }
+
+        private async void AskBeforeClosing()
+        {
+            bool close;
+            try
+            {
+                close = await Shell.ConfirmDiscardEditsAsync();
+            }
+            catch (Exception ex)
+            {
+                // An event handler must not end the app; with the edits in doubt the window stays open.
+                System.Diagnostics.Debug.WriteLine(ex);
+                close = false;
+            }
+            if (_closeGuard.OnAnswer(close))
+                Close();
         }
 
         private void OnWindowClosed(object sender, WindowEventArgs args)
