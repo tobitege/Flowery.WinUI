@@ -24,6 +24,8 @@ public sealed partial class Given_DaisyScheduler
             var renders = 0;
             scope.Scheduler.AppointmentRenderer = _ => { renders++; return null; };
             await scope.LayoutAsync();
+            // The new Size rebuilt the body, which scrolls back to its saved offset once WinUI applies that scroll.
+            await scope.WaitForScrollRestoreAsync();
             var frame = scope.Frame(scope.Appointment);
             var scroll = Ancestors<ScrollViewer>(frame).First();
             var dateButton = Descendants<DaisyButton>(scope.Scheduler).Single(button => Equals(button.Tag, "Date"));

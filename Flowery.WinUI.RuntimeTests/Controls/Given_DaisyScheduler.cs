@@ -573,21 +573,29 @@ public sealed partial class Given_DaisyScheduler
             var scope = new SchedulerScope(view);
             RuntimeTestHelpers.AttachToHost(scope.Host);
             await scope.LayoutAsync();
-            // The view scrolls to the start of the day once it is loaded, and WinUI applies that scroll later.
-            if (view is SchedulerView.Day or SchedulerView.Week or SchedulerView.Planner or SchedulerView.Timeline)
-            {
-                var scroll = scope.BodyScroll();
-                bool Scrolled() => view is SchedulerView.Day or SchedulerView.Week
-                    ? scroll.VerticalOffset > 0 || scroll.ScrollableHeight == 0
-                    : scroll.HorizontalOffset > 0 || scroll.ScrollableWidth == 0;
-                for (var pass = 0; pass < 100 && !Scrolled(); pass++)
-                {
-                    await Task.Delay(20);
-                    await scope.LayoutAsync();
-                }
-                Assert.IsTrue(Scrolled(), "The view did not scroll to the start of the day.");
-            }
+            await scope.WaitForScrollRestoreAsync();
             return scope;
+        }
+
+        /// <summary>
+        /// Waits until a freshly built body has scrolled to the start of the day, or back to its saved offset after a
+        /// render that rebuilt it (a change of Size, for example); WinUI applies that scroll after the layout passes.
+        /// </summary>
+        public async Task WaitForScrollRestoreAsync()
+        {
+            var view = Scheduler.CurrentView;
+            if (view is not (SchedulerView.Day or SchedulerView.Week or SchedulerView.Planner or SchedulerView.Timeline))
+                return;
+            var scroll = BodyScroll();
+            bool Scrolled() => view is SchedulerView.Day or SchedulerView.Week
+                ? scroll.VerticalOffset > 0 || scroll.ScrollableHeight == 0
+                : scroll.HorizontalOffset > 0 || scroll.ScrollableWidth == 0;
+            for (var pass = 0; pass < 100 && !Scrolled(); pass++)
+            {
+                await Task.Delay(20);
+                await LayoutAsync();
+            }
+            Assert.IsTrue(Scrolled(), "The view did not scroll to the start of the day.");
         }
 
         /// <summary>Lets queued renders, scroll restores and layout passes finish.</summary>
