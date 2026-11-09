@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.13.0] - 2026-11-05
+## [1.13.0] - unreleased
 
 ### Added
 
@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `DaisyScheduler.AppointmentColors` keeps a copy of the colors in a list of its own. A NativeAOT app cannot hand WinUI an array of `Color` as a dependency property value, so setting the palette as an array threw `NotSupportedException` there. The copy happens in the property setter: `SetValue`, a `{Binding}` or a style setter still hand an array to WinUI as it is.
 - `DaisyDateTimeline` builds its date items (about 120 with the default range) once when it loads. Before, it built them again for every property set before loading, such as from XAML, and three times on load: a theme change now only recolors the header, as the items follow the theme themselves, and the size refresh on load rebuilds only when the resolved size differs from the one the items were built with. When the timeline resolves its item width or spacing itself, it builds the items once instead of twice. A `Locale` change still updates `HeaderText` and the accessible name at once, also before loading. Runtime tests count the builds and check that properties set before loading apply, that the items use a resolved width, that the header follows `Locale`, and that a theme or global size change still reaches the items.
 - `FlowerySizeManager`: changing `IgnoreGlobalSize` (the attached property or `SetIgnoreGlobalSize`) on a loaded element refreshes only that element and the loaded controls and responsive text blocks below it, the only ones whose policy can change, instead of every loaded control and text block.
+- Updated SkiaSharp to 4.155.0 (#76) and Microsoft.WindowsAppSDK to 2.6.5 (#77).
 
 ### Fixed
 
