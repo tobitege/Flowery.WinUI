@@ -426,6 +426,7 @@ public partial class DaisyScheduler
             HorizontalScrollMode = ScrollMode.Auto,
             VerticalScrollMode = ScrollMode.Auto
         };
+        _scrollPending = true;
         _bodyScroll.Loaded += OnBodyLoaded;
         _bodyScroll.ViewChanged += OnBodyScrolled;
         _bodyScroll.SizeChanged += OnBodyResized;
@@ -462,6 +463,7 @@ public partial class DaisyScheduler
     {
         if (ReferenceEquals(sender, _bodyScroll) && _bodyScroll is { } body)
         {
+            _scrollPending = false;
             // They also follow the optical zoom while a touchpad pinches the body (see FloweryScrollZoom).
             _headerScroll?.ChangeView(body.HorizontalOffset, null, body.ZoomFactor, true);
             _gutterScroll?.ChangeView(null, body.VerticalOffset, body.ZoomFactor, true);
@@ -489,7 +491,8 @@ public partial class DaisyScheduler
         };
         var offset = _savedOffset ?? initial;
         _bodyScroll.UpdateLayout();
-        _bodyScroll.ChangeView(offset.X, offset.Y, null, true);
+        // WinUI applies the scroll later and reports it through ViewChanged; false means the view stays as it is.
+        _scrollPending = _bodyScroll.ChangeView(offset.X, offset.Y, null, true);
     }
 
     private static Border? AddRectangle(Canvas canvas, double x, double y, double width, double height, Brush fill)

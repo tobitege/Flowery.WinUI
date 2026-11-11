@@ -53,6 +53,27 @@ public sealed partial class Given_DaisyScheduler
     }
 
     [TestMethod]
+    public async Task When_ViewRendersAgainBeforeItsScrollLands_OffsetIsKept()
+    {
+        // Whether the second render comes before the scroll lands depends on timing; ten rounds hit it reliably.
+        foreach (var view in Enumerable.Repeat(new[] { SchedulerView.Day, SchedulerView.Week, SchedulerView.Planner, SchedulerView.Timeline }, 10).SelectMany(views => views))
+        {
+            var scope = await SchedulerScope.CreateAsync(view);
+            var before = scope.BodyScroll();
+            var (offsetX, offsetY) = (before.HorizontalOffset, before.VerticalOffset);
+            // A new Size renders twice in a row: the size tokens set FontSize, which requests the second render.
+            // That render can find the body of the first one loaded, but not yet scrolled to the saved offset.
+            scope.Scheduler.Size = DaisySize.ExtraLarge;
+            await scope.LayoutAsync();
+            await scope.WaitForScrollRestoreAsync();
+            var after = scope.BodyScroll();
+            Assert.AreNotSame(before, after, view.ToString());
+            Assert.AreEqual(offsetX, after.HorizontalOffset, 1, view.ToString());
+            Assert.AreEqual(offsetY, after.VerticalOffset, 1, view.ToString());
+        }
+    }
+
+    [TestMethod]
     public async Task When_WeekAppointmentsOverlap_SubjectAndTimeStayUnclippedAtEverySize()
     {
         foreach (var (size, clock) in new[]
