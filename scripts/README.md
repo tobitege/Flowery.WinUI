@@ -25,7 +25,7 @@ These options apply to the build, run, test, package, and publish scripts.
 An explicit SDK selection fails if that version is unavailable.
 
 ```powershell
-./scripts/build_all.ps1 -Configuration Release -NoRun -SdkVersion 10.0.403
+./scripts/build_all.ps1 -Configuration Release -NoRun -SdkVersion 10.0.404
 
 $dotnetPath = Join-Path $env:LOCALAPPDATA 'Microsoft\dotnet\dotnet.exe'
 ./scripts/build_all.ps1 -Configuration Release -NoRun -SdkVersion 11.0.100-rc.2.26504.105 -DotNetPath $dotnetPath
@@ -237,7 +237,7 @@ Use `-LaunchGui` to also start the installed application once.
 Run the NuGet security audit locally with the same native toolchain:
 
 ```powershell
-./scripts/audit_nuget.ps1 -Configuration Release -SdkVersion 10.0.403
+./scripts/audit_nuget.ps1 -Configuration Release -SdkVersion 10.0.404
 ```
 
 The audit restores every tracked C# project, including the tools and standalone unit-test project outside the solution.
@@ -253,10 +253,10 @@ Only its graph update job has repository write access. The workflow does not run
 This workflow does not publish NuGet packages. Only the manually started Release workflow publishes packages.
 The repository's built-in automatic submission remains disabled because its Linux restore fails for these native Windows projects.
 
-The CI workflow is configured to build and check Gallery and Kiosk in Debug and Release with SDK `10.0.403` and `11.0.100-rc.2.26504.105`, including the Gallery smoke run.
+The CI workflow is configured to build and check Gallery and Kiosk in Debug and Release with SDK `10.0.404` and `11.0.100-rc.2.26504.105`, including the Gallery smoke run.
 It also publishes the Kiosk and Photos with NativeAOT, runs the Kiosk smoke checks on the NativeAOT Kiosk and starts the NativeAOT Photos.
 The release workflow creates the native packages, Gallery output, `Flowery.WinUI.Kiosk-Windows-x64.zip`, `Flowery.WinUI.Photos-Windows-x64.zip` and the Photos installer `Flowery.WinUI.Photos-Setup-<version>-x64.exe`.
-Release publication remains a manual workflow action, with SDK `10.0.403` selected by default and SDK 11 RC2 available as an option.
+Release publication remains a manual workflow action, with SDK `10.0.404` selected by default and SDK 11 RC2 available as an option.
 
 The supported projects and scripts target native Windows only.
 The kiosk workflow and shader-effect examples have native Windows host implementations with their functions preserved.

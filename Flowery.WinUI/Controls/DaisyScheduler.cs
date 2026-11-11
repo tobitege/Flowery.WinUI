@@ -298,6 +298,8 @@ public partial class DaisyScheduler : Control
     private bool _attached;
     private ScrollViewer? _bodyScroll;
     private Windows.Foundation.Point? _savedOffset;
+    // True from the creation of a body until WinUI has applied the scroll that body starts with.
+    private bool _scrollPending;
     private SchedulerView? _renderedView;
     private IReadOnlyList<SchedulerTileOption> _tileOptions = Array.Empty<SchedulerTileOption>();
     private DaisySize _size = DaisySize.Medium;
@@ -494,10 +496,11 @@ public partial class DaisyScheduler : Control
         _surfaceStyles.Clear();
         _size = ResolvedSize;
         ApplySizeTokens();
-        if (_bodyScroll is not null && _renderedView == CurrentView)
-            _savedOffset = new Windows.Foundation.Point(_bodyScroll.HorizontalOffset, _bodyScroll.VerticalOffset);
-        else
+        if (_bodyScroll is null || _renderedView != CurrentView)
             _savedOffset = null;
+        // A body that has not scrolled yet still reports 0; the offset it was to scroll to stays saved.
+        else if (!_scrollPending)
+            _savedOffset = new Windows.Foundation.Point(_bodyScroll.HorizontalOffset, _bodyScroll.VerticalOffset);
         _bodyScroll = null;
         _flinging = false;
         _headerScroll = null;

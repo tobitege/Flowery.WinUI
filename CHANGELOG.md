@@ -43,7 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Photos: the crop aspect ratio belongs to the photo it was chosen for. It is reset on the next photo and on Revert, and a quarter turn swaps it (16:9 becomes 9:16), also when the turn is undone, so the highlighted button and the crop handles match the photo.
 - Photos: in the Markup tab with the before/after comparison on, a drag on the divider moves it instead of drawing a stroke into the hidden "before" half. The pointer shows the same order.
 - Photos: closing the window with unsaved edits asks whether to save a copy or discard them, as closing the viewer does. Closing during a slideshow only stops it and frees the images instead of restoring the window first.
-- Security: CI, the release workflow, the NuGet audit and the dependency graph use the .NET SDK 10.0.403 with runtime 10.0.14 (was 10.0.402), which fixes CVE-2026-111497 (.NET Brotli decoder out-of-bounds write) and CVE-2026-70197 (.NET remote code execution). The published apps include that runtime.
+- `DaisyScheduler` keeps its scroll position when it renders twice in a row, as after a change of `Size`: the second render saved the offset of the body the first one had just built, which WinUI had not scrolled yet, so the Day, Week, Planner or Timeline view sometimes jumped back to its start.
+- Security: CI, the release workflow, the NuGet audit and the dependency graph use the .NET SDK 10.0.404 with runtime 10.0.15 (was 10.0.402), which fixes CVE-2026-111497 (.NET Brotli decoder out-of-bounds write), CVE-2026-70197 (.NET remote code execution), five further remote code execution vulnerabilities in the .NET runtime (CVE-2026-118745, CVE-2026-114151, CVE-2026-114152, CVE-2026-114158, CVE-2026-114159) and six in the ASP.NET Core runtime (CVE-2026-114146, CVE-2026-114147, CVE-2026-114149, CVE-2026-114154, CVE-2026-114157, CVE-2026-109476). The published apps include that runtime.
 
 ## [1.12.0] - 2026-10-30
 
