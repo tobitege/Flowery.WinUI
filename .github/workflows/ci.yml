@@ -39,13 +39,13 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 10.0.403
+          dotnet-version: 10.0.404
       - name: Create NuGet package
-        run: ./scripts/build_nuget.ps1 -Configuration Release -OutputDir ./artifacts -SdkVersion '10.0.403'
+        run: ./scripts/build_nuget.ps1 -Configuration Release -OutputDir ./artifacts -SdkVersion '10.0.404'
       - name: Run native Windows tests
-        run: ./scripts/test_windows.ps1 -Configuration Release -SdkVersion '10.0.403' -SkipBuild
+        run: ./scripts/test_windows.ps1 -Configuration Release -SdkVersion '10.0.404' -SkipBuild
       - name: Run native Kiosk tests
-        run: ./scripts/test_kiosk.ps1 -Configuration Release -SdkVersion '10.0.403' -SkipBuild
+        run: ./scripts/test_kiosk.ps1 -Configuration Release -SdkVersion '10.0.404' -SkipBuild
 
   # Mirrors the release build-gallery job so self-contained publishing is verified in PRs.
   build-gallery:
@@ -57,17 +57,17 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 10.0.403
+          dotnet-version: 10.0.404
       - name: Publish Gallery App (Windows, NativeAOT)
-        run: ./scripts/publish_windows.ps1 -Configuration Release -RuntimeIdentifier win-x64 -Aot -OutputDir publish -SdkVersion '10.0.403'
+        run: ./scripts/publish_windows.ps1 -Configuration Release -RuntimeIdentifier win-x64 -Aot -OutputDir publish -SdkVersion '10.0.404'
       - name: Run the Gallery smoke run on the NativeAOT build
         run: ./scripts/test_gallery_smoke.ps1 -Configuration Release -ExecutablePath ./publish/Flowery.WinUI.Gallery.exe
       - name: Publish Kiosk App (Windows, NativeAOT)
-        run: ./scripts/publish_windows.ps1 -Application Kiosk -Configuration Release -Aot -OutputDir publish-kiosk -SdkVersion '10.0.403'
+        run: ./scripts/publish_windows.ps1 -Application Kiosk -Configuration Release -Aot -OutputDir publish-kiosk -SdkVersion '10.0.404'
       - name: Run native Kiosk tests on the NativeAOT build
         run: ./scripts/test_kiosk.ps1 -Configuration Release -ExecutablePath ./publish-kiosk/Flowery.WinUI.Kiosk.exe
       - name: Publish Photos App (Windows, NativeAOT)
-        run: ./scripts/publish_windows.ps1 -Application Photos -Configuration Release -Aot -OutputDir publish-photos -SdkVersion '10.0.403'
+        run: ./scripts/publish_windows.ps1 -Application Photos -Configuration Release -Aot -OutputDir publish-photos -SdkVersion '10.0.404'
       - name: Start the NativeAOT Photos
         run: ./scripts/test_photos_start.ps1 -ExecutablePath ./publish-photos/Flowery.WinUI.Photos.exe
 
@@ -78,7 +78,7 @@ jobs:
       matrix:
         configuration: [Debug, Release]
         sdk:
-          - version: '10.0.403'
+          - version: '10.0.404'
             quality: ga
             name: net10
           - version: '11.0.100-rc.2.26504.105'
@@ -89,7 +89,7 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
-            10.0.403
+            10.0.404
             ${{ matrix.sdk.version }}
           dotnet-quality: ${{ matrix.sdk.quality }}
       - name: Build native Windows solution
